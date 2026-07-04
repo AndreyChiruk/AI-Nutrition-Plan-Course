@@ -1,0 +1,47 @@
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
+import { assertUserAccess } from '../auth/request-access.util';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { BodyAnalysisService } from './body-analysis.service';
+
+@Controller('body-analysis')
+@UseGuards(JwtAuthGuard)
+export class BodyAnalysisController {
+  constructor(private readonly bodyAnalysisService: BodyAnalysisService) {}
+
+  @Post('analyze')
+  analyze(
+    @Req() req: Request & { user?: { sub?: number; role?: string } },
+    @Body() body: { userId: string; photoUrl: string },
+  ) {
+    assertUserAccess(req.user, body.userId);
+    return this.bodyAnalysisService.uploadAndAnalyze(body.userId, body.photoUrl);
+  }
+
+  @Post('forecast')
+  forecast(
+    @Req() req: Request & { user?: { sub?: number; role?: string } },
+    @Body() body: { userId: string; durationWeeks?: number },
+  ) {
+    assertUserAccess(req.user, body.userId);
+    return this.bodyAnalysisService.generateVisualForecast(body.userId, body.durationWeeks);
+  }
+
+  @Get('basic-recommendations/:userId')
+  basicRecommendations(
+    @Req() req: Request & { user?: { sub?: number; role?: string } },
+    @Param('userId') userId: string,
+  ) {
+    assertUserAccess(req.user, userId);
+    return this.bodyAnalysisService.getBasicRecommendations(userId);
+  }
+
+  @Get('page-state/:userId')
+  pageState(
+    @Req() req: Request & { user?: { sub?: number; role?: string } },
+    @Param('userId') userId: string,
+  ) {
+    assertUserAccess(req.user, userId);
+    return this.bodyAnalysisService.getPageState(userId);
+  }
+}

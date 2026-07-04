@@ -1,0 +1,14 @@
+node_modules
+frontend/node_modules
+dist
+frontend/dist
+.git
+.github
+*.md
+coverage
+.nyc_output
+.env
+.env.*
+terminals
+docker/nginx/certs/*.key
+docker/nginx/certs/*.crt

@@ -1,0 +1,3 @@
+ALTER TABLE users ADD COLUMN IF NOT EXISTS dietary_restrictions JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS calorie_mode VARCHAR(16);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS calorie_band VARCHAR(16);

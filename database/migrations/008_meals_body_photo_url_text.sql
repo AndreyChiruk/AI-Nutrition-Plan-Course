@@ -1,0 +1,2 @@
+ALTER TABLE meals ALTER COLUMN "photoUrl" TYPE TEXT;
+ALTER TABLE body_analyses ALTER COLUMN "photoUrl" TYPE TEXT;

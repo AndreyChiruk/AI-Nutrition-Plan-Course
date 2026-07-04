@@ -1,0 +1,1 @@
+ALTER TABLE products ADD COLUMN IF NOT EXISTS match_keywords JSONB NOT NULL DEFAULT '[]'::jsonb;

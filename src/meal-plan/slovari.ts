@@ -1,0 +1,125 @@
+export type DietaryKey =
+  | 'vegetarian'
+  | 'vegan'
+  | 'lactose-free'
+  | 'gluten-free'
+  | 'keto'
+  | 'paleo'
+  | 'low-carb'
+  | 'high-protein';
+
+export const DIET_SYNONYMS: Record<string, DietaryKey> = {
+  vegetarian: 'vegetarian',
+  'вегетарианство': 'vegetarian',
+  vegan: 'vegan',
+  'веган': 'vegan',
+  'веганство': 'vegan',
+  'lactose-free': 'lactose-free',
+  'безлактозная': 'lactose-free',
+  'без лактозы': 'lactose-free',
+  'gluten-free': 'gluten-free',
+  'безглютеновая': 'gluten-free',
+  'без глютена': 'gluten-free',
+  keto: 'keto',
+  'кето': 'keto',
+  paleo: 'paleo',
+  'палео': 'paleo',
+  'low-carb': 'low-carb',
+  'низкоуглеводная': 'low-carb',
+  'high-protein': 'high-protein',
+  'высокобелковая': 'high-protein',
+};
+
+export const DIET_FORBIDDEN_INGREDIENTS: Record<DietaryKey, string[]> = {
+  vegetarian: [
+    'мяс', 'говядин', 'бычк', 'бычий', 'теля', 'телят', 'свинин', 'баран', 'барань', 'ягнят', 'кролик', 'субпродукт',
+    'ливер', 'фарш', 'козл', 'козлят', 'козий', 'оленин', 'олен', 'конин', 'курятин', 'утятин',
+    'кури', 'курин', 'индей', 'индюш', 'утк', 'утин', 'гус', 'гусин', 'перепел', 'цыплён', 'цыплен',
+    'бекон', 'ветчин', 'сосис', 'сардел', 'колбас', 'шпик', 'копченост', 'ребрышк', 'корейк', 'эскалоп',
+    'рыб', 'лосос', 'семг', 'форел', 'тун', 'треск', 'минтай', 'сардин', 'анчоус', 'икр',
+    'кревет', 'мид', 'кальмар', 'осьминог', 'краб', 'омар', 'лангуст', 'устриц', 'гребешк',
+    'желатин', 'сычуж', 'ичигак', 'сугудай',
+    'beef', 'veal', 'oxtail', 'ox tail', 'ox-tail', 'pork', 'lamb', 'mutton', 'goat', 'rabbit', 'meat', 'offal', 'liver', 'bacon', 'ham',
+    'sausage', 'chicken', 'turkey', 'duck', 'goose', 'quail', 'broth', 'stock', 'confit',
+    'fish', 'salmon', 'tuna', 'cod', 'pollock', 'anchovy', 'caviar', 'venison',
+    'shrimp', 'prawn', 'mussel', 'squid', 'octopus', 'crab', 'lobster', 'oyster', 'scallop',
+    'gelatin', 'rennet',
+  ],
+  vegan: [
+    'мяс', 'говядин', 'бычк', 'бычий', 'теля', 'телят', 'свинин', 'баран', 'барань', 'ягнят', 'кролик', 'субпродукт',
+    'ливер', 'фарш', 'козл', 'козлят', 'козий', 'оленин', 'олен', 'конин', 'курятин', 'утятин',
+    'кури', 'курин', 'индей', 'индюш', 'утк', 'утин', 'гус', 'гусин', 'перепел', 'цыплён', 'цыплен',
+    'бекон', 'ветчин', 'сосис', 'сардел', 'колбас', 'шпик', 'копченост', 'ребрышк', 'корейк', 'эскалоп',
+    'рыб', 'лосос', 'семг', 'форел', 'тун', 'треск', 'минтай', 'сардин', 'анчоус', 'икр',
+    'кревет', 'мид', 'кальмар', 'осьминог', 'краб', 'омар', 'лангуст', 'устриц', 'гребешк',
+    'желатин', 'сычуж', 'ичигак', 'сугудай',
+    'beef', 'veal', 'oxtail', 'ox tail', 'ox-tail', 'pork', 'lamb', 'mutton', 'goat', 'rabbit', 'meat', 'offal', 'liver', 'bacon', 'ham',
+    'sausage', 'chicken', 'turkey', 'duck', 'goose', 'quail', 'broth', 'stock', 'confit',
+    'fish', 'salmon', 'tuna', 'cod', 'pollock', 'anchovy', 'caviar', 'venison',
+    'shrimp', 'prawn', 'mussel', 'squid', 'octopus', 'crab', 'lobster', 'oyster', 'scallop',
+    'gelatin', 'rennet',
+    'молок', 'сливк', 'сметан', 'кефир', 'йогурт', 'творог', 'сыр', 'лактоз', 'казеин', 'сыворот',
+    'яйц', 'омлет', 'скрэмбл', 'альбумин', 'меланж', 'майонез',
+    'мед', 'мёд',
+    'milk', 'cream', 'yogurt', 'kefir', 'curd', 'cottage cheese', 'cheese', 'lactose', 'casein', 'whey',
+    'egg', 'omelette', 'scramble', 'albumin', 'mayo',
+    'honey',
+  ],
+  'lactose-free': [
+    'молок', 'сливк', 'сметан', 'кефир', 'йогурт', 'творог', 'сыр', 'лактоз', 'казеин', 'сыворот', 'пахт',
+    'milk', 'cream', 'kefir', 'yogurt', 'curd', 'cheese', 'lactose', 'casein', 'whey', 'buttermilk',
+  ],
+  'gluten-free': [
+    'пшен', 'рож', 'ячмен', 'овес', 'овёс', 'глютен', 'мука', 'манк', 'булгур', 'кускус', 'солод', 'сейтан',
+    'хлеб', 'лаваш', 'пита', 'тортиль', 'макарон', 'спагетти', 'вермишел', 'лапш',
+    'wheat', 'rye', 'barley', 'oat', 'gluten', 'flour', 'semolina', 'bulgur', 'couscous', 'malt',
+    'seitan', 'bread', 'pita', 'tortilla', 'pasta', 'spaghetti', 'vermicelli', 'noodle',
+  ],
+  keto: [],
+  paleo: [
+    'пшен', 'рож', 'ячмен', 'овес', 'овёс', 'глютен', 'мука', 'манк', 'булгур', 'кускус', 'солод',
+    'рис', 'гречк', 'перлов', 'макарон', 'лапш',
+    'фасол', 'чечевиц', 'нут', 'горох', 'соя', 'тофу', 'боб',
+    'молок', 'сливк', 'сметан', 'кефир', 'йогурт', 'творог', 'сыр', 'лактоз',
+  ],
+  'low-carb': [],
+  'high-protein': [],
+};
+
+export const ALLERGEN_SYNONYMS: Record<string, string> = {
+  lactose: 'лактоза',
+  молоко: 'лактоза',
+  лактоза: 'лактоза',
+  gluten: 'глютен',
+  глютен: 'глютен',
+  peanut: 'арахис',
+  peanuts: 'арахис',
+  арахис: 'арахис',
+  nuts: 'орехи',
+  nut: 'орехи',
+  орех: 'орехи',
+  орехи: 'орехи',
+  seafood: 'морепродукты',
+  shellfish: 'морепродукты',
+  морепродукты: 'морепродукты',
+  egg: 'яйца',
+  eggs: 'яйца',
+  яйцо: 'яйца',
+  яйца: 'яйца',
+  soy: 'соя',
+  soya: 'соя',
+  соя: 'соя',
+  fish: 'рыба',
+  рыба: 'рыба',
+};
+
+export const ALLERGEN_INGREDIENTS: Record<string, string[]> = {
+  лактоза: ['молок', 'лактоз', 'сыворот', 'казеин', 'сливк', 'сметан', 'йогурт', 'кефир', 'творог', 'сыр', 'milk', 'lactose', 'whey', 'casein', 'cream', 'yogurt', 'cheese'],
+  глютен: ['глютен', 'пшен', 'рож', 'ячмен', 'овес', 'овёс', 'мука', 'солод', 'булгур', 'кускус', 'wheat', 'rye', 'barley', 'oat', 'gluten', 'flour', 'malt', 'bulgur', 'couscous'],
+  арахис: ['арахис', 'peanut'],
+  орехи: ['орех', 'миндал', 'фунд', 'кешью', 'пекан', 'фисташ', 'макадам', 'грецк', 'nut', 'almond', 'hazelnut', 'cashew', 'pecan', 'pistachio', 'macadamia', 'walnut'],
+  морепродукты: ['кревет', 'мид', 'кальмар', 'осьминог', 'краб', 'омар', 'лангуст', 'устриц', 'гребешк', 'shrimp', 'prawn', 'mussel', 'squid', 'octopus', 'crab', 'lobster', 'oyster', 'scallop'],
+  яйца: ['яйц', 'омлет', 'скрэмбл', 'белок яйц', 'желток', 'egg', 'omelette', 'scramble', 'albumin', 'yolk'],
+  соя: ['соя', 'соев', 'тофу', 'эдамаме', 'мисо', 'темпе', 'soy', 'soya', 'tofu', 'edamame', 'miso', 'tempeh'],
+  рыба: ['рыб', 'лосос', 'тунец', 'треск', 'минтай', 'сардин', 'анчоус', 'скумбр', 'fish', 'salmon', 'tuna', 'cod', 'pollock', 'sardine', 'anchovy', 'mackerel'],
+};

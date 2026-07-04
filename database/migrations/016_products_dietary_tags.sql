@@ -1,0 +1,2 @@
+ALTER TABLE IF EXISTS products
+  ADD COLUMN IF NOT EXISTS dietary_tags JSONB NOT NULL DEFAULT '[]'::jsonb;
