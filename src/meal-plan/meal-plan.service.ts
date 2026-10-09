@@ -654,6 +654,32 @@ export class MealPlanService {
     return this.finalizeGeneratedPlanDays(days, user, pref, pools);
   }
 
+  /**
+   * Подбирает блюдо для слота, когда подходящих не осталось.
+   *
+   * Раньше в этом случае ставилась заглушка «Блюдо (breakfast)» с
+   * усреднёнными 300 ккал. Такие записи выглядели как настоящие блюда,
+   * но не существовали в каталоге, и при нехватке вариантов занимали
+   * половину плана.
+   *
+   * Теперь повторяется реальное блюдо: сначала из того же слота, затем
+   * из любого другого. Дубликат допустим — показать существующее блюдо
+   * дважды лучше, чем выдуманное.
+   */
+  private pickReusableDish(
+    slot: MealSlotKey,
+    pools: Record<MealSlotKey, Product[]>,
+    fallbackAny: Product[],
+    seed: number,
+  ): Product | null {
+    const own = pools[slot] ?? [];
+    const source = own.length > 0 ? own : fallbackAny;
+    if (source.length === 0) return null;
+    // Смещение по seed даёт разные блюда в разных днях,
+    // а не одно и то же во всех пустых слотах.
+    return source[seed % source.length] ?? source[0] ?? null;
+  }
+
   private productPreferenceScore(product: Product, pref: PreferenceContext): number {
     const n = normalizeRuFoodText(product.name);
     const hay = this.dishHaystackForProduct(product);
@@ -822,7 +848,7 @@ export class MealPlanService {
     };
 
     const out: SaveMealPlanDayDto[] = [];
-    for (const d of days) {
+    for (const [dayIndex, d] of days.entries()) {
       const breakfast = fixSnap(d.breakfast, 'breakfast');
       const lunch = fixSnap(d.lunch, 'lunch');
       const dinner = fixSnap(d.dinner, 'dinner');
@@ -831,8 +857,15 @@ export class MealPlanService {
         .map((s) => fixSnap(s, 'snack'))
         .filter(Boolean) as MealSlotSnapshot[];
 
-      // Если основной слот остался пустым (заменить было нечем) — заполняем
-      // заглушкой, а не оставляем алкоголь.
+      // Если слот пуст, повторяем подходящее блюдо из пула.
+      // Заглушка «Блюдо (cat)» используется только при пустом каталоге.
+      const reuse = (cat: MealSlotKey, seed: number): MealSlotSnapshot | null => {
+        const source = poolFor(cat);
+        if (source.length === 0) return null;
+        const dish = source[(dayIndex + seed) % source.length] ?? source[0];
+        return dish ? this.snapshotFromProduct(dish, cat) : null;
+      };
+
       const fallbackSlot = (cat: MealSlotKey): MealSlotSnapshot => ({
         name: `Блюдо (${cat})`,
         calories: 300,
@@ -845,10 +878,10 @@ export class MealPlanService {
 
       out.push({
         ...d,
-        breakfast: breakfast ?? fallbackSlot('breakfast'),
-        lunch: lunch ?? fallbackSlot('lunch'),
-        dinner: dinner ?? fallbackSlot('dinner'),
-        snack: snack ?? fallbackSlot('snack'),
+        breakfast: breakfast ?? reuse('breakfast', 1) ?? fallbackSlot('breakfast'),
+        lunch: lunch ?? reuse('lunch', 2) ?? fallbackSlot('lunch'),
+        dinner: dinner ?? reuse('dinner', 3) ?? fallbackSlot('dinner'),
+        snack: snack ?? reuse('snack', 4) ?? fallbackSlot('snack'),
         extraSnacks,
       });
     }
@@ -1832,6 +1865,21 @@ export class MealPlanService {
         [b, l, d, s1, s2] = refined.products;
       }
 
+      // Если блюдо не подобрано, повторяем существующее из пула,
+      // а не подставляем выдуманную запись.
+      const fallbackDish = (cat: MealSlotKey, seed: number): Product | null =>
+        this.pickReusableDish(cat, pools, fallbackAnyPool, index + seed);
+
+      const pick = (cat: MealSlotKey, chosen: Product | null, seed: number) =>
+        chosen ?? fallbackDish(cat, seed);
+
+      b = pick('breakfast', b, 1);
+      l = pick('lunch', l, 2);
+      d = pick('dinner', d, 3);
+      s1 = pick('snack', s1, 4);
+      s2 = pick('snack', s2, 5);
+
+      // Заглушка остаётся только на случай полностью пустого каталога.
       const fallback = (cat: MealSlotKey): MealSlotSnapshot => ({
         name: `Блюдо (${cat})`,
         calories: 300,
@@ -2598,10 +2646,15 @@ export class MealPlanService {
     // блюд каждого слота, равномерно распределённых по калорийности
     // (функция stridedPoolSample уже используется в других ветках).
     const perSlot = Number(process.env.AI_CATALOG_PER_SLOT ?? 150) || 150;
+    // Для AI берём ТОЛЬКО проверенный каталог (isFromApi = true).
+    //
+    // Пользовательские продукты проходят модерацию и попадают в общий
+    // список, но их названия и состав не выверены: в план попадали записи
+    // вида «Тест модерации t6». Для генерации такие блюда непригодны.
     const byCategory = await Promise.all(
       (['breakfast', 'lunch', 'dinner', 'snack'] as const).map((cat) =>
         this.productModel.findAll({
-          where: { category: cat, isPublished: { [Op.ne]: false } },
+          where: { category: cat, isPublished: { [Op.ne]: false }, isFromApi: true },
           order: [
             ['calories', 'ASC'],
             ['id', 'ASC'],
@@ -2725,10 +2778,15 @@ export class MealPlanService {
     // блюд каждого слота, равномерно распределённых по калорийности
     // (функция stridedPoolSample уже используется в других ветках).
     const perSlot = Number(process.env.AI_CATALOG_PER_SLOT ?? 150) || 150;
+    // Для AI берём ТОЛЬКО проверенный каталог (isFromApi = true).
+    //
+    // Пользовательские продукты проходят модерацию и попадают в общий
+    // список, но их названия и состав не выверены: в план попадали записи
+    // вида «Тест модерации t6». Для генерации такие блюда непригодны.
     const byCategory = await Promise.all(
       (['breakfast', 'lunch', 'dinner', 'snack'] as const).map((cat) =>
         this.productModel.findAll({
-          where: { category: cat, isPublished: { [Op.ne]: false } },
+          where: { category: cat, isPublished: { [Op.ne]: false }, isFromApi: true },
           order: [
             ['calories', 'ASC'],
             ['id', 'ASC'],

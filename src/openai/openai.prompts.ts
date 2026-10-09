@@ -99,9 +99,24 @@ export const buildNutritionRecommendationPrompt = (
 
 type MealPlanCatalogInput = MealPlanInput & { dishNames: string[] };
 
+/**
+ * Собирает блок со списком допустимых блюд.
+ *
+ * Раньше список обрезался по 12 000 символов, и при большом каталоге
+ * часть названий не попадала в промпт: модель их не видела, предлагала
+ * блюда «по памяти», и они не проходили проверку — отсюда десятки замен
+ * и заглушки в плане.
+ *
+ * Ограничение теперь считается в количестве блюд, а не символов, и
+ * задаётся переменной AI_CATALOG_MAX_NAMES.
+ */
+const catalogNameLimit = () =>
+  Math.max(50, Number(process.env.AI_CATALOG_MAX_NAMES ?? 700) || 700);
+
 export const buildMealPlanFromCatalogPrompt = (input: MealPlanCatalogInput) => {
-  const fullList = input.dishNames.join('\n');
-  const listBlock = fullList.length > 12000 ? `${fullList.slice(0, 12000)}\n...` : fullList;
+  const limit = catalogNameLimit();
+  const used = input.dishNames.slice(0, limit);
+  const listBlock = used.join('\n');
   return `Составь план питания на ${input.days} дней. Используй ТОЛЬКО названия блюд из списка ниже (копируй строку точно, без выдуманных блюд).
 
 Полный список допустимых названий (каждая строка — одно блюдо):
@@ -153,8 +168,9 @@ export type ConstructorRefinementCatalogInput = MealPlanCatalogInput & {
 };
 
 export const buildConstructorRefinementPrompt = (input: ConstructorRefinementCatalogInput) => {
-  const fullList = input.dishNames.join('\n');
-  const listBlock = fullList.length > 12000 ? `${fullList.slice(0, 12000)}\n...` : fullList;
+  const limit = catalogNameLimit();
+  const used = input.dishNames.slice(0, limit);
+  const listBlock = used.join('\n');
   const planBlock = input.currentPlanLines.join('\n');
   const audit = (input.auditHint ?? '').trim();
   const compactMode = input.days >= 14;

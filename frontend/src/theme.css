@@ -424,7 +424,7 @@ button:not(.nav-link):not(.auth-tabs button):not(.auth-subtabs button):not(.ghos
 }
 
 button:not(.nav-link):not(.auth-tabs button):not(.auth-subtabs button):not(.ghost-icon):not(.allergy-chip):not(.goal-card):not(.btn-secondary):not(.cell-card):not(.link-btn):hover {
-  background: var(--primary-dark) !important;
+  /* background: var(--primary-dark) !important; */
   box-shadow: 0 4px 14px rgba(76, 175, 80, 0.35);
 }
 
