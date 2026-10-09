@@ -247,3 +247,25 @@ h3 { font-size: 1rem !important; }
 .logo-icon {
   display: none !important;
 }
+
+/* ── 11. Показатели на главной ────────────────────────────────
+   Рамку убираем. Подпись и значение разносим по строкам: в одну
+   строку они сливались («Блюд в каталоге1984»). */
+.dashboard-metrics {
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+.metric {
+  display: block !important;   /* было flex в одну строку */
+  gap: 0 !important;
+}
+
+.metric-label {
+  display: block !important;
+  margin: 0 0 2px 0 !important;
+}
+
+.metric-value {
+  display: block !important;
+}
