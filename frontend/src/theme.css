@@ -412,7 +412,7 @@ html[data-theme='dark'] .auth-subtabs button:hover {
 
 
 button:not(.nav-link):not(.auth-tabs button):not(.auth-subtabs button):not(.ghost-icon):not(.allergy-chip):not(.goal-card):not(.btn-secondary):not(.cell-card):not(.link-btn) {
-  color: #fff !important;
+  /* color: #fff !important; */
   border: none !important;
   font-weight: 600;
   border-radius: var(--radius-md) !important;

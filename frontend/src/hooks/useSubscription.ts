@@ -86,6 +86,28 @@ export function useSubscription() {
   }, [searchParams, setSearchParams, user]);
 
   /**
+   * Перечитывает подписку напрямую в Stripe.
+   *
+   * В отличие от `refresh`, который читает нашу базу, этот метод
+   * спрашивает платёжную систему. Нужен, когда вебхук не дошёл:
+   * например, оплата прошла в другой вкладке, а страница открыта давно.
+   *
+   * Возвращает текст ошибки или null при успехе.
+   */
+  const syncFromStripe = useCallback(async (): Promise<string | null> => {
+    if (!user) return 'Требуется вход в систему.';
+    try {
+      setData(await subscriptionApi.sync());
+      return null;
+    } catch (err) {
+      return (
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'Не удалось проверить подписку в Stripe.'
+      );
+    }
+  }, [user]);
+
+  /**
    * Открывает Stripe Checkout.
    * Возвращает текст ошибки или null при успехе.
    */
@@ -128,7 +150,8 @@ export function useSubscription() {
     /** Остаток бесплатных сообщений; null при активной подписке. */
     chatMessagesLeft: data?.chatMessagesLeft ?? null,
     loading,
-    refresh,
+    /** Проверка подписки напрямую в Stripe (кнопка «Обновить статус»). */
+    syncFromStripe,
     startCheckout,
     openPortal,
   };

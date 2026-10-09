@@ -48,7 +48,7 @@ export function SubscriptionCard() {
     cancelAtPeriodEnd,
     chatMessagesLeft,
     loading,
-    refresh,
+    syncFromStripe,
     startCheckout,
     openPortal,
   } = useSubscription();
@@ -116,7 +116,12 @@ export function SubscriptionCard() {
               <Settings size={15} aria-hidden />
               Управлять подпиской
             </button>
-            <button type="button" className="btn-link-outline" onClick={() => void refresh()}>
+            <button
+              type="button"
+              className="btn-link-outline"
+              disabled={busy}
+              onClick={() => void runAction(syncFromStripe)}
+            >
               Обновить статус
             </button>
           </div>
@@ -149,7 +154,12 @@ export function SubscriptionCard() {
               {busy ? <Loader2 size={15} className="pref-spinner" /> : <CreditCard size={15} />}
               Оформить подписку
             </button>
-            <button type="button" className="btn-link-outline" onClick={() => void refresh()}>
+            <button
+              type="button"
+              className="btn-link-outline"
+              disabled={busy}
+              onClick={() => void runAction(syncFromStripe)}
+            >
               Обновить статус
             </button>
           </div>
