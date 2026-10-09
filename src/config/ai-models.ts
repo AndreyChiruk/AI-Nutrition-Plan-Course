@@ -38,7 +38,13 @@ export const AI_MODELS = {
   CHAT: model('AI_MODEL_CHAT'),
 
   /** Генерация изображений (план питания в виде картинки). */
-  IMAGE: process.env['AI_MODEL_IMAGE']?.trim() || 'openai/gpt-image-1',
+  // Модель генерации изображений для прогноза фигуры.
+  //
+  // `openai/gpt-image-1` здесь не подходит: OpenRouter отвечает на неё
+  // ошибкой «image generation model cannot be used with chat/completions»,
+  // а эндпоинт /images недоступен (403 по региону). Поэтому по умолчанию
+  // берём модель, которая принимает фото и текст через chat/completions.
+  IMAGE: process.env['AI_MODEL_IMAGE']?.trim() || 'google/gemini-3.1-flash-image',
 } as const;
 
 export type AiModelKey = keyof typeof AI_MODELS;

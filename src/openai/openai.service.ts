@@ -659,15 +659,8 @@ export class OpenAiService {
     const modelEnv = normalizeModelId(
       process.env.OPENAI_IMAGE_MODEL ?? AI_MODELS.IMAGE,
     );
-    const isMini = modelEnv.includes('mini');
 
-    const editSize: '1024x1024' | '1024x1536' | '1536x1024' | 'auto' = (() => {
-      const s = process.env.OPENAI_FORECAST_IMAGE_SIZE;
-      if (s === '1024x1024' || s === '1024x1536' || s === '1536x1024' || s === 'auto') return s;
-      return '1024x1536';
-    })();
-
-    const runEdit = async (prompt: string, _fidelity: 'high' | 'low') => {
+    const runEdit = async (prompt: string) => {
       // OpenRouter не поддерживает /images/edits — отвечает 404.
       // Поэтому изображение генерируется через chat/completions:
       // исходное фото передаётся как часть сообщения.
@@ -696,15 +689,14 @@ export class OpenAiService {
       return { data: b64 ? [{ b64_json: b64 }] : [] } as ImagesResponse;
     };
 
-    const attempts: Array<{ prompt: string; fidelity: 'high' | 'low' }> = [
-      { prompt: buildBodyForecastImagePrompt(input), fidelity: isMini ? 'low' : 'high' },
-      { prompt: buildBodyForecastImagePromptMinimal(input), fidelity: isMini ? 'low' : 'high' },
-    ];
+    // Две формулировки: если первая отклонена проверками модели,
+    // повторяем с минимальным описанием.
+    const attempts = [buildBodyForecastImagePrompt(input), buildBodyForecastImagePromptMinimal(input)];
 
     for (let i = 0; i < attempts.length; i++) {
-      const { prompt, fidelity } = attempts[i]!;
+      const prompt = attempts[i]!;
       try {
-        const res = await runEdit(prompt, fidelity);
+        const res = await runEdit(prompt);
         const b64 = res.data?.[0]?.b64_json;
         if (!b64) {
           this.logger.warn(`Forecast image: empty data (attempt ${i + 1})`);
