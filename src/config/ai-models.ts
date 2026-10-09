@@ -40,10 +40,14 @@ export const AI_MODELS = {
   /** Генерация изображений (план питания в виде картинки). */
   // Модель генерации изображений для прогноза фигуры.
   //
-  // `openai/gpt-image-1` здесь не подходит: OpenRouter отвечает на неё
-  // ошибкой «image generation model cannot be used with chat/completions»,
-  // а эндпоинт /images недоступен (403 по региону). Поэтому по умолчанию
-  // берём модель, которая принимает фото и текст через chat/completions.
+  // Выбор обоснован проверкой через OpenRouter:
+  //   • openai/gpt-image-1 — не работает с chat/completions (404),
+  //     а эндпоинт /images возвращает 403;
+  //   • openai/gpt-5-image-mini — 403 «unsupported_country_region_territory»:
+  //     OpenAI применяет региональные ограничения даже через шлюз;
+  //   • google/gemini-3.1-flash-image — стабильно 200, два провайдера,
+  //     без ограничений по региону.
+  // Поэтому по умолчанию используется модель Google.
   IMAGE: process.env['AI_MODEL_IMAGE']?.trim() || 'google/gemini-3.1-flash-image',
 } as const;
 
@@ -64,3 +68,20 @@ export function normalizeModelId(raw: string): string {
   // Иначе считаем, что это модель OpenAI.
   return `openai/${value}`;
 }
+
+/**
+ * Резервные модели генерации изображений.
+ *
+ * Если основная модель недоступна (лимит запросов, сбой провайдера),
+ * пробуем следующую. Все перечисленные модели принимают изображение
+ * и текст и не имеют региональных ограничений.
+ *
+ * Задаётся через `AI_MODEL_IMAGE_FALLBACKS` (через запятую).
+ */
+export const AI_IMAGE_FALLBACKS: string[] = (
+  process.env['AI_MODEL_IMAGE_FALLBACKS']?.trim() ||
+  'google/gemini-2.5-flash-image,google/gemini-3.1-flash-lite-image'
+)
+  .split(',')
+  .map((m) => normalizeModelId(m.trim()))
+  .filter(Boolean);

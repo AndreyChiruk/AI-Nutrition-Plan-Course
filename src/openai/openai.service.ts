@@ -5,7 +5,7 @@ import {
   isOpenRouterConfigured,
   OPENROUTER_MISSING_KEY_MESSAGE,
 } from '../config/openrouter';
-import { AI_MODELS, normalizeModelId } from '../config/ai-models';
+import { AI_IMAGE_FALLBACKS, AI_MODELS, normalizeModelId } from '../config/ai-models';
 import type { ImagesResponse } from 'openai/resources/images';
 import { FOOD_RECOGNITION_JSON_SCHEMA, jsonSchemaFormat } from './openai.schemas';
 import { OpenAiUsageService } from './openai-usage.service';
@@ -656,18 +656,21 @@ export class OpenAiService {
       return null;
     }
 
-    const modelEnv = normalizeModelId(
-      process.env.OPENAI_IMAGE_MODEL ?? AI_MODELS.IMAGE,
-    );
+    // Модели пробуются по порядку: основная, затем резервные.
+    // Это защищает от временных лимитов и сбоев у провайдера.
+    const models = [
+      normalizeModelId(process.env.OPENAI_IMAGE_MODEL ?? AI_MODELS.IMAGE),
+      ...AI_IMAGE_FALLBACKS,
+    ];
 
-    const runEdit = async (prompt: string) => {
+    const runEdit = async (model: string, prompt: string) => {
       // OpenRouter не поддерживает /images/edits — отвечает 404.
       // Поэтому изображение генерируется через chat/completions:
       // исходное фото передаётся как часть сообщения.
       const dataUrl = `data:image/png;base64,${png.toString('base64')}`;
       const completion = (await this.client!.chat.completions.create(
         {
-          model: modelEnv,
+          model,
           messages: [
             {
               role: 'user',
@@ -693,10 +696,14 @@ export class OpenAiService {
     // повторяем с минимальным описанием.
     const attempts = [buildBodyForecastImagePrompt(input), buildBodyForecastImagePromptMinimal(input)];
 
-    for (let i = 0; i < attempts.length; i++) {
-      const prompt = attempts[i]!;
+    // Порядок обхода: сначала все формулировки на основной модели,
+    // затем переход к следующей. Так одна недоступная модель не
+    // блокирует генерацию целиком.
+    for (let i = 0; i < attempts.length * models.length; i++) {
+      const model = models[Math.floor(i / attempts.length)]!;
+      const prompt = attempts[i % attempts.length]!;
       try {
-        const res = await runEdit(prompt);
+        const res = await runEdit(model, prompt);
         const b64 = res.data?.[0]?.b64_json;
         if (!b64) {
           this.logger.warn(`Forecast image: empty data (attempt ${i + 1})`);
