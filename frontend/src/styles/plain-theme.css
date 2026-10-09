@@ -226,3 +226,24 @@ h3 { font-size: 1rem !important; }
   content: none !important;
 }
 
+/* ── 9. Блоки на главной: убираем рамки и скругления ──────────
+   Разделительные линии и обводка выглядят «оформленными».
+   Оставляем только отступы между элементами. */
+.section-grid,
+.steps-grid {
+  background: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+.dish-sample {
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* ── 10. Логотип в шапке: только текст ────────────────────────
+   Знак убираем, название остаётся. */
+.logo-mark,
+.logo-icon {
+  display: none !important;
+}

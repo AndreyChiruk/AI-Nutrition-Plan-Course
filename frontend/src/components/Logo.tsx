@@ -10,6 +10,12 @@
  * под светлую и тёмную тему без отдельных файлов.
  */
 
+/**
+ * В обычном режиме знак не рисуется: остаётся только название.
+ * Флаг тот же, что и для остальных иконок (см. components/icons.tsx).
+ */
+const PLAIN = true;
+
 /** Знак без подписи. */
 function LogoMark({ size }: { size: number }) {
   return (
@@ -47,6 +53,10 @@ export function Logo({
   const px = size ?? (variant === 'full' ? 28 : 32);
 
   if (variant === 'icon') {
+    // Без знака отдельная иконка не нужна — показываем название.
+    if (PLAIN) {
+      return <span className={`logo logo-full ${className}`}><span className="logo-text">Планировщик питания</span></span>;
+    }
     return (
       <span className={`logo logo-icon ${className}`} aria-label="Планировщик питания" role="img">
         <LogoMark size={px} />
@@ -56,9 +66,11 @@ export function Logo({
 
   return (
     <span className={`logo logo-full ${className}`}>
-      <span className="logo-mark" aria-hidden>
-        <LogoMark size={px} />
-      </span>
+      {PLAIN ? null : (
+        <span className="logo-mark" aria-hidden>
+          <LogoMark size={px} />
+        </span>
+      )}
       <span className="logo-text">Планировщик питания</span>
     </span>
   );
