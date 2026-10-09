@@ -195,7 +195,7 @@ export const DashboardPage = () => {
             </div>
             <div className="metric">
               <span className="metric-label">Продуктов в справочнике</span>
-              <span className="metric-value">1 200+</span>
+              <span className="metric-value">1200+</span>
             </div>
           </div>
         </section>

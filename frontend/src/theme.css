@@ -162,10 +162,10 @@ html[data-theme='dark'] .sidebar .nav-link svg {
 
 html[data-theme='dark'] .sidebar .nav-link:hover {
   color: var(--text) !important;
-  background: rgba(138, 154, 99, 0.12) !important;
+  background: var(--bg-elevated) !important;
 }
 
-html[data-theme='dark'] .sidebar .nav-link.active {
+html[data-theme='dark'] .sidebar .nav-link.active .nav-link:hover{
   color: var(--text) !important;
   background: var(--bg-elevated-2) !important;
   border-color: rgba(138, 154, 99, 0.35) !important;
@@ -198,7 +198,7 @@ html[data-theme='dark'] .sidebar .nav-link.active {
 
 .sidebar .nav-link:hover {
   color: var(--text) !important;
-  background: rgba(138, 154, 99, 0.12) !important;
+  /* background: rgba(138, 154, 99, 0.12) !important; */
   transform: translateX(2px);
 }
 
@@ -818,7 +818,7 @@ html[data-theme='dark'] .btn-link-outline:hover {
 .progress-track {
   height: 10px;
   border-radius: var(--radius-pill);
-  background: var(--secondary);
+  /* background: var(--secondary); */
   overflow: hidden;
   margin-top: 0.5rem;
 }

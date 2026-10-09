@@ -97,6 +97,18 @@ textarea,
   animation: none !important;
 }
 
+/* Отключая анимации, нужно вернуть конечное состояние тем элементам,
+   которые появлялись через `animation: ... both`. У таких блоков
+   начальный кадр — `opacity: 0`, и без анимации они остаются
+   невидимыми: пустой была левая панель на странице входа. */
+.login-art-title,
+.login-art-caption,
+[class*='fade-in'],
+[class*='animate-'] {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
 .card,
 .section-tile,
 .dish-sample,
@@ -281,7 +293,7 @@ h3 { font-size: 1rem !important; }
   background: transparent !important;
   border: 1px solid var(--line) !important;
   border-radius: 2px !important;
-  color: inherit !important;
+  /* color: inherit !important; */
   font-size: 0.8rem !important;
   padding: 4px 10px !important;
   cursor: pointer;
