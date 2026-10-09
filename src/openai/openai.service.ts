@@ -1,5 +1,4 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
-import { toFile } from 'openai';
 import type OpenAI from 'openai';
 import {
   openrouter,
@@ -668,20 +667,33 @@ export class OpenAiService {
       return '1024x1536';
     })();
 
-    const runEdit = async (prompt: string, fidelity: 'high' | 'low') => {
-      const file = await toFile(png, 'body.png', { type: 'image/png' });
-      return this.client!.images.edit(
+    const runEdit = async (prompt: string, _fidelity: 'high' | 'low') => {
+      // OpenRouter не поддерживает /images/edits — отвечает 404.
+      // Поэтому изображение генерируется через chat/completions:
+      // исходное фото передаётся как часть сообщения.
+      const dataUrl = `data:image/png;base64,${png.toString('base64')}`;
+      const completion = (await this.client!.chat.completions.create(
         {
           model: modelEnv,
-          image: file,
-          prompt,
-          n: 1,
-          size: editSize,
-          stream: false,
-          ...(isMini ? {} : { input_fidelity: fidelity }),
-        } as Parameters<OpenAI['images']['edit']>[0],
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: dataUrl } },
+              ],
+            },
+          ],
+          modalities: ['image', 'text'],
+        } as never,
         { timeout: 180_000 },
-      ) as Promise<ImagesResponse>;
+      )) as unknown as {
+        choices?: Array<{ message?: { images?: Array<{ image_url?: { url?: string } }> } }>;
+      };
+
+      const url = completion.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? '';
+      const b64 = url.includes(',') ? url.slice(url.indexOf(',') + 1) : '';
+      return { data: b64 ? [{ b64_json: b64 }] : [] } as ImagesResponse;
     };
 
     const attempts: Array<{ prompt: string; fidelity: 'high' | 'low' }> = [
