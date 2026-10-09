@@ -183,12 +183,11 @@ export const BodyAnalysisPage = () => {
    * выбор файла — нажатие ничего не делало. Теперь: если фото выбрано,
    * отправляем его; если нет — открываем диалог выбора.
    */
-  const onPhotoButtonClick = async () => {
-    if (!photoUrl) {
-      fileInputRef.current?.click();
-      return;
-    }
-    await uploadBodyPhoto();
+  const onPhotoButtonClick = () => {
+    // Всегда открываем выбор файла: кнопка называется
+    // «Загрузить / заменить фото», поэтому должна позволять выбрать
+    // новое. Отправка происходит сразу после выбора.
+    fileInputRef.current?.click();
   };
 
   /**
@@ -208,21 +207,16 @@ export const BodyAnalysisPage = () => {
       const state = await bodyApi.pageState(user.id);
       applyPageState(state);
       setMessage('Фото успешно загружено и сохранено.');
-      if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
+      // Показываем причину от сервера, а не общую фразу: иначе
+      // непонятно, что именно не так с фотографией.
       setMessage(formatApiError(err, 'Не удалось загрузить фото фигуры.'));
     } finally {
+      // Сбрасываем поле в любом случае: иначе повторный выбор того же
+      // файла не вызовет onChange, и кнопка будет «молчать».
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setBusy(false);
     }
-  };
-
-  const uploadBodyPhoto = async () => {
-    if (!user) return;
-    if (!photoUrl) {
-      fileInputRef.current?.click();
-      return;
-    }
-    await sendPhoto(photoUrl);
   };
 
   const loadDetailedRecommendation = async () => {

@@ -35,7 +35,7 @@ ALTER TABLE meal_plans
 
 -- Индекс для быстрого поиска планов, требующих внимания пользователя.
 CREATE INDEX IF NOT EXISTS meal_plans_restrictions_changed_idx
-  ON meal_plans (user_id, restrictions_changed)
+  ON meal_plans ("userId", restrictions_changed)
   WHERE restrictions_changed = true;
 
 DO $$
