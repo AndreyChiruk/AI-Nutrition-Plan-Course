@@ -36,61 +36,11 @@ type IconProps = SVGProps<SVGSVGElement> & {
 };
 
 /**
- * Текстовые замены для часто используемых иконок.
- * Ключ — имя иконки в Lucide, значение — символ.
- */
-const TEXT_GLYPHS: Record<string, string> = {
-  // Действия
-  Plus: '+',
-  X: '×',
-  Check: '✓',
-  Minus: '−',
-  Trash2: '×',
-  Pencil: '✎',
-  Save: '✓',
-  Copy: '⎘',
-  Download: '↓',
-  Upload: '↑',
-  UploadCloud: '↑',
-  Search: '⟳',
-  RefreshCw: '⟳',
-  Settings: '⚙',
-  LogOut: '→',
-  Eye: '○',
-  EyeOff: '●',
-  Lock: '×',
-
-  // Навигация
-  Menu: '≡',
-  ChevronDown: '▾',
-  ChevronUp: '▴',
-  ChevronLeft: '‹',
-  ChevronRight: '›',
-  ArrowRight: '→',
-  ArrowLeft: '←',
-
-  // Состояния
-  AlertTriangle: '!',
-  AlertCircle: '!',
-  CheckCircle2: '✓',
-  Info: 'i',
-  Loader2: '',
-
-  // Тема
-  Sun: '○',
-  Moon: '●',
-  XCircle: '×',
-  Users2: '○○',
-  KeyRound: '⚿',
-  Droplet: '◦',
-  Utensils: '≡',
-};
-
-/**
- * Возвращает компонент иконки.
+ * Заглушка вместо иконки.
  *
- * В обычном режиме — текстовый символ (`<span>`), иначе — SVG Lucide.
- * Сигнатура совпадает с Lucide, поэтому вызовы менять не нужно.
+ * Сохраняет размер исходной иконки, чтобы разметка не «съезжала»,
+ * но ничего не рисует. Символы, стрелки и галочки не используются:
+ * рядом всегда есть текстовая подпись, которая объясняет назначение.
  */
 function icon(name: string): ComponentType<IconProps> {
   const Original = (Lucide as unknown as Record<string, ComponentType<IconProps>>)[name];
@@ -99,27 +49,19 @@ function icon(name: string): ComponentType<IconProps> {
     return Original ?? (() => null);
   }
 
-  const Plain = ({ size = 16, className = '', ...rest }: IconProps) => {
-    const glyph = TEXT_GLYPHS[name];
-    // Для иконок без замены ничего не рисуем: подпись рядом уже
-    // объясняет назначение элемента.
-    if (!glyph) return null;
-
+  const Placeholder = ({ size = 16, className = '' }: IconProps) => {
     const px = typeof size === 'number' ? size : Number(size) || 16;
     return (
       <span
-        className={`icon-glyph ${className}`.trim()}
-        style={{ fontSize: Math.max(11, Math.round(px * 0.85)), lineHeight: 1 }}
+        className={`icon-placeholder ${className}`.trim()}
+        style={{ width: px, height: px }}
         aria-hidden
-        {...(rest as Record<string, unknown>)}
-      >
-        {glyph}
-      </span>
+      />
     );
   };
 
-  Plain.displayName = `Plain${name}`;
-  return Plain;
+  Placeholder.displayName = `Plain${name}`;
+  return Placeholder;
 }
 
 // ─── Экспорт иконок, используемых в проекте ──────────────────────────────
