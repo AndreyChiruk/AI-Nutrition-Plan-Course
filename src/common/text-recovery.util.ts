@@ -99,8 +99,23 @@ export function recoverIfMojibake(input: unknown): string {
 export function recoverDeep<T>(value: T): T {
   if (typeof value === 'string') return recoverIfMojibake(value) as unknown as T;
   if (Array.isArray(value)) return value.map((v) => recoverDeep(v)) as unknown as T;
+
+  // Особые объекты нельзя пересобирать через Object.entries: у Date нет
+  // собственных перечислимых свойств, поэтому вместо даты получался
+  // пустой объект. При записи в БД это давало ошибку
+  // `invalid input syntax for type timestamp: "Invalid date"`.
+  if (value instanceof Date) return value;
+  if (value instanceof RegExp || value instanceof Error) return value;
+  if (Buffer.isBuffer(value)) return value;
+
   if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
+    // Сохраняем прототип: для экземпляров классов (модели Sequelize,
+    // вложенные объекты) обычный литерал потерял бы их поведение.
+    const proto = Object.getPrototypeOf(value);
+    const out: Record<string, unknown> =
+      proto === Object.prototype || proto === null
+        ? {}
+        : (Object.create(proto) as Record<string, unknown>);
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       out[k] = recoverDeep(v);
     }
