@@ -171,11 +171,11 @@ export class OpenAiService {
         max_output_tokens: this.maxOutputTokens,
       });
 
-      const text = response.output_text?.trim();
-      if (!text) throw new Error('OpenAI returned empty response text');
+      const text = this.responsesPlainText(response).trim();
+      if (!text) throw new Error('Ответ AI пуст (нет output_text и output[].content[])');
       return parseBodyAnalysisResponse(text);
     } catch (error) {
-      this.logger.warn(`Body analysis fallback used: ${String(error)}`);
+      this.logger.error(`Анализ тела не выполнен: ${describeAiError(error)}`);
       return {
         estimatedBodyFat: 20,
         estimatedMuscleMass: 40,
@@ -215,7 +215,7 @@ export class OpenAiService {
         durationMs: Date.now() - startedAt,
       });
 
-      const text = response.output_text?.trim();
+      const text = this.responsesPlainText(response).trim();
       if (!text) throw new Error('OpenAI returned empty food recognition text');
       return parseFoodImageRecognitionResponse(text);
     } catch (error) {
@@ -241,6 +241,22 @@ export class OpenAiService {
 
   isConfigured() {
     return Boolean(this.client);
+  }
+
+  /**
+   * Извлекает текст ответа Responses API.
+   *
+   * Поле `output_text` есть только в SDK OpenAI. OpenRouter (и некоторые
+   * прокси) возвращают текст в `output[].content[]`, поэтому читать
+   * `output_text` напрямую нельзя — ответ считался бы пустым, и все
+   * функции AI молча отдавали заглушки.
+   */
+  private responsesPlainText(response: unknown): string {
+    const r = response as { output_text?: unknown; output?: unknown };
+    if (typeof r?.output_text === 'string' && r.output_text.trim()) {
+      return r.output_text;
+    }
+    return this.responsesOutputPlainText(r?.output);
   }
 
   private responsesOutputPlainText(output: unknown): string {
@@ -311,7 +327,7 @@ export class OpenAiService {
           input: prompt,
           max_output_tokens: Math.max(this.maxOutputTokens, 900),
         });
-        const text = response.output_text?.trim();
+        const text = this.responsesPlainText(response).trim();
         if (!text) {
           if (attempt < retries) {
             await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
@@ -389,7 +405,7 @@ export class OpenAiService {
         input: prompt,
         max_output_tokens: this.maxOutputTokens,
       });
-      const text = response.output_text?.trim();
+      const text = this.responsesPlainText(response).trim();
       if (!text) throw new Error('OpenAI returned empty response text');
       return parseNutritionRecommendationResponse(text);
     } catch (error) {
@@ -429,7 +445,7 @@ export class OpenAiService {
         input: prompt,
         max_output_tokens: Math.min(4000, this.maxOutputTokens * 4),
       });
-      const text = response.output_text?.trim();
+      const text = this.responsesPlainText(response).trim();
       if (!text) throw new Error('Empty AI catalog meal plan');
       return parseMealPlanCatalogResponse(text);
     } catch (error) {
@@ -484,7 +500,7 @@ export class OpenAiService {
           'Constructor refinement: response truncated at max_output_tokens — JSON may be incomplete',
         );
       }
-      let text = (response.output_text ?? '').trim();
+      let text = this.responsesPlainText(response).trim();
       if (!text) text = this.responsesOutputPlainText(response.output).trim();
       if (!text) throw new Error('Empty AI constructor refinement (output_text and output items)');
       return parseRefinement('responses', text);
@@ -526,7 +542,7 @@ export class OpenAiService {
         input: prompt,
         max_output_tokens: this.maxOutputTokens,
       });
-      const text = response.output_text?.trim();
+      const text = this.responsesPlainText(response).trim();
       if (text) return text;
     } catch (error) {
       this.logger.warn(
@@ -597,7 +613,7 @@ export class OpenAiService {
         input: prompt,
         max_output_tokens: this.maxOutputTokens,
       });
-      const text = response.output_text?.trim();
+      const text = this.responsesPlainText(response).trim();
       if (!text) throw new Error('Empty body forecast');
       return parseBodyForecastResponse(text);
     } catch (error) {
