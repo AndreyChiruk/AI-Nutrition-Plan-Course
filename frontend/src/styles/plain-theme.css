@@ -295,3 +295,22 @@ html[data-theme='dark'] .theme-toggle {
 html[data-theme='dark'] .theme-toggle:hover {
   background: rgba(245, 240, 232, 0.08) !important;
 }
+
+/* ── 13. Тени ─────────────────────────────────────────────────
+   Убираем box-shadow везде: мягкие тени — признак «отрисованного»
+   интерфейса, а границы элементов и так видны по фону и рамкам.
+   Одно правило вместо правки 79 объявлений в базовых стилях:
+   так откат остаётся в одну строку. */
+*,
+*::before,
+*::after {
+  box-shadow: none !important;
+}
+
+/* Убираем и сами переходы тени — без тени они бессмысленны. */
+button,
+.card,
+.section-tile,
+.dish-sample {
+  transition-property: background, color, border-color !important;
+}

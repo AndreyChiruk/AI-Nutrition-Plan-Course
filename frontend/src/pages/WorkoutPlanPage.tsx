@@ -98,18 +98,18 @@ function trackingCellBackground(st: WorkoutSessionTrack | undefined): CSSPropert
   if (st === 'done') {
     return {
       background: 'var(--bg-elevated, #fff)',
-      boxShadow: 'inset 0 0 0 2px var(--primary, #B4552D)',
+      border: '2px solid var(--primary, #B4552D)',
     };
   }
   if (st === 'skipped') {
     return {
       background: 'var(--bg-elevated, #fff)',
-      boxShadow: 'inset 0 0 0 2px rgba(239, 68, 68, 0.75)',
+      border: '2px solid rgba(239, 68, 68, 0.75)',
     };
   }
   return {
     background: 'var(--bg-elevated, #fff)',
-    boxShadow: 'inset 0 0 0 2px rgba(14, 165, 233, 0.65)',
+    border: '2px solid rgba(14, 165, 233, 0.65)',
   };
 }
 
