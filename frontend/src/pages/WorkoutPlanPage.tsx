@@ -98,7 +98,10 @@ function trackingCellBackground(st: WorkoutSessionTrack | undefined): CSSPropert
   if (st === 'done') {
     return {
       background: 'var(--bg-elevated, #fff)',
-      border: '2px solid var(--primary, #B4552D)',
+      // Зелёный из палитры: подтверждает выполнение.
+      // Переменная --done-color переопределяется для тёмной темы:
+      // базовый оливковый даёт на тёмном фоне контраст лишь 3:1.
+      border: '2px solid var(--done-color, #5C6B3F)',
     };
   }
   if (st === 'skipped') {
@@ -526,7 +529,7 @@ export const WorkoutPlanPage = () => {
           <h2>План тренировок</h2>
         </div>
         <p className="muted small">
-          Сроки как у питания: 2 недели · 1 мес. · 3 мес. · 6 мес. Четыре блока в день. Сохранённые планы — в разделе{' '}
+          Сроки как у питания: 2 недели, 1 мес., 3 мес., 6 мес. Четыре блока в день. Сохранённые планы — в разделе{' '}
           <Link to="/workout-plans" className="workout-plans-link">
             Мои планы тренировок
           </Link>
