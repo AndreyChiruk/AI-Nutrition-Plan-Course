@@ -634,7 +634,7 @@ html[data-theme='dark'] button.goal-card.active {
 }
 
 .btn-secondary:hover {
-  border-color: var(--charcoal-soft) !important;
+  /* border-color: var(--charcoal-soft) !important; */
   background: var(--sand) !important;
 }
 
@@ -1812,16 +1812,16 @@ html[data-theme='light'] .login-art-dots button:hover {
   }
 }
 
-.login-page .theme-toggle.ghost-icon {
+.login-page .theme-toggle {
+  /* Кнопка лежит поверх фотографии — нужен непрозрачный фон. */
   background: var(--bg-elevated) !important;
   border: 1px solid var(--border) !important;
   color: var(--text) !important;
-  box-shadow: var(--shadow-sm) !important;
   border-radius: var(--radius-md) !important;
-  padding: 0.45rem !important;
+  padding: 0.45rem 0.85rem !important;
 }
 
-.login-page .theme-toggle.ghost-icon:hover {
+.login-page .theme-toggle:hover {
   background: var(--bg-elevated-2) !important;
   border-color: rgba(138, 154, 99, 0.35) !important;
   color: var(--text) !important;

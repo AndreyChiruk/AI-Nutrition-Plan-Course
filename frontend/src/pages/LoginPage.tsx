@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Eye, EyeOff, KeyRound, Lock, Mail, Moon, Sun, User, X } from '../components/icons';
+import { Eye, EyeOff, KeyRound, Lock, Mail, User, X } from '../components/icons';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
@@ -272,8 +272,14 @@ export const LoginPage = () => {
   return (
     <div className="login-page">
       <div className="login-page-toolbar">
-        <button type="button" className="ghost-icon theme-toggle" onClick={toggleTheme} title="Тема">
-          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+        {/* Текстовая подпись вместо иконки: без неё непонятно назначение. */}
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+        >
+          Сменить тему
         </button>
       </div>
       <div className="login-art" aria-hidden="true">
