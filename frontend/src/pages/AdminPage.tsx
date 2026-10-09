@@ -417,7 +417,6 @@ export const AdminPage = () => {
   };
 
   const onDeleteUser = async (id: number) => {
-    if (!confirm('Удалить пользователя? Это действие необратимо.')) return;
     await runAdminAction(() => adminApi.deleteUser(id), 'удаление пользователя');
     if (userEditing?.id === id) setUserEditing(null);
     await refreshUsers();
@@ -452,7 +451,6 @@ export const AdminPage = () => {
   };
 
   const deleteBase = async (id: string) => {
-    if (!confirm('Удалить эту рекомендацию?')) return;
     await adminApi.deleteBaseRecommendation(id);
     if (baseEditingId === id) {
       setBaseEditingId(null);
@@ -562,7 +560,6 @@ export const AdminPage = () => {
   };
 
   const deleteProduct = async (id: string) => {
-    if (!confirm('Удалить продукт?')) return;
     await adminApi.deleteProduct(id);
     if (productEditingId === id) {
       setProductEditingId(null);
@@ -572,13 +569,6 @@ export const AdminPage = () => {
   };
 
   const replaceCatalogFromTheMealDb = async () => {
-    if (
-      !confirm(
-        'Удалить все записи каталога блюд и заново загрузить их из TheMealDB (~200 блюд на категорию по умолчанию; можно изменить в коде запроса)? Продукты в холодильнике не затрагиваются. После загрузки dishId в сохранённых планах автоматически перепривязываются по имени блюда.',
-      )
-    ) {
-      return;
-    }
     setCatalogImportBusy(true);
     setCatalogImportMsg('Запрос к TheMealDB… может занять несколько минут.');
     try {
@@ -595,13 +585,6 @@ export const AdminPage = () => {
   };
 
   const aiLocalizeCatalogAll = async () => {
-    if (
-      !confirm(
-        'Запустить AI-локализацию для всего каталога пакетами по 10? Процесс может занять время и несколько сотен запросов.',
-      )
-    ) {
-      return;
-    }
     setCatalogAiLocalizeAllBusy(true);
     setCatalogAiLocalizeAllMsg('AI обрабатывает весь каталог пакетами…');
     const batchSize = 10;

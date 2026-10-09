@@ -1305,7 +1305,6 @@ export const MealPlanPage = () => {
   };
 
   const clearAll = () => {
-    if (!confirm('Очистить все ячейки на всех днях?')) return;
     setDays((prev) =>
       prev.map((item) => ({
         ...item,

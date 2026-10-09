@@ -32,7 +32,7 @@ export const MyWorkoutPlansPage = () => {
   }, [load]);
 
   const remove = async (planId: string) => {
-    if (!user || !confirm('Удалить этот план тренировок из базы?')) return;
+    if (!user) return;
     setMsg('');
     try {
       await workoutPlanApi.deletePlan(user.id, planId);

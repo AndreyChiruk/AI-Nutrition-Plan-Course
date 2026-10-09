@@ -39,7 +39,7 @@ export const MyMealPlansPage = () => {
   }, [load]);
 
   const remove = async (planId: string) => {
-    if (!user || !confirm('Удалить этот план из базы?')) return;
+    if (!user) return;
     setMsg('');
     try {
       await mealPlanApi.deletePlan(user.id, planId);

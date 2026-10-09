@@ -487,10 +487,6 @@ export const WorkoutPlanPage = () => {
   const finishCompleteTracking = async (early: boolean) => {
     if (!user || !planMeta) return;
     if (early) {
-      const ok = confirm(
-        'Завершить учёт досрочно? План снимется с активных, незаполненные ячейки останутся без отметок.',
-      );
-      if (!ok) return;
     }
     setTrackingLoading(true);
     setMsg('');
