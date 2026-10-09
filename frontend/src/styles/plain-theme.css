@@ -177,6 +177,10 @@ h3 { font-size: 1rem !important; }
    Иконки подменяются пустым элементом нужного размера
    (см. components/icons.tsx). Ничего не рисуется, разметка не едет. */
 .icon-placeholder {
+  max-width: 0;
+  min-width: 0;
+  max-height: 0;
+  min-width: 0;
   display: inline-block;
   flex-shrink: 0;
   vertical-align: middle;

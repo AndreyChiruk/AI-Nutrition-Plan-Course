@@ -42,13 +42,10 @@ export const FoodRecognitionPage = () => {
     try {
       const data = await foodRecognitionApi.analyze(user.id, photoUrl);
       setResult(data);
-      let toastMsg = 'Распознавание выполнено. При необходимости сохраните запись для модерации.';
-      if (data.allergenWarnings.length > 0) {
-        toastMsg = data.allergenWarnings[0] ?? 'Обратите внимание на аллергены в блюде.';
-      } else if (data.hasDetectedAllergensInDish) {
-        toastMsg = 'В блюде отмечены потенциальные аллергены (сверьтесь с профилем).';
-      }
-      setToast(toastMsg);
+      // Предупреждения об аллергенах показываются отдельным баннером ниже,
+      // поэтому в toast их не дублируем — иначе один и тот же текст
+      // выводился дважды подряд.
+      setToast('Распознавание выполнено. При необходимости сохраните запись для модерации.');
     } catch (err) {
       const msg = axios.isAxiosError(err)
         ? (err.response?.data as { message?: string } | undefined)?.message
@@ -156,7 +153,6 @@ export const FoodRecognitionPage = () => {
         {result ? (
           <div className="card inner-result">
             <h4>Результат</h4>
-            <p className="muted small">Уверенность модели: {(result.confidence * 100).toFixed(0)}%</p>
             <p className="muted small">
               Распознавание только для просмотра. {result.provider}
             </p>

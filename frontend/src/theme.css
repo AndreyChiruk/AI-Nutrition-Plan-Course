@@ -1149,7 +1149,7 @@ button.auth-forgot-password {
 .base-tip-card__head {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  /* gap: 0.4rem; */
   margin-bottom: 0.35rem;
 }
 

@@ -21,6 +21,7 @@ import {
   normalizeCatalogDietaryTagList,
 } from '../meal-plan/catalog-ai-normalize';
 import { OPENROUTER_MISSING_KEY_MESSAGE } from '../config/openrouter';
+import { normalizeIngredientName } from './ingredient-names.util';
 
 export type FoodRecognitionItemDto = {
   foodName: string;
@@ -75,7 +76,9 @@ export class FoodRecognitionService {
       ? item.ingredients
           .slice(0, 40)
           .map((x) => ({
-            name: String(x?.name ?? '').trim().slice(0, 160),
+            // Название переводим на русский: модель иногда отвечает
+            // английскими словами, и они попадают в состав блюда.
+            name: normalizeIngredientName(String(x?.name ?? '').trim()).slice(0, 160),
             grams: Math.min(50000, Math.max(0, Number(x?.grams ?? 0))),
           }))
           .filter((x) => x.name)
@@ -85,7 +88,7 @@ export class FoodRecognitionService {
       ? item.ingredientsDetailed
           .slice(0, 40)
           .map((row, j) => {
-            const name = String(row?.name ?? '').trim().slice(0, 160);
+            const name = normalizeIngredientName(String(row?.name ?? '').trim()).slice(0, 160);
             if (!name) return null;
             const gramsFromRow = Math.min(
               50000,

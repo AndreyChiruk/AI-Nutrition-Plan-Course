@@ -70,7 +70,7 @@ export const StatsPage = () => {
         </div>
         <p className="muted small">
           Счётчики планов и журнала — по вашим данным в приложении. Вес и ИМТ — по снимкам в разделе «Анализ
-          тела» (и текущему профилю, пока нет анализов).
+          тела».
         </p>
 
         <div className="grid stats-counters">

@@ -620,7 +620,7 @@ pre {
   color: #fff;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  /* gap: 8px; */
   align-items: center;
   justify-content: center;
   min-height: 84px;
@@ -1380,6 +1380,7 @@ pre,
 }
 
 .grid.two-cols-chart {
+  margin-top: 16px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;

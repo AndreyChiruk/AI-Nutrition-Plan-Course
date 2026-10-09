@@ -145,7 +145,7 @@ export const RecommendationsPage = () => {
         {mode === 'ai' ? (
           <div className="stack">
             <button type="button" className="btn-primary" onClick={onGenerate} disabled={loadingAi}>
-              {loadingAi ? 'Генерация...' : 'Сгенерировать AI-рекомендации ✨'}
+              {loadingAi ? 'Генерация...' : 'Сгенерировать AI-рекомендации'}
             </button>
             {aiDisplay ? (
               <div className="ai-recommendation-block stack">
