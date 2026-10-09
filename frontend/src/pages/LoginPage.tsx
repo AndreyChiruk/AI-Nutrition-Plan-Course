@@ -6,35 +6,41 @@ import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import type { EmailCodePurpose } from '../types';
+import { Logo } from '../components/Logo';
 
+/**
+ * Тексты для левой панели входа.
+ *
+ * Раньше здесь были четыре фотографии с Unsplash, которые подгружались
+ * по внешним ссылкам. Отказались по трём причинам:
+ *   • стоковые фото — типовой признак сгенерированного интерфейса;
+ *   • внешний запрос до авторизации (утечка и зависимость от сети);
+ *   • фотографии не несли смысла и лишь затемняли панель.
+ *
+ * Теперь панель строится на типографике и палитре: крупные заголовки
+ * Plex Serif и короткие тезисы о возможностях приложения.
+ */
 const LOGIN_ART_SLIDES = [
   {
-    url: 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=1200&q=75',
-    caption: 'Сбалансированное питание — первый шаг к цели',
+    title: 'План питания',
+    caption: 'Расчёт КБЖУ по составу блюд, а не по приблизительным оценкам',
   },
   {
-    url: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1200&q=75',
-    caption: 'Больше цвета на тарелке — больше витаминов без усложнений',
+    title: 'Анализ тела',
+    caption: 'Замеры по зонам с подсказками и прогноз изменения фигуры',
   },
   {
-    url: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=1200&q=75',
-    caption: 'От трекинга калорий к осознанным привычкам',
+    title: 'Свой холодильник',
+    caption: 'Продукты группируются по категориям, видно что докупить',
   },
   {
-    url: 'https://images.unsplash.com/photo-1466637574441-749b8f19452f?auto=format&fit=crop&w=1200&q=75',
-    caption: 'Планы питания и единый профиль — всё в одном месте',
+    title: 'Готовые рецепты',
+    caption: 'Свыше семисот блюд с полным составом и аллергенами',
   },
 ] as const;
 
 const SLIDE_INTERVAL_MS = 8500;
 
-function slideBackground(theme: 'dark' | 'light', url: string): string {
-  const overlay =
-    theme === 'dark'
-      ? 'linear-gradient(rgba(15, 23, 42, 0.42), rgba(15, 23, 42, 0.82))'
-      : 'linear-gradient(rgba(255, 255, 255, 0.12), rgba(17, 24, 39, 0.46))';
-  return `${overlay}, url(${url})`;
-}
 
 export const LoginPage = () => {
   const { login, register } = useAuth();
@@ -81,11 +87,6 @@ export const LoginPage = () => {
   }, []);
 
   useEffect(() => {
-    LOGIN_ART_SLIDES.forEach((slide) => {
-      const img = new Image();
-      img.decoding = 'async';
-      img.src = slide.url;
-    });
   }, []);
 
   useEffect(() => {
@@ -94,11 +95,6 @@ export const LoginPage = () => {
       if (slideTimerRef.current) clearInterval(slideTimerRef.current);
     };
   }, [startSlideRotation]);
-
-  const goToSlide = (index: number) => {
-    setImageIndex(index);
-    startSlideRotation();
-  };
 
   useEffect(() => {
     if (!toast) return;
@@ -264,31 +260,32 @@ export const LoginPage = () => {
         </button>
       </div>
       <div className="login-art" aria-hidden="true">
-        {LOGIN_ART_SLIDES.map((slide, i) => (
-          <div
-            key={slide.url}
-            className={`login-art-slide ${imageIndex === i ? 'is-visible' : ''}`}
-            style={{ backgroundImage: slideBackground(theme, slide.url) }}
-          />
-        ))}
-        <div className="login-art-overlay">
-          <div className="login-art-caption-wrap">
-            <p key={imageIndex} className="login-art-caption">
-              {LOGIN_ART_SLIDES[imageIndex].caption}
-            </p>
-          </div>
-          <div className="login-art-dots">
-            {LOGIN_ART_SLIDES.map((slide, i) => (
-              <button
-                key={slide.url}
-                type="button"
-                className={imageIndex === i ? 'active' : ''}
-                aria-label={`Слайд ${i + 1}`}
-                aria-current={imageIndex === i ? 'true' : undefined}
-                onClick={() => goToSlide(i)}
-              />
-            ))}
-          </div>
+        {/* Типографическая панель вместо фотографий:
+            крупный номер раздела, заголовок Plex Serif и короткий тезис. */}
+        <div className="login-art-body">
+          <span className="login-art-index mono">
+            {String(imageIndex + 1).padStart(2, '0')}
+            <span className="login-art-index-sep">/</span>
+            {String(LOGIN_ART_SLIDES.length).padStart(2, '0')}
+          </span>
+          <h2 key={`t-${imageIndex}`} className="login-art-title">
+            {LOGIN_ART_SLIDES[imageIndex].title}
+          </h2>
+          <p key={`c-${imageIndex}`} className="login-art-caption">
+            {LOGIN_ART_SLIDES[imageIndex].caption}
+          </p>
+        </div>
+        <div className="login-art-dots">
+          {LOGIN_ART_SLIDES.map((slide, i) => (
+            <button
+              key={slide.title}
+              type="button"
+              className={imageIndex === i ? 'active' : ''}
+              onClick={() => setImageIndex(i)}
+              tabIndex={-1}
+              aria-label={slide.title}
+            />
+          ))}
         </div>
       </div>
       <div className={`card narrow auth-card ${mode}`}>
@@ -301,20 +298,52 @@ export const LoginPage = () => {
           </button>
         </div>
 
+        <div className="login-logo">
+          <Logo variant="icon" size={44} />
+        </div>
         <h2>{mode === 'login' ? 'Добро пожаловать!' : 'Создать аккаунт'}</h2>
         <p className="muted">Начни свой путь к здоровому питанию</p>
 
-        <form onSubmit={onSubmit} className="stack auth-form">
+        <form
+          onSubmit={onSubmit}
+          className="stack auth-form"
+          /* Атрибуты нужны браузеру, чтобы распознать форму входа и
+             предложить сохранить пароль. Отправка идёт через fetch,
+             но без method/action менеджер паролей форму не видит. */
+          method="post"
+          action="/api/auth/login"
+          name="login"
+          noValidate
+        >
           {mode === 'register' ? (
             <label className="input-icon">
               <User size={16} />
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Имя" />
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Имя"
+                type="text"
+                name="name"
+                autoComplete="name"
+              />
             </label>
           ) : null}
 
           <label className="input-icon">
             <Mail size={16} />
-            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              type="email"
+              name="email"
+              id="login-email"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              required
+            />
           </label>
 
           {mode === 'login' ? (
@@ -344,6 +373,11 @@ export const LoginPage = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Пароль"
                 type={showPassword ? 'text' : 'password'}
+                name="password"
+                id="login-password"
+                autoComplete="current-password"
+                required
+                minLength={6}
               />
               <button type="button" className="ghost-icon" onClick={() => setShowPassword((prev) => !prev)}>
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}

@@ -13,11 +13,25 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "mocha --require ./scripts/mocha-register.cjs --extension ts --recursive src/tests/unit",
-    "test:integration": "mocha --require ./scripts/mocha-register.cjs --extension ts --timeout 120000 src/tests/integration/api-smoke.integration.ts",
-    "test:coverage": "nyc --reporter=text --reporter=text-summary --extension .ts mocha --require ./scripts/mocha-register.cjs --extension ts --recursive src/tests/unit",
+    "test": "node ./scripts/check-node-version.cjs && mocha --require ./scripts/mocha-register.cjs --extension ts --recursive src/tests/unit",
+    "test:integration": "node ./scripts/check-node-version.cjs && mocha --require ./scripts/mocha-register.cjs --extension ts --timeout 120000 src/tests/integration/api-smoke.integration.ts",
+    "test:coverage": "node ./scripts/check-node-version.cjs && nyc --reporter=text --reporter=text-summary --extension .ts mocha --require ./scripts/mocha-register.cjs --extension ts --recursive src/tests/unit",
     "test:load:k6": "echo Install k6 from https://k6.io/docs/get-started/installation/ then: k6 run scripts/load/k6-api.js",
-    "catalog:themealdb": "ts-node --transpile-only src/cli/themealdb-replace-catalog.ts"
+    "catalog:themealdb": "ts-node --transpile-only src/cli/themealdb-replace-catalog.ts",
+    "repair:mojibake": "ts-node --transpile-only src/cli/repair-mojibake.ts",
+    "repair:mojibake:dry": "ts-node --transpile-only src/cli/repair-mojibake.ts --dry-run",
+    "fix:catalog-nutrition": "ts-node --transpile-only src/cli/fix-catalog-nutrition.ts",
+    "fix:catalog-nutrition:dry": "ts-node --transpile-only src/cli/fix-catalog-nutrition.ts --dry-run",
+    "backfill:catalog-tags": "ts-node --transpile-only src/cli/backfill-catalog-tags.ts",
+    "backfill:catalog-tags:dry": "ts-node --transpile-only src/cli/backfill-catalog-tags.ts --dry-run",
+    "recalc:plan-totals": "ts-node --transpile-only src/cli/recalc-plan-totals.ts",
+    "recalc:plan-totals:dry": "ts-node --transpile-only src/cli/recalc-plan-totals.ts --dry-run",
+    "check:node": "node ./scripts/check-node-version.cjs",
+    "docs:api": "ts-node --transpile-only src/cli/generate-api-docs.ts",
+    "import:cis-dishes": "ts-node --transpile-only src/cli/import-cis-dishes.ts",
+    "import:cis-dishes:dry": "ts-node --transpile-only src/cli/import-cis-dishes.ts --dry-run",
+    "normalize:portions": "ts-node --transpile-only src/cli/normalize-portions.ts",
+    "normalize:portions:dry": "ts-node --transpile-only src/cli/normalize-portions.ts --dry-run"
   },
   "dependencies": {
     "@nestjs/cache-manager": "^3.1.0",
@@ -27,8 +41,10 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/sequelize": "^11.0.1",
     "@nestjs/throttler": "^6.5.0",
+    "@types/multer": "^2.3.0",
     "cache-manager": "^7.2.8",
     "dotenv": "^17.4.1",
+    "multer": "^2.4.0",
     "nodemailer": "^8.0.5",
     "openai": "^6.34.0",
     "pg": "^8.20.0",
@@ -38,6 +54,7 @@
     "sequelize": "^6.37.8",
     "sequelize-typescript": "^2.1.6",
     "sharp": "^0.34.5",
+    "stripe": "^23.0.0",
     "winston": "^3.19.0"
   },
   "devDependencies": {
@@ -74,5 +91,9 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.58.0"
+  },
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
   }
 }

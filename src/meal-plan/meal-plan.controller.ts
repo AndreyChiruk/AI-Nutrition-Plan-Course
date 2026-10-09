@@ -10,17 +10,29 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Response } from 'express';
-import { Request } from 'express';
+import type { Request, Response } from 'express';
 import { assertUserAccess } from '../auth/request-access.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MealPlanService, SaveMealPlanDayDto } from './meal-plan.service';
 import { MealTrackSlot, MealTrackStatus } from '../models/MealPlanDay';
+import { FullUserGuard } from '../auth/full-user.guard';
+import { RequireSubscriptionGuard } from '../subscription/require-subscription.guard';
 
 @Controller('meal-plan')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, FullUserGuard)
 export class MealPlanController {
   constructor(private readonly mealPlanService: MealPlanService) {}
+
+  /**
+   * Поиск по каталогу для автокомплита предпочтений.
+   * Возвращает ингредиенты и блюда, подходящие под введённый текст.
+   */
+  @Get('catalog-search')
+  catalogSearch(@Query('q') q?: string, @Query('limit') limit?: string) {
+    return this.mealPlanService.searchCatalogForPreferences(String(q ?? ''), {
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
 
   @Get('dishes')
   listDishes(
@@ -35,6 +47,7 @@ export class MealPlanController {
   }
 
   @Post('generate')
+  @UseGuards(RequireSubscriptionGuard)
   generate(
     @Req() req: Request & { user?: { sub?: number; role?: string } },
     @Body()
@@ -44,6 +57,8 @@ export class MealPlanController {
       targetCalories?: number;
       calorieMode?: 'precise' | 'approximate';
       calorieBand?: 'low' | 'medium' | 'high' | 'sport';
+      /** Зерно выбора блюд: позволяет получить другой вариант плана. */
+      seed?: number;
     },
   ) {
     assertUserAccess(req.user, body.userId);
@@ -51,10 +66,12 @@ export class MealPlanController {
       targetCalories: body.targetCalories,
       calorieMode: body.calorieMode,
       calorieBand: body.calorieBand,
+      seed: body.seed,
     });
   }
 
   @Post('generate-auto')
+  @UseGuards(RequireSubscriptionGuard)
   generateAuto(
     @Req() req: Request & { user?: { sub?: number; role?: string } },
     @Body()
@@ -64,6 +81,8 @@ export class MealPlanController {
       targetCalories?: number;
       calorieMode?: 'precise' | 'approximate';
       calorieBand?: 'low' | 'medium' | 'high' | 'sport';
+      /** Зерно выбора блюд: позволяет получить другой вариант плана. */
+      seed?: number;
     },
   ) {
     assertUserAccess(req.user, body.userId);
@@ -71,6 +90,7 @@ export class MealPlanController {
       targetCalories: body.targetCalories,
       calorieMode: body.calorieMode,
       calorieBand: body.calorieBand,
+      seed: body.seed,
     });
   }
 
@@ -103,9 +123,14 @@ export class MealPlanController {
   listPlans(
     @Req() req: Request & { user?: { sub?: number; role?: string } },
     @Param('userId') userId: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
     assertUserAccess(req.user, userId);
-    return this.mealPlanService.listUserPlans(userId);
+    return this.mealPlanService.listUserPlans(userId, {
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
   }
 
   @Get('plans/:userId/:planId')
@@ -139,14 +164,34 @@ export class MealPlanController {
     return this.mealPlanService.clonePlan(userId, planId, body?.startDate);
   }
 
+  /**
+   * Делает план текущим.
+   *
+   * `force: true` — пользователь подтвердил активацию плана, созданного
+   * по другим ограничениям (интерфейс показывает список различий).
+   */
   @Post('plans/:userId/:planId/activate')
   activatePlan(
     @Req() req: Request & { user?: { sub?: number; role?: string } },
     @Param('userId') userId: string,
     @Param('planId') planId: string,
+    @Body() body?: { force?: boolean },
   ) {
     assertUserAccess(req.user, userId);
-    return this.mealPlanService.activatePlan(userId, planId);
+    return this.mealPlanService.activatePlan(userId, planId, {
+      force: Boolean(body?.force),
+    });
+  }
+
+  /** Отличаются ли ограничения плана от текущего профиля. */
+  @Get('plans/:userId/:planId/restrictions-diff')
+  planRestrictionsDiff(
+    @Req() req: Request & { user?: { sub?: number; role?: string } },
+    @Param('userId') userId: string,
+    @Param('planId') planId: string,
+  ) {
+    assertUserAccess(req.user, userId);
+    return this.mealPlanService.planRestrictionDiff(userId, planId);
   }
 
   @Post('plans/:userId/days/:dayId/meals')

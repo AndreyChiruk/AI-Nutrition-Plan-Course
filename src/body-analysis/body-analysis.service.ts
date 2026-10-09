@@ -5,6 +5,9 @@ import type { BodyForecastPayloadDb } from '../models/User';
 import { OpenAiService } from '../openai/openai.service';
 import { User } from '../models/User';
 import { normalizeGoalByWeight } from '../common/weight-goal.util';
+import { validateAndNormalizePhoto } from '../common/image-validation.util';
+import { recoverDeep } from '../common/text-recovery.util';
+import { isOpenRouterConfigured } from '../config/openrouter';
 
 export type BodyAnalysisPageState = {
   latestAnalysis: { photoUrl: string; analyzedAt: string; aiNotes?: string } | null;
@@ -84,24 +87,30 @@ export class BodyAnalysisService {
     };
   }
 
-  async uploadAndAnalyze(userId: string, photoUrl: string) {
+  async uploadAndAnalyze(userId: string, photoUrlRaw: string) {
     const uid = Number(userId);
-    const result = await this.openAiService.analyzeBodyFromPhoto(photoUrl);
+
+    // Проверяем и нормализуем фото (magic bytes, размер, уменьшение до 1600 px).
+    const photo = await validateAndNormalizePhoto(photoUrlRaw, 'photoUrl');
+
+    const result = await this.openAiService.analyzeBodyFromPhoto(photo.dataUrl);
     const user = await this.userModel.findByPk(uid, {
       attributes: ['height', 'weight'],
     });
     const heightCm = user?.height ?? 170;
     const weightKg = user?.weight ?? 70;
     const bmi = heightCm > 0 ? Math.round((weightKg / (heightCm / 100) ** 2) * 10) / 10 : null;
-    const row = await this.bodyAnalysisModel.create({
-      userId: uid,
-      photoUrl,
-      analyzedAt: new Date(),
-      weightKg,
-      heightCm,
-      bmi: bmi ?? undefined,
-      ...result,
-    } as never);
+    const row = await this.bodyAnalysisModel.create(
+      recoverDeep({
+        userId: uid,
+        photoUrl: photo.dataUrl,
+        analyzedAt: new Date(),
+        weightKg,
+        heightCm,
+        bmi: bmi ?? undefined,
+        ...result,
+      }) as never,
+    );
 
     await this.userModel.update(
       {
@@ -163,7 +172,7 @@ export class BodyAnalysisService {
     if (
       photo &&
       photo.startsWith('data:') &&
-      process.env.OPENAI_API_KEY &&
+      isOpenRouterConfigured &&
       process.env.OPENAI_FORECAST_ILLUSTRATION !== 'false'
     ) {
       const generated = await this.openAiService.generateBodyForecastIllustration(photo, {
@@ -177,7 +186,11 @@ export class BodyAnalysisService {
       }
     }
 
-    const payload: BodyForecastPayloadDb = {
+    // Восстанавливаем кодировку текстов прогноза. Модель и внешние
+    // источники иногда отдают текст в неверной кодировке, и он сохранялся
+    // в базу как «╨Э╨░╤З╨░╨╗╨╛» вместо «Начало». Корректный текст
+    // функция не изменяет.
+    const payload: BodyForecastPayloadDb = recoverDeep({
       durationWeeks: weeks,
       summary: forecast.summary,
       milestones: forecast.milestones,
@@ -185,7 +198,7 @@ export class BodyAnalysisService {
       disclaimer: forecast.disclaimer,
       illustrationSource,
       lastAnalysisPhotoUrl: analysis?.photoUrl ?? null,
-    };
+    });
 
     await user.update({
       bodyForecastIllustrationUrl: illustrationUrl,

@@ -10,13 +10,15 @@ import { User } from '../models/User';
 import { WorkoutPlan } from '../models/WorkoutPlan';
 import { StatsController } from './stats.controller';
 import { StatsService } from './stats.service';
+import { resolveJwtSecret } from '../common/jwt.config';
+import { FullUserGuard } from '../auth/full-user.guard';
 
 @Module({
   imports: [
     SequelizeModule.forFeature([Meal, MealItem, MealPlan, WorkoutPlan, BodyAnalysis, User]),
-    JwtModule.register({ secret: process.env.JWT_SECRET ?? 'dev-secret' }),
+    JwtModule.register({ secret: resolveJwtSecret() }),
   ],
   controllers: [StatsController],
-  providers: [StatsService, JwtAuthGuard],
+  providers: [FullUserGuard, StatsService, JwtAuthGuard],
 })
 export class StatsModule {}

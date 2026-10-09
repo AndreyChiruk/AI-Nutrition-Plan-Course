@@ -7,16 +7,20 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BodyAnalysisController } from './body-analysis.controller';
 import { BodyAnalysisService } from './body-analysis.service';
 import { OpenAiModule } from '../openai/openai.module';
+import { resolveJwtSecret } from '../common/jwt.config';
+import { FullUserGuard } from '../auth/full-user.guard';
+import { SubscriptionModule } from '../subscription/subscription.module';
 
 @Module({
   imports: [
+    SubscriptionModule,
     SequelizeModule.forFeature([BodyAnalysis, User]),
     JwtModule.register({
-      secret: process.env.JWT_SECRET ?? 'dev-secret',
+      secret: resolveJwtSecret(),
     }),
     OpenAiModule,
   ],
-  providers: [BodyAnalysisService, JwtAuthGuard],
+  providers: [FullUserGuard, BodyAnalysisService, JwtAuthGuard],
   controllers: [BodyAnalysisController],
 })
 export class BodyAnalysisModule {}

@@ -8,13 +8,15 @@ import { WorkoutPlanDay } from '../models/WorkoutPlanDay';
 import { WorkoutPlan } from '../models/WorkoutPlan';
 import { WorkoutPlanController } from './workout-plan.controller';
 import { WorkoutPlanService } from './workout-plan.service';
+import { resolveJwtSecret } from '../common/jwt.config';
+import { FullUserGuard } from '../auth/full-user.guard';
 
 @Module({
   imports: [
     SequelizeModule.forFeature([WorkoutPlan, WorkoutPlanDay, User, TrainingBlock]),
-    JwtModule.register({ secret: process.env.JWT_SECRET ?? 'dev-secret' }),
+    JwtModule.register({ secret: resolveJwtSecret() }),
   ],
   controllers: [WorkoutPlanController],
-  providers: [WorkoutPlanService, JwtAuthGuard],
+  providers: [FullUserGuard, WorkoutPlanService, JwtAuthGuard],
 })
 export class WorkoutPlanModule {}

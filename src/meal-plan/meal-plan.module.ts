@@ -21,9 +21,14 @@ import { DishCatalogBuilderService } from './dish-catalog.builder.service';
 import { MealPlanController } from './meal-plan.controller';
 import { MealPlanService } from './meal-plan.service';
 import { PlansLibrarySeedService } from './plans-library.seed.service';
+import { resolveJwtSecret } from '../common/jwt.config';
+import { FullUserGuard } from '../auth/full-user.guard';
+import { Ingredient } from '../models/Ingredient';
+import { SubscriptionModule } from '../subscription/subscription.module';
 
 @Module({
   imports: [
+    SubscriptionModule,
     SequelizeModule.forFeature([
       MealPlan,
       MealPlanDay,
@@ -38,11 +43,12 @@ import { PlansLibrarySeedService } from './plans-library.seed.service';
       RefGrainGarnish,
       RefDinnerName,
       RefSnack,
+      Ingredient,
     ]),
-    JwtModule.register({ secret: process.env.JWT_SECRET ?? 'dev-secret' }),
+    JwtModule.register({ secret: resolveJwtSecret() }),
     OpenAiModule,
   ],
   controllers: [MealPlanController],
-  providers: [CatalogBootstrapService, DishCatalogBuilderService, MealPlanService, JwtAuthGuard, PlansLibrarySeedService],
+  providers: [FullUserGuard, CatalogBootstrapService, DishCatalogBuilderService, MealPlanService, JwtAuthGuard, PlansLibrarySeedService],
 })
 export class MealPlanModule {}

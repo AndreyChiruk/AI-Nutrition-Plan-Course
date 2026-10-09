@@ -11,6 +11,7 @@ import {
   type WorkoutSessionTrack,
 } from '../api/services';
 import { useAuth } from '../context/AuthContext';
+import { formatApiError } from '../api/errors';
 
 const DURATIONS = [14, 30, 90, 180] as const;
 const SESSIONS = ['session1', 'session2', 'session3', 'session4'] as const;
@@ -97,7 +98,7 @@ function trackingCellBackground(st: WorkoutSessionTrack | undefined): CSSPropert
   if (st === 'done') {
     return {
       background: 'var(--bg-elevated, #fff)',
-      boxShadow: 'inset 0 0 0 2px var(--primary, #10b981)',
+      boxShadow: 'inset 0 0 0 2px var(--primary, #B4552D)',
     };
   }
   if (st === 'skipped') {
@@ -205,8 +206,8 @@ export const WorkoutPlanPage = () => {
           setDays(emptyWorkoutDays(14));
           setDuration(14);
         }
-      } catch {
-        setMsg('Не удалось загрузить план тренировок.');
+      } catch (err) {
+        setMsg(formatApiError(err, 'Не удалось загрузить план тренировок.'));
       } finally {
         setLoading(false);
       }
@@ -254,8 +255,8 @@ export const WorkoutPlanPage = () => {
       const saved = await workoutPlanApi.generate(user.id, duration);
       applySaved(saved);
       setMsg('План тренировок сгенерирован и сохранён.');
-    } catch {
-      setMsg('Ошибка генерации.');
+    } catch (err) {
+      setMsg(formatApiError(err, 'Не удалось сгенерировать план.'));
     }
   };
 
@@ -273,7 +274,7 @@ export const WorkoutPlanPage = () => {
       const saved = await workoutPlanApi.save(user.id, { durationDays: duration, days: payload, name });
       applySaved(saved);
       setMsg('План сохранён.');
-    } catch {
+    } catch (err) {
       setMsg('Не удалось сохранить.');
     }
   };
@@ -341,7 +342,7 @@ export const WorkoutPlanPage = () => {
         exercises: Array.isArray(parsed.exercises) ? parsed.exercises.map(String) : [],
         slot: parsed.slot as WorkoutSessionSnapshot['slot'],
       };
-    } catch {
+    } catch (err) {
       return null;
     }
   };
@@ -424,7 +425,7 @@ export const WorkoutPlanPage = () => {
       const saved = await workoutPlanApi.activatePlan(user.id, planMeta.id);
       applySaved(saved);
       setMsg('План сделан активным; предыдущий активный переведён в архив.');
-    } catch {
+    } catch (err) {
       setMsg('Не удалось активировать план.');
     }
   };
@@ -444,7 +445,7 @@ export const WorkoutPlanPage = () => {
       const plan = await workoutPlanApi.startTracking(user.id, planMeta.id);
       applySaved(plan);
       setMsg('Режим учёта включён. Отметьте тренировки в таблице ниже.');
-    } catch {
+    } catch (err) {
       setMsg('Не удалось начать учёт.');
     } finally {
       setTrackingLoading(false);
@@ -473,7 +474,7 @@ export const WorkoutPlanPage = () => {
           return { ...d, sessionStatuses: next };
         }),
       );
-    } catch {
+    } catch (err) {
       setMsg('Не удалось обновить статус.');
     } finally {
       setTrackingLoading(false);

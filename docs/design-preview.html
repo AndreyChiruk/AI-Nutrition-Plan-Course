@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T11 — Палитра и типографика (превью)</title>
+
+<!--
+  Превью дизайн-системы: Linear (структура) + Every (палитра, типографика).
+
+  Открывается как обычный HTML-файл, приложение не затрагивает.
+  Шрифты подключены с Google Fonts ТОЛЬКО для этого превью;
+  в самом приложении они будут стоять локально через @fontsource
+  (сейчас там внешний запрос к fonts.googleapis.com — это уберём).
+
+  Палитра проверена на контраст WCAG: все пары для текста ≥ 4.5:1.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --sand:#F5F1EA;
+  --paper:#FBF9F5;
+  --terracotta:#B4552D;
+  --terracotta-dark:#8C3F1F;
+  --olive:#5C6B3F;
+  --charcoal:#2A2724;
+  --charcoal-soft:#6B655D;
+  --line:#DED7CB;
+
+  --font-sans:'IBM Plex Sans',system-ui,sans-serif;
+  --font-serif:'IBM Plex Serif',Georgia,serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--font-sans);
+  background:var(--sand);
+  color:var(--charcoal);
+  line-height:1.55;
+  padding:48px 32px 96px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:920px;margin:0 auto}
+
+h1{font-family:var(--font-serif);font-size:2.4rem;font-weight:600;letter-spacing:-0.02em;line-height:1.15;margin-bottom:6px}
+h2{font-family:var(--font-serif);font-size:1.35rem;font-weight:600;margin:44px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+h3{font-size:0.95rem;font-weight:600;margin-bottom:8px}
+.lead{color:var(--charcoal-soft);font-size:1.02rem;max-width:62ch}
+.eyebrow{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.09em;color:var(--charcoal-soft);font-weight:600;margin-bottom:6px}
+
+/* ── Палитра ── */
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px;margin-top:4px}
+.sw{border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--paper)}
+.sw-chip{height:74px}
+.sw-meta{padding:9px 11px;font-size:0.78rem}
+.sw-name{font-weight:600;display:block}
+.sw-hex{font-family:var(--font-mono);color:var(--charcoal-soft);font-size:0.75rem}
+
+/* ── Типографика ── */
+.type-row{padding:13px 0;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+.type-tag{font-family:var(--font-mono);font-size:0.7rem;color:var(--charcoal-soft);min-width:132px}
+.t-display{font-family:var(--font-serif);font-size:2.1rem;font-weight:600;letter-spacing:-0.02em}
+.t-h2{font-family:var(--font-serif);font-size:1.5rem;font-weight:600}
+.t-h3{font-size:1.1rem;font-weight:600}
+.t-body{font-size:0.95rem}
+.t-small{font-size:0.82rem;color:var(--charcoal-soft)}
+.t-mono{font-family:var(--font-mono);font-size:0.95rem;font-variant-numeric:tabular-nums}
+
+/* ── Кнопки: радиус 4px, без градиентов (Linear) ── */
+.btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:4px}
+button{font-family:inherit;font-size:0.88rem;font-weight:500;border-radius:4px;padding:8px 15px;cursor:pointer;border:1px solid transparent;transition:background .12s,border-color .12s}
+.b-primary{background:var(--terracotta);color:#fff}
+.b-primary:hover{background:var(--terracotta-dark)}
+.b-secondary{background:transparent;color:var(--charcoal);border-color:var(--line)}
+.b-secondary:hover{border-color:var(--charcoal-soft);background:rgba(0,0,0,.02)}
+.b-ghost{background:transparent;color:var(--terracotta-dark);padding:8px 6px}
+.b-ghost:hover{text-decoration:underline}
+.b-danger{background:transparent;color:#9B2C2C;border-color:#E3C4C4}
+.b-danger:hover{background:#FBEEEE}
+
+/* ── Карточки: границы вместо теней ── */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:16px}
+.card h3{margin-bottom:4px}
+.card p{font-size:0.85rem;color:var(--charcoal-soft)}
+
+/* ── Метрики: моноширинные цифры ── */
+.metrics{display:flex;gap:34px;flex-wrap:wrap;padding:16px;background:var(--paper);border:1px solid var(--line);border-radius:4px}
+.metric{display:flex;flex-direction:column;gap:2px}
+.metric-label{font-size:0.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--charcoal-soft);font-weight:600}
+.metric-value{font-family:var(--font-mono);font-size:1.6rem;font-weight:600;font-variant-numeric:tabular-nums;line-height:1}
+.metric-unit{font-size:0.75rem;color:var(--charcoal-soft)}
+
+/* ── Таблица: тонкие линии ── */
+table{width:100%;border-collapse:collapse;margin-top:4px;font-size:0.88rem}
+th{text-align:left;font-size:0.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--charcoal-soft);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:none}
+td.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right}
+
+/* ── Формы: фокус терракотовый ── */
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;max-width:320px}
+label{font-size:0.82rem;font-weight:500}
+input,select{font-family:inherit;font-size:0.9rem;padding:8px 10px;border:1px solid var(--line);border-radius:4px;background:var(--paper);color:var(--charcoal)}
+input:focus,select:focus{outline:2px solid var(--terracotta);outline-offset:0;border-color:var(--terracotta)}
+
+/* ── Бейджи ── */
+.badges{display:flex;gap:7px;flex-wrap:wrap}
+.badge{font-size:0.74rem;font-weight:500;padding:2px 9px;border-radius:999px;border:1px solid currentColor}
+.badge-veg{color:var(--olive)}
+.badge-warn{color:#8C3F1F}
+.badge-neutral{color:var(--charcoal-soft)}
+
+.note{background:var(--paper);border-left:3px solid var(--terracotta);padding:12px 15px;font-size:0.85rem;color:var(--charcoal-soft);border-radius:0 4px 4px 0;margin-top:10px}
+.checks{list-style:none;font-size:0.88rem}
+.checks li{padding:5px 0;border-bottom:1px solid var(--line);display:flex;gap:9px;align-items:baseline}
+.checks li:last-child{border-bottom:none}
+.ok{color:var(--olive);font-weight:700}
+.no{color:#9B2C2C;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">T11 · Дизайн-система</p>
+  <h1>Палитра и типографика</h1>
+  <p class="lead">
+    Гибрид: структура и плотность от Linear, тёплая палитра и крупные
+    заголовки от Every. Шрифт — IBM Plex Sans с полноценной кириллицей.
+    Все пары проверены на контраст WCAG.
+  </p>
+
+  <h2>Палитра — 8 значений</h2>
+  <div class="swatches" id="swatches"></div>
+
+  <h2>Типографика</h2>
+  <div class="type-row"><span class="type-tag">display / serif 600</span><span class="t-display">План питания на неделю</span></div>
+  <div class="type-row"><span class="type-tag">h2 / serif 600</span><span class="t-h2">Разбор телосложения</span></div>
+  <div class="type-row"><span class="type-tag">h3 / sans 600</span><span class="t-h3">Что докупить в холодильник</span></div>
+  <div class="type-row"><span class="type-tag">body / sans 400</span><span class="t-body">Борщ украинский — 393 ккал на порцию 458 г</span></div>
+  <div class="type-row"><span class="type-tag">small / sans 400</span><span class="t-small">Оценка модели, не медицинский диагноз</span></div>
+  <div class="type-row"><span class="type-tag">mono / tabular</span><span class="t-mono">1 245.8 · 18.5 · 2200</span></div>
+
+  <h2>Кнопки — радиус 4px, без градиентов</h2>
+  <div class="btns">
+    <button class="b-primary">Сгенерировать план</button>
+    <button class="b-secondary">Настроить</button>
+    <button class="b-ghost">Подробнее</button>
+    <button class="b-danger">Удалить</button>
+  </div>
+  <div class="note">Плоские заливки вместо градиентов. Наведение меняет только цвет фона, без сдвигов и теней.</div>
+
+  <h2>Карточки — границы вместо теней</h2>
+  <div class="cards">
+    <div class="card"><h3>Сырники со сметаной</h3><p>Завтрак · 511 ккал · 25 мин</p></div>
+    <div class="card"><h3>Борщ украинский</h3><p>Обед · 393 ккал · 120 мин</p></div>
+    <div class="card"><h3>Драники картофельные</h3><p>Ужин · 548 ккал · 30 мин</p></div>
+  </div>
+
+  <h2>Метрики — моноширинные цифры</h2>
+  <div class="metrics">
+    <div class="metric"><span class="metric-label">Вес</span><span class="metric-value">72.5</span><span class="metric-unit">кг</span></div>
+    <div class="metric"><span class="metric-label">Рост</span><span class="metric-value">178</span><span class="metric-unit">см</span></div>
+    <div class="metric"><span class="metric-label">ИМТ</span><span class="metric-value">22.9</span><span class="metric-unit">норма</span></div>
+    <div class="metric"><span class="metric-label">Калории</span><span class="metric-value">2 200</span><span class="metric-unit">ккал</span></div>
+  </div>
+
+  <h2>Таблица — тонкие линии</h2>
+  <table>
+    <thead><tr><th>Блюдо</th><th>Категория</th><th style="text-align:right">Ккал</th><th style="text-align:right">Белок</th></tr></thead>
+    <tbody>
+      <tr><td>Борщ украинский</td><td>Обед</td><td class="num">393</td><td class="num">18.2</td></tr>
+      <tr><td>Харчо с говядиной</td><td>Обед</td><td class="num">442</td><td class="num">21.6</td></tr>
+      <tr><td>Плов с курицей</td><td>Обед</td><td class="num">585</td><td class="num">24.1</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Форма — фокус терракотовый</h2>
+  <div class="field"><label>Целевая калорийность</label><input value="2200" inputmode="numeric"></div>
+  <div class="field"><label>Тип питания</label>
+    <select><option>Сбалансированное</option><option>Веганское</option><option>Кето</option></select>
+  </div>
+
+  <h2>Бейджи диет</h2>
+  <div class="badges">
+    <span class="badge badge-veg">веган</span>
+    <span class="badge badge-veg">без глютена</span>
+    <span class="badge badge-neutral">без лактозы</span>
+    <span class="badge badge-warn">содержит рыбу</span>
+  </div>
+
+  <h2>Что убрано из текущего дизайна</h2>
+  <ul class="checks">
+    <li><span class="no">✗</span> Inter → заменён на IBM Plex Sans (лучше кириллица)</li>
+    <li><span class="no">✗</span> 10 фиолетово-синих градиентов (#8b5cf6, #6366f1) → плоские заливки</li>
+    <li><span class="no">✗</span> #f9fafb / #111827 → песок #F5F1EA / уголь #2A2724</li>
+    <li><span class="no">✗</span> 17 скруглений 12px → 4px</li>
+    <li><span class="no">✗</span> внешний запрос к fonts.googleapis.com → локальные @fontsource</li>
+    <li><span class="ok">✓</span> Lucide-иконки — уже соответствуют, оставляем</li>
+    <li><span class="ok">✓</span> тёплые акценты #b45309 уже были — развиваем в терракоту</li>
+  </ul>
+
+</div>
+
+<script>
+// Палитра выводится из тех же значений, что и в :root
+const palette = [
+  ['Песок · фон',        '#F5F1EA', '#2A2724'],
+  ['Бумага · карточки',  '#FBF9F5', '#2A2724'],
+  ['Терракота · акцент', '#B4552D', '#FFFFFF'],
+  ['Терракота тёмная',   '#8C3F1F', '#FFFFFF'],
+  ['Олива · вторичный',  '#5C6B3F', '#FFFFFF'],
+  ['Уголь · текст',      '#2A2724', '#F5F1EA'],
+  ['Уголь мягкий',       '#6B655D', '#F5F1EA'],
+  ['Линия · границы',    '#DED7CB', '#2A2724'],
+];
+document.getElementById('swatches').innerHTML = palette.map(([name, hex, fg]) => `
+  <div class="sw">
+    <div class="sw-chip" style="background:${hex};color:${fg};display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:0.8rem">Aa</div>
+    <div class="sw-meta"><span class="sw-name">${name}</span><span class="sw-hex">${hex}</span></div>
+  </div>`).join('');
+</script>
+</body>
+</html>

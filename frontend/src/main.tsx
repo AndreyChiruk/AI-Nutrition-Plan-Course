@@ -5,6 +5,7 @@ import './index.css';
 import './theme.css';
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
+import './styles/fonts';
 
 document.documentElement.setAttribute('data-theme', localStorage.getItem('ui-theme') ?? 'dark');
 

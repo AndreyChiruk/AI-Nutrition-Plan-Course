@@ -16,7 +16,18 @@ export type DietaryRestrictionKey =
   | 'low-carb'
   | 'high-protein';
 
-const n = (s: string) => s.toLowerCase();
+/**
+ * Нормализация текста для сравнения ключей.
+ *
+ * Раньше это был просто `toLowerCase()`, поэтому «свёкла» и «свекла»
+ * считались разными словами: `containsDietKey('свёкла', 'свекл')` давал false.
+ * Пользователь, написавший «свекла» без ё, не получал фильтрации по диете.
+ *
+ * Теперь используется общий нормализатор: нижний регистр, ё→е, единые
+ * пробелы. Он же применяется при сопоставлении названий ингредиентов,
+ * поэтому правила диет и резолвер каталога работают согласованно.
+ */
+const n = (s: string) => s.toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
 
 const DIET_SYNONYMS_MAP = Object.fromEntries(
   Object.entries(DIET_SYNONYMS).map(([k, v]) => [n(String(k).trim()), n(String(v).trim())]),
@@ -80,9 +91,70 @@ function hasDietProbeContent(p: Product): boolean {
   return dietProbeStrings(p).length > 0;
 }
 
+/**
+ * Проверяет, встречается ли ключ словаря как часть СЛОВА, а не как
+ * произвольная подстрока.
+ *
+ * Зачем: раньше использовался `ing.includes(k)`, из-за чего ключи-обрубки
+ * срабатывали внутри других слов:
+ *   «мид»  -> «помидоры»  -> блюдо помечалось как мясное
+ *   «гус»  -> «густой соус» -> «гусь»
+ *   «фарш» -> «фаршированный перец» -> мясной фарш
+ *   «nut»  -> «coconut» (кокос — не орех)
+ *   «butter» -> «buttermilk»
+ *   «икр»  -> «икра баклажанная» (овощная, не рыбная)
+ *   «рис»  -> «ирис», «барбарис»
+ */
+
+/** Слова-исключения: содержат ключ, но к категории не относятся. */
+const KEY_EXCEPTIONS: Array<{ key: RegExp; except: RegExp }> = [
+  { key: /^nut/i, except: /coconut|butternut|nutmeg|doughnut|donut/i },
+  { key: /^butter/i, except: /buttermilk|peanut butter|nut butter|apple butter/i },
+  { key: /^pea/i, except: /peach|pear|peanut/i },
+  { key: /^мид/i, except: /помидор|томат/i },
+  { key: /^гус/i, except: /густ|гуляш/i },
+  { key: /^фарш/i, except: /фарширован/i },
+  { key: /^икр/i, except: /баклажан|кабачк|овощн|грибн/i },
+  { key: /^рис/i, except: /ирис|рисунк|барбарис/i },
+  { key: /^мак/i, except: /макарон|макрон/i },
+  { key: /^соль/i, except: /фасоль/i },
+];
+
+export function containsDietKey(blob: string, keyRaw: string): boolean {
+  const key = n(String(keyRaw ?? '')).trim();
+  const hay = n(String(blob ?? '').trim());
+  if (!key || !hay) return false;
+
+  const esc = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  // Слова-исключения проверяем первыми. Важно: исключение действует только
+  // если в тексте есть именно это слово, а не любое слово с такой основой
+  // («фаршированный» исключает «фарш», но «фарш свиной» — нет).
+  for (const { key: keyRe, except } of KEY_EXCEPTIONS) {
+    if (keyRe.test(key) && except.test(hay)) {
+      // Убеждаемся, что настоящее значение ключа в тексте ОТСУТСТВУЕТ
+      // как отдельное слово: «фарш» в «фарш свиной».
+      const explicit = new RegExp(`(?<![а-яё])${esc}(?![а-яё])`, 'i');
+      if (!explicit.test(hay)) return false;
+    }
+  }
+
+
+  // Латиница: требуем совпадение целого слова.
+  if (/^[a-z][a-z\s-]*$/i.test(key)) {
+    return new RegExp(`(?<![a-z])${esc}(?![a-z])`, 'i').test(hay);
+  }
+
+  // Кириллица: ключ должен НАЧИНАТЬ слово, но продолжаться может любыми
+  // буквами — это позволяет использовать основы («рыб» → «рыба», «рыбный»,
+  // «кури» → «курица», «куриный»). Проверка слева не даёт сработать
+  // внутри другого слова («мид» не совпадёт в «помидоры»).
+  return new RegExp(`(?<![а-яё])${esc}`, 'i').test(hay);
+}
+
 function detailedHits(p: Product, keys: string[]): boolean {
   const blobs = dietProbeStrings(p);
-  return blobs.some((ing) => keys.some((k) => ing.includes(k)));
+  return blobs.some((ing) => keys.some((k) => containsDietKey(ing, k)));
 }
 
 const KNOWN_DIETARY_TAG_KEYS = new Set<DietaryRestrictionKey>([
@@ -328,10 +400,101 @@ function checkViolations(p: Product, key: DietaryRestrictionKey): boolean {
   return checkViolationsDictOnly(p, key) || productViolatesCatalogDietaryTags(p, key);
 }
 
+/**
+ * Минимальный размер пула. Если после жёсткой фильтрации остаётся меньше
+ * блюд, генератор планов не может подобрать блюдо и подставляет заглушку
+ * «Блюдо (slot)» с фиксированными 300 ккал — это хуже, чем немного менее
+ * строгое соответствие диете.
+ */
+const MIN_POOL_SIZE = 25;
+
+/**
+ * Насколько блюдо соответствует диете: 0 — идеально, >0 — есть нарушения.
+ * Используется для «мягкой» фильтрации, когда строгая даёт слишком мало блюд.
+ */
+export function dietMismatchScore(p: Product, restriction: string | DietaryRestrictionKey): number {
+  const key = (DIET_SYNONYMS_MAP[n(String(restriction).trim())] ??
+    String(restriction).trim()) as DietaryRestrictionKey;
+  if (!key) return 0;
+
+  // Точное соответствие тега — лучший вариант.
+  if (productViolatesCatalogDietaryTags(p, key) === false && !checkViolationsDictOnly(p, key)) {
+    return 0;
+  }
+
+  switch (key) {
+    case 'high-protein': {
+      // Насколько не дотягивает до порога 28 % (в процентных пунктах).
+      const share = proteinShare(p);
+      return share >= 0.28 ? 0 : Math.round((0.28 - share) * 100);
+    }
+    case 'low-carb': {
+      // Превышение порога 35 г углеводов.
+      const carbs = Number(p.carbs) || 0;
+      return carbs < 35 ? 0 : Math.round(carbs - 35);
+    }
+    case 'keto': {
+      // Превышение порога 22.5 г углеводов на приём.
+      const carbs = Number(p.carbs) || 0;
+      const limit = 50 * 0.45;
+      return carbs <= limit ? 0 : Math.round((carbs - limit) * 2);
+    }
+    default:
+      // Для остальных диет нарушение считаем существенным, но различимым:
+      // блюдо с известным составом предпочтительнее блюда без состава.
+      return hasDietProbeContent(p) ? 10 : 20;
+  }
+}
+
 export function filterProductsByDietary(products: Product[], restrictions: string[]): Product[] {
   const keys = normalizeDietaryRestrictionKeys(restrictions);
   if (keys.length === 0) return products;
-  return products.filter((p) => !keys.some((k) => checkViolations(p, k)));
+
+  // Строгая фильтрация: убираем блюда, нарушающие ЛЮБОЕ из ограничений.
+  const strict = products.filter((p) => !keys.some((k) => checkViolations(p, k)));
+  if (strict.length >= MIN_POOL_SIZE) return strict;
+
+  // Мягкий режим: строгий фильтр оставил слишком мало блюд.
+  //
+  // ВАЖНО: мягкий добор касается только «количественных» диет (кетo, НУД,
+  // высокобелковая) — там блюдо может не дотягивать до порога, но оставаться
+  // безопасным и уместным. Для качественных ограничений (веган, вегетарианство,
+  // без лактозы/глютена, палео) смягчение недопустимо: добавить омлет в веганский
+  // план — это нарушение диеты, а не компромисс.
+  const softableKeys = new Set<DietaryRestrictionKey>(['keto', 'low-carb', 'high-protein']);
+  const allSoftable = keys.every((k) => softableKeys.has(k));
+  if (!allSoftable) return strict;
+
+  // Сортировка — по суммарному отклонению от диетических порогов.
+  const scored = products
+    .filter((p) => !keys.some((k) => productViolatesCatalogDietaryTags(p, k)))
+    .map((p) => ({
+      p,
+      score: keys.reduce((sum, k) => sum + dietMismatchScore(p, k), 0),
+    }))
+    .sort((a, b) => a.score - b.score || String(a.p.name).localeCompare(String(b.p.name)));
+
+  const target = Math.max(MIN_POOL_SIZE, strict.length);
+  const soft = scored.slice(0, target).map((x) => x.p);
+
+  // Строгие совпадения всегда идут первыми.
+  const strictIds = new Set(strict.map((p) => String(p.id)));
+  return [...strict, ...soft.filter((p) => !strictIds.has(String(p.id)))];
+}
+
+/**
+ * Диагностика: сколько блюд отсеял строгий фильтр и пришлось ли
+ * переходить в мягкий режим. Используется для предупреждений пользователю.
+ */
+export function describeDietaryPool(
+  products: Product[],
+  restrictions: string[],
+): { strict: number; soft: number; usedSoft: boolean } {
+  const keys = normalizeDietaryRestrictionKeys(restrictions);
+  if (keys.length === 0) return { strict: products.length, soft: products.length, usedSoft: false };
+  const strict = products.filter((p) => !keys.some((k) => checkViolations(p, k))).length;
+  const result = filterProductsByDietary(products, restrictions).length;
+  return { strict, soft: result, usedSoft: strict < MIN_POOL_SIZE && result > strict };
 }
 
 export function getDietWarningsForProduct(p: Product, restrictions: string[]): string[] {

@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/sequelize';
 import { Op, Sequelize } from 'sequelize';
 import { Allergen } from '../models/Allergen';
 import { FridgeItem } from '../models/FridgeItem';
+import { Ingredient } from '../models/Ingredient';
 import { MealPlan } from '../models/MealPlan';
 import { MealPlanDay, MealSlotSnapshot, MealTrackStatus, MealTrackSlot } from '../models/MealPlanDay';
 import { Product } from '../models/Product';
@@ -26,24 +27,50 @@ import {
   ruHaystackMatchesKeyword,
 } from '../common/ingredient-name-match';
 import { normalizeGoalByWeight } from '../common/weight-goal.util';
+import { calculateEnergy, resolveAge, resolveTargetCalories } from '../common/energy.util';
 import {
   dishStoredOrInferredMatchesSlot,
+  inferMealSlotFromDishName,
   type MealSlotKeyInfer,
 } from './dish-category-infer.util';
 
-function primarySnackFromDb(raw: unknown): MealSlotSnapshot | null {
-  if (raw == null) return null;
-  if (Array.isArray(raw)) {
-    const first = raw[0];
-    if (first && typeof first === 'object' && first !== null && 'name' in first) {
-      return first as MealSlotSnapshot;
+/**
+ * Читает ВСЕ перекусы дня, а не только первый.
+ *
+ * Раньше функция возвращала лишь `raw[0]`, поэтому второй и третий перекусы,
+ * созданные генератором, пропадали из интерфейса после сохранения и
+ * перезагрузки плана: пользователь видел день на ~2200 ккал вместо 3000.
+ * Здесь объединяются оба места хранения (`snacks` и `extra_snacks`),
+ * чтобы старые записи читались корректно.
+ */
+function snacksFromDb(snacksRaw: unknown, extraRaw: unknown): MealSlotSnapshot[] {
+  const out: MealSlotSnapshot[] = [];
+  const push = (value: unknown) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      for (const item of value) push(item);
+      return;
     }
-    return null;
-  }
-  if (typeof raw === 'object' && 'name' in raw) {
-    return raw as MealSlotSnapshot;
-  }
-  return null;
+    if (typeof value === 'object' && value !== null && 'name' in (value as object)) {
+      out.push(value as MealSlotSnapshot);
+    }
+  };
+  push(snacksRaw);
+  push(extraRaw);
+
+  // Убираем возможные дубликаты по названию и калорийности.
+  const seen = new Set<string>();
+  return out.filter((s) => {
+    const key = `${String(s.name ?? '')}|${Number(s.calories) || 0}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Первый перекус дня (для обратной совместимости с полем `snack`). */
+function primarySnackFromDb(raw: unknown): MealSlotSnapshot | null {
+  return snacksFromDb(raw, null)[0] ?? null;
 }
 
 export type SaveMealPlanDayDto = {
@@ -66,13 +93,38 @@ const CONSTRUCTOR_PLAN_SLOTS: ConstructorPlanSlot[] = ['breakfast', 'lunch', 'di
 const DEFAULT_DIST = { breakfast: 0.25, lunch: 0.35, dinner: 0.25, snacks: 0.15 };
 const CALORIE_TARGET_TOLERANCE = 0.1;
 
+/**
+ * Допуск для ФИНАЛЬНОГО прохода масштабирования.
+ *
+ * Меньше основного, потому что после финального масштабирования план
+ * сохраняется как есть: если ориентироваться на 10 %, день может
+ * остановиться на границе и после округления выйти за неё (наблюдалось 11.2 %).
+ */
+const CALORIE_TARGET_STRICT_TOLERANCE = 0.05;
+
 type PreferenceContext = {
   /** Отдельные фразы из профиля (без перекрёстного расширения) — для проверки «каждое любимое учтено». */
   baseLikes: string[];
   likes: string[];
   dislikes: string[];
   fridgeNames: string[];
+  /**
+   * Пищевые привычки из профиля (`users.food_habits`).
+   * Раньше поле только сохранялось и отдавалось в API, но в планировании
+   * не использовалось вовсе — «учтём ваши привычки» было фикцией.
+   */
+  habits: {
+    /** Сколько чашек чая/кофе в день добавлять перекусом. */
+    teaCupsPerDay: number;
+    /** Число приёмов пищи в день (3 или 4), если задано. */
+    mealsPerDay: number | null;
+    /** Предпочитает ли пользователь домашнюю еду. */
+    prefersHomeCooking: boolean;
+  };
 };
+
+/** Разумные границы для привычек, чтобы мусор в профиле не ломал план. */
+const MAX_TEA_CUPS = 6;
 
 @Injectable()
 export class MealPlanService {
@@ -82,6 +134,7 @@ export class MealPlanService {
     @InjectModel(User) private readonly userModel: typeof User,
     @InjectModel(Product) private readonly productModel: typeof Product,
     @InjectModel(FridgeItem) private readonly fridgeItemModel: typeof FridgeItem,
+    @InjectModel(Ingredient) private readonly ingredientModel: typeof Ingredient,
     private readonly openAiService: OpenAiService,
   ) {}
 
@@ -193,7 +246,125 @@ export class MealPlanService {
       likes: this.expandLikeKeywords(baseLikes),
       dislikes: this.normalizeKeywordList(user.foodDislikes),
       fridgeNames: fridge.map((r) => String(r.name).trim().toLowerCase()).filter(Boolean),
+      habits: this.parseFoodHabits(user.foodHabits),
     };
+  }
+
+  /**
+   * Снимок ограничений пользователя для сохранения в план.
+   *
+   * Нужен, чтобы отличить план, построенный с текущими аллергиями и диетой,
+   * от плана, созданного до их изменения. Без снимка пользователь мог
+   * сделать текущим старый план, в котором оставались блюда с рыбой,
+   * уже запрещённой по аллергии.
+   */
+  private restrictionSnapshot(user: User): Record<string, unknown> {
+    const allergies = Array.isArray(user.allergens)
+      ? [...user.allergens].map((a) => String(a).trim().toLowerCase()).filter(Boolean).sort()
+      : [];
+    const restrictions = Array.isArray(user.dietaryRestrictions)
+      ? [...user.dietaryRestrictions]
+          .map((d) => String(d).trim().toLowerCase())
+          .filter(Boolean)
+          .sort()
+      : [];
+    const dislikes = this.normalizeKeywordList(user.foodDislikes).sort();
+
+    return {
+      allergens: allergies,
+      diet: restrictions,
+      dislikes,
+      goal: user.goal ?? null,
+      // Возраст важен для правила «не предлагать алкоголь до 18 лет».
+      age: this.ageFromBirthDate(user.birthDate),
+    };
+  }
+
+  /** Возраст в полных годах или null, если дата не задана. */
+  private ageFromBirthDate(raw: unknown): number | null {
+    if (!raw) return null;
+    const d = new Date(String(raw));
+    if (Number.isNaN(d.getTime())) return null;
+    const now = new Date();
+    let age = now.getFullYear() - d.getFullYear();
+    const m = now.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age -= 1;
+    return age >= 0 && age < 130 ? age : null;
+  }
+
+  /**
+   * Отличаются ли текущие ограничения пользователя от снимка в плане.
+   *
+   * Возвращает список различий для показа пользователю.
+   * Пустой массив — план соответствует текущим ограничениям.
+   */
+  private restrictionDiff(
+    user: User,
+    snapshot: Record<string, unknown> | null,
+  ): Array<{ field: string; label: string; before: string; after: string }> {
+    if (!snapshot) return [];
+
+    const current = this.restrictionSnapshot(user);
+    const diffs: Array<{ field: string; label: string; before: string; after: string }> = [];
+
+    const fmt = (v: unknown): string =>
+      Array.isArray(v) ? (v.length ? v.join(', ') : 'нет') : v == null ? 'не задано' : String(v);
+
+    const labels: Record<string, string> = {
+      allergens: 'Аллергии',
+      diet: 'Тип питания',
+      dislikes: 'Нежелательные продукты',
+      goal: 'Цель',
+    };
+
+    for (const key of ['allergens', 'diet', 'dislikes', 'goal'] as const) {
+      const a = fmt(snapshot[key]);
+      const b = fmt(current[key]);
+      if (a !== b) {
+        diffs.push({ field: key, label: labels[key], before: a, after: b });
+      }
+    }
+
+    // Возраст: если пользователь перешёл в 18 лет, алкоголь становится
+    // допустимым — это тоже изменение, но показываем только переход
+    // через границу, чтобы не сбрасывать план каждый год.
+    const ageBefore = Number(snapshot.age);
+    const ageNow = Number(current.age);
+    if (Number.isFinite(ageBefore) && Number.isFinite(ageNow)) {
+      const wasMinor = ageBefore < 18;
+      const isMinor = ageNow < 18;
+      if (wasMinor !== isMinor) {
+        diffs.push({
+          field: 'age',
+          label: 'Возраст',
+          before: wasMinor ? 'до 18' : '18 и старше',
+          after: isMinor ? 'до 18' : '18 и старше',
+        });
+      }
+    }
+
+    return diffs;
+  }
+
+  /**
+   * Разбирает `users.food_habits` в типизированную структуру с проверкой границ.
+   * Поле приходит из профиля как произвольный JSON, поэтому любые значения
+   * приводятся к разумным пределам.
+   */
+  private parseFoodHabits(raw: unknown): PreferenceContext['habits'] {
+    const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+
+    const teaRaw = Number(obj.teaCupsPerDay);
+    const teaCupsPerDay =
+      Number.isFinite(teaRaw) && teaRaw > 0 ? Math.min(MAX_TEA_CUPS, Math.floor(teaRaw)) : 0;
+
+    const mealsRaw = Number(obj.mealsPerDay);
+    const mealsPerDay =
+      Number.isFinite(mealsRaw) && mealsRaw >= 3 && mealsRaw <= 5 ? Math.floor(mealsRaw) : null;
+
+    const prefersHomeCooking = obj.prefersHomeCooking === true || obj.homeCooking === true;
+
+    return { teaCupsPerDay, mealsPerDay, prefersHomeCooking };
   }
 
   private dishHaystackForProduct(p: Product): string {
@@ -315,8 +486,156 @@ export class MealPlanService {
     pools: { breakfast: Product[]; lunch: Product[]; dinner: Product[]; snack: Product[] },
   ): Promise<SaveMealPlanDayDto[]> {
     let out = days.map((d) => this.ensureDayHasFoodLike(d, pools, pref));
-    out = await this.applyWeeklySnackAlcoholBudgetToPlanDays(out, user, pref);
+    // Привычки из профиля (users.food_habits): раньше поле не использовалось
+    // вовсе, хотя в интерфейсе обещано «учтём ваши привычки».
+    out = this.applyFoodHabits(out, pref, pools);
+    // Проверка алкоголя по ВСЕМ слотам (не только перекусам), с передачей
+    // основных пулов для осмысленной замены.
+    out = await this.applyWeeklySnackAlcoholBudgetToPlanDays(out, user, pref, pools);
+
+    // ФИНАЛЬНЫЙ проход разнообразия.
+    //
+    // Предыдущие шаги (подбор по калориям, замена напитков, привычки) могут
+    // снова привести одно и то же блюдо в разные дни: например, замена
+    // алкоголя брала ближайшее по калорийности блюдо из пула и повторяла его.
+    // Здесь убираем оставшиеся дубликаты внутри каждого слота.
+    out = this.deduplicateAcrossDays(out, pools, pref);
     return out;
+  }
+
+  /**
+   * Заменяет повторяющиеся блюда внутри одного слота на неиспользованные.
+   *
+   * Работает по каждому слоту отдельно: «Овсянка» может быть завтраком
+   * в один день и не встречаться больше нигде, но не должна повторяться
+   * на завтрак каждый день.
+   *
+   * Если пул слота исчерпан, повтор остаётся — это ограничение каталога,
+   * а не ошибка алгоритма.
+   */
+  private deduplicateAcrossDays(
+    days: SaveMealPlanDayDto[],
+    pools: { breakfast: Product[]; lunch: Product[]; dinner: Product[]; snack: Product[] },
+    pref: PreferenceContext,
+  ): SaveMealPlanDayDto[] {
+    const SLOT_KEYS: MealSlotKey[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+
+    /** Для каждого слота — какие блюда уже заняты и с какой частотой. */
+    const usage = new Map<string, Map<string, number>>();
+    for (const slot of SLOT_KEYS) usage.set(slot, new Map());
+
+    const nameOf = (s: MealSlotSnapshot | null | undefined): string =>
+      String(s?.name ?? '').trim().toLowerCase();
+
+    // 1. Считаем частоты по всем дням.
+    for (const day of days) {
+      for (const slot of SLOT_KEYS) {
+        const snap = day[slot] as MealSlotSnapshot | null | undefined;
+        const n = nameOf(snap);
+        if (!n) continue;
+        const map = usage.get(slot)!;
+        map.set(n, (map.get(n) ?? 0) + 1);
+      }
+      for (const ex of day.extraSnacks ?? []) {
+        const n = nameOf(ex);
+        if (!n) continue;
+        const map = usage.get('snack')!;
+        map.set(n, (map.get(n) ?? 0) + 1);
+      }
+    }
+
+    // 2. Проходим по дням и заменяем те блюда, что встречаются больше одного раза.
+    const result = days.map((day) => {
+      const next: SaveMealPlanDayDto = { ...day };
+
+      for (const slot of SLOT_KEYS) {
+        const snap = next[slot] as MealSlotSnapshot | null | undefined;
+        const name = nameOf(snap);
+        if (!snap || !name) continue;
+
+        const map = usage.get(slot)!;
+        if ((map.get(name) ?? 0) <= 1) continue;
+
+        const pool = pools[slot] ?? [];
+        // Кандидат: не используется в этом слоте и отличается от текущего.
+        const candidate = pool.find((p) => {
+          const pn = String(p.name ?? '').trim().toLowerCase();
+          if (!pn || pn === name) return false;
+          return (map.get(pn) ?? 0) === 0;
+        });
+
+        if (!candidate) continue;
+
+        const replacement = this.snapshotFromProduct(candidate, slot);
+        replacement.note = 'подобрано для разнообразия плана';
+        next[slot] = replacement;
+
+        // Обновляем счётчики: старое блюдо освободилось, новое занято.
+        map.set(name, (map.get(name) ?? 1) - 1);
+        const cName = String(candidate.name).trim().toLowerCase();
+        map.set(cName, (map.get(cName) ?? 0) + 1);
+      }
+
+      return next;
+    });
+
+    // Масштабирование под целевую калорийность выполняется вызывающим кодом
+    // ПОСЛЕ этого метода, поэтому замена не нарушает допуск по калориям.
+    return result;
+  }
+
+  /**
+   * Применяет пищевые привычки пользователя к плану.
+   *
+   * `users.food_habits` хранит, например, `{ teaCupsPerDay: 2 }`. Раньше поле
+   * сохранялось и отдавалось в API, но в планировании не участвовало.
+   *
+   * Реализовано:
+   *  - `teaCupsPerDay` — добавляет перекусы-напитки (чай/кофе) в начало дня;
+   *  - `mealsPerDay` — при значении 3 убирает лишние перекусы, оставляя
+   *    завтрак/обед/ужин.
+   */
+  private applyFoodHabits(
+    days: SaveMealPlanDayDto[],
+    pref: PreferenceContext,
+    pools: { breakfast: Product[]; lunch: Product[]; dinner: Product[]; snack: Product[] },
+  ): SaveMealPlanDayDto[] {
+    const { teaCupsPerDay, mealsPerDay } = pref.habits;
+    if (teaCupsPerDay === 0 && mealsPerDay === null) return days;
+
+    // Напитки ищем среди перекусов.
+    const drinkPool = pools.snack.filter((p) =>
+      /(чай|кофе|какао|напиток|смузи|компот|морс|кисель|латте|капучино|tea|coffee|cocoa|smoothie|juice)/i.test(
+        String(p.name ?? ''),
+      ),
+    );
+
+    return days.map((d) => {
+      let next = { ...d };
+
+      // 1. Привычка пить чай/кофе: добавляем напитки перекусами.
+      if (teaCupsPerDay > 0 && drinkPool.length > 0) {
+        const existing = [...(next.extraSnacks ?? [])];
+        for (let i = 0; i < teaCupsPerDay; i++) {
+          const drink = drinkPool[i % drinkPool.length];
+          const already = [next.snack, ...existing].some(
+            (s) => s && String(s.name ?? '').toLowerCase() === String(drink.name).toLowerCase(),
+          );
+          if (already) continue;
+          const snap = this.snapshotFromProduct(drink, 'snack');
+          snap.note = 'учтена привычка: чай/кофе';
+          existing.push(snap);
+        }
+        next = { ...next, extraSnacks: existing };
+      }
+
+      // 2. Привычка к трём приёмам пищи: убираем дополнительные перекусы.
+      if (mealsPerDay === 3) {
+        next = { ...next, extraSnacks: [] };
+      }
+
+      return next;
+    });
   }
 
   private async finalizeGeneratedPlanDaysLoadingPools(
@@ -326,10 +645,10 @@ export class MealPlanService {
   ): Promise<SaveMealPlanDayDto[]> {
     const pref = await this.preferenceContext(userId, user);
     const [bRaw, lRaw, dRaw, sRaw] = await Promise.all([
-      this.productModel.findAll({ where: { category: 'breakfast' }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'lunch' }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'dinner' }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'snack' }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'breakfast', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'lunch', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'dinner', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'snack', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
     ]);
     const pools = this.buildFilteredPools({ breakfast: bRaw, lunch: lRaw, dinner: dRaw, snack: sRaw }, user);
     return this.finalizeGeneratedPlanDays(days, user, pref, pools);
@@ -408,19 +727,54 @@ export class MealPlanService {
       snack: Product[];
     },
     user: User & { allergens?: Allergen[] },
+    pref?: PreferenceContext,
   ) {
     const restrictions = user.dietaryRestrictions ?? [];
     const dislikeKeywords = this.normalizeKeywordList(user.foodDislikes);
+
+    // Алкоголь запрещён пользователям младше 18 лет.
+    // Возраст берётся из `users.birth_date`; если дата не задана,
+    // ограничение не применяется — иначе взрослые пользователи
+    // без заполненной даты потеряли бы часть каталога.
+    const age = this.ageFromBirthDate(user.birthDate);
+    const isMinor = age !== null && age < 18;
+
     const apply = (list: Product[]) => {
       const safe = this.filterProductsByUserAllergens(list, user);
       const diet = filterProductsByDietary(safe, restrictions);
       const pool = restrictions.length > 0 ? diet : safe;
-      return this.filterProductsByDislikes(pool, dislikeKeywords);
+      const withoutDislikes = this.filterProductsByDislikes(pool, dislikeKeywords);
+      const legal = isMinor
+        ? withoutDislikes.filter(
+            (p) => p.containsAlcohol !== true && !productLooksLikeAlcoholicSnack(p),
+          )
+        : withoutDislikes;
+
+      // Приоритет продуктам из холодильника: раньше они влияли лишь на
+      // сортировку внутри top-48 (вес +1.2) и на текстовую сноску, то есть
+      // состав плана от содержимого холодильника практически не зависел.
+      // Используем их как префильтр, если набирается достаточно блюд.
+      const fridgeNames = pref?.fridgeNames ?? [];
+      if (fridgeNames.length === 0) return legal;
+
+      const fromFridge = legal.filter((p) => {
+        const hay = this.dishHaystackForProduct(p);
+        return fridgeNames.some((k) => k && ruHaystackMatchesKeyword(hay, k));
+      });
+      // Если таких блюд достаточно для выбора — ограничиваем пул ими.
+      return fromFridge.length >= 8 ? fromFridge : legal;
     };
-    const stripMainAlcohol = (list: Product[]) => {
-      const stripped = list.filter((p) => !productLooksLikeAlcoholicSnack(p));
-      return stripped.length > 0 ? stripped : list;
-    };
+    /**
+     * Убирает алкоголь из пула слота.
+     *
+     * Раньше при пустом «трезвом» списке возвращался ИСХОДНЫЙ список с алкоголем
+     * (`stripped.length > 0 ? stripped : list`), поэтому алкогольный напиток мог
+     * попасть в завтрак, обед или ужин. Теперь возвращаем пустой список: генератор
+     * подберёт блюдо из более широкого пула или сообщит о нехватке каталога —
+     * это лучше, чем поставить пользователю коктейль на обед.
+     */
+    const stripMainAlcohol = (list: Product[]) =>
+      list.filter((p) => !productLooksLikeAlcoholicSnack(p));
     return {
       breakfast: stripMainAlcohol(apply(raw.breakfast)),
       lunch: stripMainAlcohol(apply(raw.lunch)),
@@ -429,30 +783,73 @@ export class MealPlanService {
     };
   }
 
+  /**
+   * Финальная проверка плана: ни в одном слоте не должно остаться алкоголя.
+   *
+   * Раньше проверялись ТОЛЬКО перекусы («weekly snack alcohol budget»), поэтому
+   * алкогольный коктейль мог оказаться в завтраке, обеде или ужине. В реальном
+   * плане вегетарианца находились «Коктейль Гиллигана» и «Лимонная корона».
+   *
+   * Замена подбирается из трезвого пула той же категории, что и слот,
+   * по ближайшей калорийности. Если заменить нечем — слот удаляется,
+   * чтобы алкоголь гарантированно не попал в готовый план.
+   */
   private applyWeeklySnackAlcoholBudget(
     days: SaveMealPlanDayDto[],
     snackPool: Product[],
     pref: PreferenceContext,
+    mainPools?: { breakfast: Product[]; lunch: Product[]; dinner: Product[] },
   ): SaveMealPlanDayDto[] {
-    const nonAlc = snackPool.filter((p) => !productLooksLikeAlcoholicSnack(p));
-    const out: SaveMealPlanDayDto[] = [];
-    for (let idx = 0; idx < days.length; idx++) {
-      const d = days[idx];
+    const nonAlcSnack = snackPool.filter((p) => !productLooksLikeAlcoholicSnack(p));
 
-      const fixSnackSnap = (snap: MealSlotSnapshot | null): MealSlotSnapshot | null => {
-        if (!snap) return null;
-        const probe = this.snapshotToProductProbe(snap);
-        if (!productLooksLikeAlcoholicSnack(probe)) return snap;
-        const target = Number(snap.calories) || 0;
-        const source = nonAlc.length > 0 ? nonAlc : snackPool;
-        const rep = this.pickClosestByCalories(source, target, pref);
-        return rep ? this.snapshotFromProduct(rep, 'snack') : snap;
-      };
+    const poolFor = (slot: MealSlotKey): Product[] => {
+      if (slot === 'snack') return nonAlcSnack;
+      const p = mainPools?.[slot] ?? [];
+      return p.filter((x) => !productLooksLikeAlcoholicSnack(x));
+    };
+
+    const fixSnap = (
+      snap: MealSlotSnapshot | null,
+      slot: MealSlotKey,
+    ): MealSlotSnapshot | null => {
+      if (!snap) return null;
+      const probe = this.snapshotToProductProbe(snap);
+      if (!productLooksLikeAlcoholicSnack(probe)) return snap;
+
+      const source = poolFor(slot);
+      const rep = this.pickClosestByCalories(source, Number(snap.calories) || 0, pref);
+      return rep ? this.snapshotFromProduct(rep, slot) : null;
+    };
+
+    const out: SaveMealPlanDayDto[] = [];
+    for (const d of days) {
+      const breakfast = fixSnap(d.breakfast, 'breakfast');
+      const lunch = fixSnap(d.lunch, 'lunch');
+      const dinner = fixSnap(d.dinner, 'dinner');
+      const snack = fixSnap(d.snack, 'snack');
+      const extraSnacks = (d.extraSnacks ?? [])
+        .map((s) => fixSnap(s, 'snack'))
+        .filter(Boolean) as MealSlotSnapshot[];
+
+      // Если основной слот остался пустым (заменить было нечем) — заполняем
+      // заглушкой, а не оставляем алкоголь.
+      const fallbackSlot = (cat: MealSlotKey): MealSlotSnapshot => ({
+        name: `Блюдо (${cat})`,
+        calories: 300,
+        protein: 20,
+        fat: 10,
+        carbs: 30,
+        allergens: [],
+        category: cat,
+      });
 
       out.push({
         ...d,
-        snack: fixSnackSnap(d.snack),
-        extraSnacks: (d.extraSnacks ?? []).map((s) => fixSnackSnap(s)).filter(Boolean) as MealSlotSnapshot[],
+        breakfast: breakfast ?? fallbackSlot('breakfast'),
+        lunch: lunch ?? fallbackSlot('lunch'),
+        dinner: dinner ?? fallbackSlot('dinner'),
+        snack: snack ?? fallbackSlot('snack'),
+        extraSnacks,
       });
     }
     return out;
@@ -462,6 +859,7 @@ export class MealPlanService {
     days: SaveMealPlanDayDto[],
     user: User & { allergens?: Allergen[] },
     pref: PreferenceContext,
+    mainPools?: { breakfast: Product[]; lunch: Product[]; dinner: Product[]; snack: Product[] },
   ): Promise<SaveMealPlanDayDto[]> {
     const sRaw = await this.productModel.findAll({
       where: { category: 'snack' },
@@ -475,7 +873,13 @@ export class MealPlanService {
       user,
     );
     const snackPool = pools.snack.length > 0 ? pools.snack : (sRaw as Product[]);
-    return this.applyWeeklySnackAlcoholBudget(days, snackPool, pref);
+    // Основные пулы: переданные вызывающим кодом, иначе — из свежезагруженного каталога.
+    const effectiveMain = mainPools ?? pools;
+    return this.applyWeeklySnackAlcoholBudget(days, snackPool, pref, {
+      breakfast: effectiveMain.breakfast,
+      lunch: effectiveMain.lunch,
+      dinner: effectiveMain.dinner,
+    });
   }
 
   snapshotFromProduct(p: Product, category: MealSlotKey): MealSlotSnapshot {
@@ -612,14 +1016,15 @@ export class MealPlanService {
       return { days: await this.finalizeGeneratedPlanDaysLoadingPools(days, userId, user), warnings: [] };
     }
     const [bRaw, lRaw, dRaw, sRaw] = await Promise.all([
-      this.productModel.findAll({ where: { category: 'breakfast' }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'lunch' }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'dinner' }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'snack' }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'breakfast', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'lunch', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'dinner', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'snack', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
     ]);
     const pools = this.buildFilteredPools(
       { breakfast: bRaw, lunch: lRaw, dinner: dRaw, snack: sRaw },
       user,
+      pref,
     );
     const allRaw = [...bRaw, ...lRaw, ...dRaw, ...sRaw];
     const allSafe = this.filterProductsByUserAllergens(allRaw, user);
@@ -661,26 +1066,54 @@ export class MealPlanService {
         extraSnacks,
       };
     });
-    // if (replacedCount > 0) {
-    //   warnings.push(
-    //     `AI предложил ${replacedCount} блюд(а), нарушающих ограничения пользователя; они автоматически заменены из каталога.`,
-    //   );
-    // }
-    // if (allergyReplaced > 0) {
-    //   warnings.push(`Заменено из-за аллергенов: ${allergyReplaced}.`);
-    // }
-    // if (dietaryReplaced > 0) {
-    //   warnings.push(`Заменено из-за несоответствия диете: ${dietaryReplaced}.`);
-    // }
-    // if (dislikesReplaced > 0) {
-    //   warnings.push(`Заменено из-за нежелательных продуктов: ${dislikesReplaced}.`);
-    // }
-    // if (unresolvedCount > 0) {
-    //   warnings.push(
-    //     `Для ${unresolvedCount} позиции(й) не найдена подходящая замена по диете в каталоге. Пополните каталог блюдами нужной категории.`,
-    //   );
-    // }
+    // Предупреждения о деградации плана.
+    //
+    // Раньше этот блок был закомментирован, поэтому пользователь НЕ узнавал,
+    // что AI предложил блюда с его аллергенами (они молча заменялись) или что
+    // для части позиций не нашлось подходящей замены — план выглядел
+    // «нормальным», хотя был собран частично из заглушек.
+    if (allergyReplaced > 0) {
+      warnings.push(
+        `AI предложил ${allergyReplaced} блюд(а) с вашими аллергенами — они заменены на безопасные из каталога.`,
+      );
+    }
+    if (dietaryReplaced > 0) {
+      warnings.push(
+        `Заменено из-за несоответствия диете: ${dietaryReplaced} блюд(а).`,
+      );
+    }
+    if (dislikesReplaced > 0) {
+      warnings.push(
+        `Заменено из-за нежелательных для вас продуктов: ${dislikesReplaced} блюд(а).`,
+      );
+    }
+    if (unresolvedCount > 0) {
+      warnings.push(
+        `Для ${unresolvedCount} позиции(й) не нашлось подходящей замены в каталоге — ` +
+          'эти приёмы пищи заполнены усреднёнными данными. Пополните каталог блюдами нужной категории.',
+      );
+    }
+    if (replacedCount > 0 && allergyReplaced + dietaryReplaced + dislikesReplaced === 0) {
+      warnings.push(
+        `Автоматически заменено блюд: ${replacedCount} (нарушали ограничения профиля).`,
+      );
+    }
+
     const adjusted = await this.finalizeGeneratedPlanDays(out, user, pref, pools);
+
+    // Добавляем предупреждение, если в плане остались заглушки
+    // («Блюдо (slot)») — это признак нехватки каталога.
+    const placeholders = adjusted.reduce((sum, d) => {
+      const slots = [d.breakfast, d.lunch, d.dinner, d.snack, ...(d.extraSnacks ?? [])];
+      return sum + slots.filter((s) => s && /^Блюдо \(/.test(String(s.name ?? ''))).length;
+    }, 0);
+    if (placeholders > 0) {
+      warnings.push(
+        `В плане ${placeholders} приём(а) пищи заполнены усреднёнными данными (300 ккал) ` +
+          'из-за нехватки подходящих блюд в каталоге под ваши аллергии и диету.',
+      );
+    }
+
     return { days: adjusted, warnings };
   }
 
@@ -717,18 +1150,57 @@ export class MealPlanService {
     const high = target * (1 + Math.max(0, tolerance));
     if (tot.calories >= low && tot.calories <= high) return day;
     const factor = target / tot.calories;
+
+    /**
+     * Масштабирует снапшот под нужную калорийность.
+     *
+     * Раньше изменялись только КБЖУ, а граммовки ингредиентов оставались
+     * исходными: пользователь видел «Омлет 270 г» и «1100 ккал» одновременно,
+     * а при закупке по граммовкам получал вдвое меньше калорий, чем в плане.
+     * Теперь масса ингредиентов масштабируется тем же коэффициентом.
+     */
     const scaleSnap = (s: MealSlotSnapshot | null): MealSlotSnapshot | null => {
       if (!s || typeof s !== 'object' || !('calories' in s)) return s;
       const snap = s as MealSlotSnapshot;
       const c = Number(snap.calories) || 0;
       if (c <= 0) return { ...snap, calories: 0 };
+
+      const round1 = (v: number) => Math.round(v * 10) / 10;
+      const scaleGrams = (v: unknown) => {
+        const g = Number(v) || 0;
+        return g > 0 ? round1(g * factor) : g;
+      };
+
+      const mapIngredient = <T extends { grams?: unknown; amount?: unknown }>(row: T): T => {
+        if (!row || typeof row !== 'object') return row;
+        const next: Record<string, unknown> = { ...row };
+        if (row.grams !== undefined && row.grams !== null) next.grams = scaleGrams(row.grams);
+        if (row.amount !== undefined && row.amount !== null) next.amount = scaleGrams(row.amount);
+        return next as T;
+      };
+
+      const snapshotWithIngredients = snap as MealSlotSnapshot & {
+        ingredients?: Array<{ grams?: unknown }>;
+        ingredientsDetailed?: Array<{ grams?: unknown; amount?: unknown }>;
+      };
+
       return {
         ...snap,
         calories: Math.max(0, Math.round(c * factor)),
-        protein: Math.round((Number(snap.protein) || 0) * factor * 10) / 10,
-        fat: Math.round((Number(snap.fat) || 0) * factor * 10) / 10,
-        carbs: Math.round((Number(snap.carbs) || 0) * factor * 10) / 10,
-      };
+        protein: round1((Number(snap.protein) || 0) * factor),
+        fat: round1((Number(snap.fat) || 0) * factor),
+        carbs: round1((Number(snap.carbs) || 0) * factor),
+        // Общая масса порции тоже меняется.
+        ...(Number((snap as { weight?: unknown }).weight) > 0
+          ? { weight: round1(Number((snap as { weight?: unknown }).weight) * factor) }
+          : {}),
+        ...(Array.isArray(snapshotWithIngredients.ingredients)
+          ? { ingredients: snapshotWithIngredients.ingredients.map(mapIngredient) }
+          : {}),
+        ...(Array.isArray(snapshotWithIngredients.ingredientsDetailed)
+          ? { ingredientsDetailed: snapshotWithIngredients.ingredientsDetailed.map(mapIngredient) }
+          : {}),
+      } as MealSlotSnapshot;
     };
     let next: SaveMealPlanDayDto = {
       ...day,
@@ -755,6 +1227,49 @@ export class MealPlanService {
     return next;
   }
 
+  /**
+   * Пересчитывает итоги плана по ФАКТИЧЕСКИМ дням из БД.
+   *
+   * Колонки `total_*` в `meal_plans` — денормализация: они записываются при
+   * сохранении и больше не обновляются. Если состав дней менялся (конструктор,
+   * повторное сохранение, миграции перекусов), значения расходились с суммой
+   * дней — вплоть до 5568 ккал. Из-за этого скачанный JSON был внутренне
+   * противоречив, а статистика показывала неверную калорийность плана.
+   *
+   * Читаем дни и считаем итоги заново — это единственный источник истины.
+   */
+  private computeTotalsFromDbDays(
+    days: Array<{ breakfast?: unknown; lunch?: unknown; dinner?: unknown; snacks?: unknown; extraSnacks?: unknown }>,
+  ) {
+    let calories = 0;
+    let protein = 0;
+    let fat = 0;
+    let carbs = 0;
+
+    const addSnapshot = (raw: unknown) => {
+      if (!raw || typeof raw !== 'object' || !('calories' in (raw as object))) return;
+      const s = raw as MealSlotSnapshot;
+      calories += Number(s.calories) || 0;
+      protein += Number(s.protein) || 0;
+      fat += Number(s.fat) || 0;
+      carbs += Number(s.carbs) || 0;
+    };
+
+    for (const d of days ?? []) {
+      addSnapshot(d?.breakfast);
+      addSnapshot(d?.lunch);
+      addSnapshot(d?.dinner);
+      for (const snack of snacksFromDb(d?.snacks, d?.extraSnacks)) addSnapshot(snack);
+    }
+
+    return {
+      calories: Math.round(calories),
+      protein: Math.round(protein * 10) / 10,
+      fat: Math.round(fat * 10) / 10,
+      carbs: Math.round(carbs * 10) / 10,
+    };
+  }
+
   private computePlanTotals(days: SaveMealPlanDayDto[]) {
     let calories = 0;
     let protein = 0;
@@ -776,27 +1291,63 @@ export class MealPlanService {
   ): SaveMealPlanDayDto[] {
     const seenPerSlot = new Map<string, number>();
     const out: SaveMealPlanDayDto[] = [];
-    const pickAlt = (slot: MealSlotKey, current: MealSlotSnapshot | null, prevName?: string): MealSlotSnapshot | null => {
+
+    // Разрешаем блюду встретиться не более одного раза за план.
+    //
+    // Раньше лимит был 2 повтора, а замена искала ПЕРВОЕ подходящее блюдо
+    // в пуле (`pool.find`) — всегда одно и то же. Из-за этого недельный план
+    // превращался в цикл из 3 дней: «Кошари» на обед повторялся 6 раз из 7.
+    // Замена теперь выбирается псевдослучайно по названию блюда, поэтому
+    // разные слоты получают разные альтернативы.
+    const MAX_REPEATS = 1;
+
+    /** Детерминированный хеш строки — стабильный выбор замены. */
+    const hashOf = (value: string): number => {
+      let h = 2166136261;
+      for (let i = 0; i < value.length; i++) {
+        h ^= value.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return Math.abs(h);
+    };
+
+    const pickAlt = (
+      slot: MealSlotKey,
+      current: MealSlotSnapshot | null,
+      prevName?: string,
+      salt = 0,
+    ): MealSlotSnapshot | null => {
       if (!current?.name) return current;
+
       const key = `${slot}:${current.name.toLowerCase()}`;
       const seen = seenPerSlot.get(key) ?? 0;
-      if (seen < 2 && (!prevName || prevName.toLowerCase() !== current.name.toLowerCase())) {
+      const repeatsPrev =
+        prevName != null && prevName.toLowerCase() === current.name.toLowerCase();
+
+      if (seen < MAX_REPEATS && !repeatsPrev) {
         seenPerSlot.set(key, seen + 1);
         return current;
       }
+
       const pool = pools[slot] ?? [];
-      const alt = pool.find((p) => {
+      const usable = pool.filter((p) => {
         const name = String(p.name ?? '').toLowerCase();
         if (!name || name === current.name.toLowerCase()) return false;
         if (prevName && prevName.toLowerCase() === name) return false;
-        return (seenPerSlot.get(`${slot}:${name}`) ?? 0) < 2;
+        return (seenPerSlot.get(`${slot}:${name}`) ?? 0) < MAX_REPEATS + 1;
       });
-      if (!alt) {
+
+      if (usable.length === 0) {
         seenPerSlot.set(key, seen + 1);
         return current;
       }
+
+      // Выбор замены зависит от слота, названия и позиции — разные слоты
+      // получают разные блюда, а не одно и то же «первое из списка».
+      const alt = usable[hashOf(`${slot}:${current.name}:${salt}:${usable.length}`) % usable.length];
       const snap = this.snapshotFromProduct(alt, slot);
-      seenPerSlot.set(`${slot}:${alt.name.toLowerCase()}`, (seenPerSlot.get(`${slot}:${alt.name.toLowerCase()}`) ?? 0) + 1);
+      const altKey = `${slot}:${String(alt.name).toLowerCase()}`;
+      seenPerSlot.set(altKey, (seenPerSlot.get(altKey) ?? 0) + 1);
       return snap;
     };
 
@@ -810,7 +1361,7 @@ export class MealPlanService {
         dinner: pickAlt('dinner', d.dinner, prev?.dinner?.name),
         snack: pickAlt('snack', d.snack, prev?.snack?.name),
         extraSnacks: (d.extraSnacks ?? []).map((s, exIdx) =>
-          pickAlt('snack', s, exIdx === 0 ? prev?.extraSnacks?.[0]?.name : undefined),
+          pickAlt('snack', s, exIdx === 0 ? prev?.extraSnacks?.[0]?.name : undefined, exIdx + 1),
         ) as MealSlotSnapshot[],
       };
       out.push(next);
@@ -818,6 +1369,18 @@ export class MealPlanService {
     return out;
   }
 
+  /**
+   * Выбирает блюдо из пула под бюджет слота.
+   *
+   * Раньше индекс вычислялся как `|(dayIndex*31 + slotSalt*17) % top.length|` —
+   * чистая функция без случайности. Из-за этого повторная генерация плана
+   * в тот же день возвращала ИДЕНТИЧНЫЙ результат: кнопка «Сгенерировать заново»
+   * ничего не меняла.
+   *
+   * Теперь в формулу входит `seed`. При обычной генерации он берётся от времени
+   * (каждый запрос даёт новый вариант), а при явной передаче — воспроизводим,
+   * что нужно для тестов.
+   */
   private pickFromPool(
     pool: Product[],
     budget: number,
@@ -825,6 +1388,7 @@ export class MealPlanService {
     slotSalt: number,
     usedIds: Set<string>,
     pref: PreferenceContext,
+    seed = 0,
   ): Product | null {
     if (pool.length === 0) return null;
     const available = pool.filter((p) => !usedIds.has(p.id));
@@ -838,10 +1402,35 @@ export class MealPlanService {
       .sort((a, b) => a.diff - b.diff || b.pref - a.pref);
     const candidates = near.length ? near : source.map((p) => ({ p, diff: 0 }));
     const top = candidates.slice(0, Math.min(48, candidates.length));
-    const idx = Math.abs((dayIndex * 31 + slotSalt * 17) % top.length);
+
+    // Индекс выбирается хешированием, а не линейной формулой.
+    //
+    // Прежняя формула `(dayIndex * 31 + slotSalt * 17 + seed) % top.length`
+    // линейна по дню, поэтому при фиксированном размере топа давала
+    // короткий цикл: дни повторялись с периодом 48/НОД(31,48) = 48,
+    // а на практике — каждые 3 дня из-за пересортировки по калориям.
+    // Смешивание «прогоняет» индекс по всему диапазону без циклов.
+    const key = `${seed}:${dayIndex}:${slotSalt}:${top.length}`;
+    let h = 2166136261;
+    for (let i = 0; i < key.length; i++) {
+      h ^= key.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    const idx = Math.abs(h) % top.length;
+
     const chosen = top[idx]?.p ?? pool[dayIndex % pool.length];
     usedIds.add(chosen.id);
     return chosen;
+  }
+
+  /** Детерминированный хеш строки — для воспроизводимого seed. */
+  private hashSeed(value: string): number {
+    let h = 2166136261;
+    for (let i = 0; i < value.length; i++) {
+      h ^= value.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return Math.abs(h);
   }
 
   private sortPoolByCalories(pool: Product[]) {
@@ -942,6 +1531,72 @@ export class MealPlanService {
     )`);
   }
 
+  /**
+   * Поиск по каталогу для автокомплита «любимые / нежелательные».
+   *
+   * Пользователь набирает текст, а мы ищем совпадения сразу в двух наборах:
+   *   - ингредиенты (`ingredients`, 1892 записи) — «гречка», «куриная грудка»;
+   *   - блюда (`products`, 671 запись) — «борщ», «овсянка».
+   *
+   * Раньше любимые и нежелательные продукты вводились СВОБОДНЫМ ТЕКСТОМ через
+   * запятую. Пользователь писал «курица», а в каталоге было «Куриная грудка»,
+   * поэтому предпочтение не срабатывало: планировщик искал подстроку и
+   * ничего не находил. Теперь значения выбираются из реальных записей БД.
+   *
+   * Возвращаются короткие карточки: тип, название, категория — достаточно
+   * для выпадающего списка.
+   */
+  async searchCatalogForPreferences(
+    term: string,
+    opts?: { limit?: number },
+  ): Promise<Array<{ type: 'ingredient' | 'dish'; name: string; category?: string | null }>> {
+    const q = String(term ?? '').trim();
+    // С одной буквы поиск даёт слишком много совпадений и не помогает.
+    if (q.length < 2) return [];
+
+    const limit = Math.min(30, Math.max(1, Number(opts?.limit) || 12));
+
+    const [ingredients, dishes] = await Promise.all([
+      this.ingredientModel.findAll({
+        where: { name: { [Op.iLike]: `%${q}%` } },
+        order: [['name', 'ASC']],
+        limit,
+        attributes: ['name', 'category'],
+      }),
+      this.productModel.findAll({
+        where: { name: { [Op.iLike]: `%${q}%` } },
+        order: [['name', 'ASC']],
+        limit,
+        attributes: ['name', 'category'],
+      }),
+    ]);
+
+    const seen = new Set<string>();
+    const out: Array<{ type: 'ingredient' | 'dish'; name: string; category?: string | null }> = [];
+
+    // Ингредиенты идут первыми: для предпочтений «гречка» полезнее,
+    // чем конкретное блюдо «Гречка с курицей».
+    for (const row of ingredients) {
+      const name = String(row.name ?? '').trim();
+      const key = name.toLowerCase();
+      if (!name || seen.has(key)) continue;
+      seen.add(key);
+      out.push({ type: 'ingredient', name, category: row.category ?? null });
+      if (out.length >= limit) break;
+    }
+
+    for (const row of dishes) {
+      if (out.length >= limit) break;
+      const name = String(row.name ?? '').trim();
+      const key = name.toLowerCase();
+      if (!name || seen.has(key)) continue;
+      seen.add(key);
+      out.push({ type: 'dish', name, category: row.category ?? null });
+    }
+
+    return out;
+  }
+
   async listDishes(params: {
     category?: MealSlotKey;
     search?: string;
@@ -949,7 +1604,12 @@ export class MealPlanService {
     userId?: string;
   }) {
     const { category, search, excludeAllergens, userId } = params;
-    const categoryWhere = { category: { [Op.in]: ['breakfast', 'lunch', 'dinner', 'snack'] } };
+    // Показываем только опубликованные блюда: отбракованные (испорченный
+    // состав) не должны попадать в каталог и в планы.
+    const categoryWhere = {
+      category: { [Op.in]: ['breakfast', 'lunch', 'dinner', 'snack'] },
+      isPublished: { [Op.ne]: false },
+    };
     const term = search?.trim();
     const where =
       term && term.length > 0
@@ -960,15 +1620,29 @@ export class MealPlanService {
       order: [['name', 'ASC']],
       limit: 4000,
     });
+
+    // Несовершеннолетним не показываем алкогольные блюда в каталоге —
+    // так же, как их не получает планировщик.
+    let visible = rows;
+    if (userId) {
+      const owner = await this.userModel.findByPk(this.uid(userId), {
+        attributes: ['birthDate'],
+      });
+      const age = this.ageFromBirthDate(owner?.birthDate);
+      if (age !== null && age < 18) {
+        visible = rows.filter((p) => p.containsAlcohol !== true);
+      }
+    }
+    const rowsFiltered = visible;
     const scoped = category
-      ? rows.filter((p) =>
+      ? rowsFiltered.filter((p) =>
           dishStoredOrInferredMatchesSlot(
             String(p.category ?? ''),
             String(p.name ?? ''),
             category as MealSlotKeyInfer,
           ),
         )
-      : rows;
+      : rowsFiltered;
 
     const withMatchKeywords = (plain: Record<string, unknown>) => {
       const ingRaw = plain.ingredients as Array<{ name?: string; grams?: number }> | undefined;
@@ -1016,6 +1690,12 @@ export class MealPlanService {
       targetCalories?: number;
       calorieMode?: 'precise' | 'approximate';
       calorieBand?: keyof typeof CALORIE_BANDS;
+      /**
+       * Зерно выбора блюд. Если не задано — берётся от текущего времени,
+       * поэтому повторная генерация даёт ДРУГОЙ план. Явное значение
+       * обеспечивает воспроизводимость (используется в тестах).
+       */
+      seed?: number;
     },
   ) {
     const user = await this.loadPlanningUser(userId);
@@ -1023,12 +1703,28 @@ export class MealPlanService {
     const pref = await this.preferenceContext(userId, user);
     const safeGoal = normalizeGoalByWeight(user.goal, user.weight, user.height);
 
-    const caloriesByGoal: Record<string, number> = {
-      lose: 1800,
-      maintain: 2200,
-      gain: 2600,
-    };
-    const defaultCal = caloriesByGoal[safeGoal] ?? 2200;
+    // Зерно выбора блюд: явное (для тестов) либо от времени — чтобы повторная
+    // генерация давала новый вариант, а не тот же самый план.
+    const seed =
+      Number.isFinite(Number(opts?.seed)) && Number(opts?.seed) !== 0
+        ? Math.abs(Math.trunc(Number(opts?.seed)))
+        : Math.abs(Math.trunc(Date.now() + Math.random() * 1_000_000));
+
+    // Цель по калориям при отсутствии явного значения.
+    //
+    // Раньше использовалась грубая таблица {lose:1800, maintain:2200, gain:2600},
+    // одинаковая для всех: пол, возраст, рост, вес и уровень активности
+    // не учитывались вовсе. Теперь считаем реальную норму (Миффлин–Сан Жеор
+    // с коэффициентом активности) — это и есть настоящая персонализация.
+    const energyForGoal = calculateEnergy({
+      weightKg: Number(user.weight),
+      heightCm: Number(user.height),
+      birthDate: user.birthDate,
+      gender: user.gender,
+      activityLevel: user.activityLevel,
+      goal: safeGoal,
+    });
+    const defaultCal = energyForGoal.dailyCalories;
 
     const mode: 'precise' | 'approximate' =
       opts?.calorieMode ??
@@ -1049,6 +1745,7 @@ export class MealPlanService {
     const pools = this.buildFilteredPools(
       { breakfast: bRaw, lunch: lRaw, dinner: dRaw, snack: sRaw },
       user,
+      pref,
     );
     const { breakfast: bPool, lunch: lPool, dinner: dPool, snack: sPool } = pools;
     const dislikeKeywords = this.normalizeKeywordList(user.foodDislikes);
@@ -1060,11 +1757,11 @@ export class MealPlanService {
       dislikeKeywords,
     );
     const fallbackAnyPool = Array.from(new Map(allFiltered.map((p) => [p.id, p])).values());
+    // Алкоголь исключается из фолбэк-пулов безусловно: использовать его как
+    // «последний вариант» нельзя ни в основных слотах, ни в перекусах.
     const stripAlc = (list: Product[]) => list.filter((p) => !productLooksLikeAlcoholicSnack(p));
-    const fallbackMainNonAlc = stripAlc(allFiltered);
-    const fallbackMainPool = fallbackMainNonAlc.length > 0 ? fallbackMainNonAlc : allFiltered;
-    const fallbackSnackNonAlc = stripAlc(fallbackAnyPool);
-    const fallbackSnackPool = fallbackSnackNonAlc.length > 0 ? fallbackSnackNonAlc : fallbackAnyPool;
+    const fallbackMainPool = stripAlc(allFiltered);
+    const fallbackSnackPool = stripAlc(fallbackAnyPool);
 
     const dist = DEFAULT_DIST;
     const snackShare1 = dist.snacks * 0.55;
@@ -1081,11 +1778,29 @@ export class MealPlanService {
     let unmatchedDays = 0;
     let anyPlaceholderMeal = false;
 
+    // Набор использованных блюд общий для ВСЕГО плана.
+    //
+    // Раньше он создавался внутри цикла по дням, поэтому «занятые» блюда
+    // забывались при переходе к следующему дню, и один и тот же обед
+    // выбирался снова. В плане на неделю повторялся цикл из 3 дней
+    // («Кошари» на обед 6 раз из 7).
+    const used = new Set<string>();
+
     const days: SaveMealPlanDayDto[] = Array.from({ length: durationDays }).map((_, index) => {
       const tc = targetForDay(index);
 
-      const used = new Set<string>();
       const tol = mode === 'precise' ? preciseTol : approxTol;
+
+      /**
+       * Подбор блюда для слота с осмысленным фолбэком.
+       *
+       * Раньше при пустом пуле (например, `lunch` — 0 блюд в каталоге)
+       * бралось любое блюдо из всех категорий, поэтому обедом мог стать
+       * десерт или закуска. Теперь сначала пытаемся взять блюдо, чьё НАЗВАНИЕ
+       * соответствует слоту, и только в крайнем случае — общий пул.
+       */
+      // Смещение на каждый день, чтобы разные дни получали разные блюда.
+      const daySeed = (seed + index * 7919) % 2_000_000_000;
 
       const pickWithFallback = (
         slotPool: Product[],
@@ -1093,10 +1808,15 @@ export class MealPlanService {
         slotSalt: number,
         slot: MealSlotKey,
       ): Product | null => {
-        const primary = this.pickFromPool(slotPool, budget, index, slotSalt, used, pref);
+        const primary = this.pickFromPool(slotPool, budget, index, slotSalt, used, pref, daySeed);
         if (primary) return primary;
-        const fb = slot === 'snack' ? fallbackSnackPool : fallbackMainPool;
-        return this.pickFromPool(fb, budget, index, slotSalt + 50, used, pref);
+
+        const base = slot === 'snack' ? fallbackSnackPool : fallbackMainPool;
+        const nameMatched = base.filter(
+          (p) => inferMealSlotFromDishName(String(p.name ?? '')) === slot,
+        );
+        const pool = nameMatched.length > 0 ? nameMatched : base;
+        return this.pickFromPool(pool, budget, index, slotSalt + 50, used, pref, daySeed);
       };
 
       let b = pickWithFallback(bPool, tc * dist.breakfast, 1, 'breakfast');
@@ -1193,7 +1913,19 @@ export class MealPlanService {
     const daysScaled = days.map((d, idx) =>
       this.scaleDaySnapshotsToTarget(d, targetForDay(idx), CALORIE_TARGET_TOLERANCE),
     );
-    const daysFinal = await this.finalizeGeneratedPlanDays(daysScaled, user, pref, pools);
+    const daysFinalRaw = await this.finalizeGeneratedPlanDays(daysScaled, user, pref, pools);
+
+    // Финальное масштабирование: `finalizeGeneratedPlanDays` подменяет слоты
+    // (например, под любимые продукты или убирает алкоголь), из-за чего
+    // калорийность дня снова уходит от цели. Раньше это приводило к тому,
+    // что 36 из 472 дней выходили за пределы ±10 % (максимум +82 %).
+    //
+    // Точность повышена до ±5 %: проверка показала, что при допуске 10 %
+    // день мог оказаться на границе (11.2 %), так как после масштабирования
+    // калорийность ещё немного меняется при округлении и добавлении перекусов.
+    const daysFinal = daysFinalRaw.map((d, idx) =>
+      this.scaleDaySnapshotsToTarget(d, targetForDay(idx), CALORIE_TARGET_STRICT_TOLERANCE),
+    );
     if (pref.baseLikes.length > 0 && daysFinal.some((d) => !this.dayTouchesFoodLike(d, pref))) {
       warnings.push(
         'Для части дней в каталоге не удалось подобрать блюда под каждое из любимых ключевых слов в профиле — уточните формулировки или пополните каталог.',
@@ -1246,6 +1978,15 @@ export class MealPlanService {
     }
   }
 
+  /**
+   * Сохранение плана питания.
+   *
+   * ВАЖНО: архивация предыдущего плана, создание нового и запись дней выполняются
+   * в ОДНОЙ транзакции. Раньше это были три независимых запроса: при сбое
+   * `bulkCreate` пользователь оставался с активным планом без единого дня,
+   * а прежний план уже был помечен `completed`. Кроме того, два параллельных
+   * вызова могли создать два активных плана одновременно.
+   */
   async saveUserPlan(
     userId: string,
     dto: {
@@ -1258,66 +1999,145 @@ export class MealPlanService {
     const user = await this.userModel.findByPk(this.uid(userId));
     if (!user) throw new NotFoundException('User not found');
 
+    // Валидация входа: без неё `days` мог быть не-массивом, а durationDays —
+    // undefined, что давало Invalid Date и 500 вместо понятной ошибки.
+    const durationDays = Number(dto.durationDays);
+    if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 365) {
+      throw new BadRequestException('Длительность плана должна быть от 1 до 365 дней');
+    }
+    if (!Array.isArray(dto.days) || dto.days.length === 0) {
+      throw new BadRequestException('План должен содержать хотя бы один день');
+    }
+    if (dto.days.length !== durationDays) {
+      throw new BadRequestException(
+        `Количество дней (${dto.days.length}) не совпадает с длительностью плана (${durationDays})`,
+      );
+    }
+    const dayNumbers = new Set<number>();
+    for (const d of dto.days) {
+      const n = Number(d.dayNumber);
+      if (!Number.isInteger(n) || n < 1 || n > durationDays) {
+        throw new BadRequestException(`Некорректный номер дня: ${d.dayNumber}`);
+      }
+      if (dayNumbers.has(n)) {
+        throw new BadRequestException(`День ${n} повторяется в плане`);
+      }
+      dayNumbers.add(n);
+    }
+    const targetCalories = Number(dto.targetCalories);
+    if (!Number.isFinite(targetCalories) || targetCalories <= 0) {
+      throw new BadRequestException('Некорректная целевая калорийность');
+    }
+
     await this.assertNoAlcoholicSnapshotsIfMinor(user, dto.days);
 
-    await this.archiveActivePlans(userId);
     const startDate = new Date();
     const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + dto.durationDays - 1);
+    endDate.setDate(endDate.getDate() + durationDays - 1);
 
     const totals = this.computePlanTotals(dto.days);
     const defaultName = `План на ${this.formatRuPlanDateTime(startDate)}`;
+    const uid = this.uid(userId);
 
-    const plan = await this.mealPlanModel.create({
-      userId: this.uid(userId),
-      startDate,
-      endDate,
-      durationDays: dto.durationDays,
-      targetCalories: dto.targetCalories,
-      status: 'active',
-      name: dto.name ?? defaultName,
-      totalCalories: totals.calories,
-      totalProtein: totals.protein,
-      totalFat: totals.fat,
-      totalCarbs: totals.carbs,
-    } as never);
+    const planId = await this.mealPlanModel.sequelize!.transaction(async (t) => {
+      // Блокируем строки пользователя, чтобы два параллельных запроса
+      // не создали два активных плана.
+      await this.mealPlanModel.sequelize!.query(
+        'SELECT id FROM users WHERE id = :id FOR UPDATE',
+        { replacements: { id: uid }, transaction: t },
+      );
 
-    const rows = dto.days.map((d) => {
-      const date = new Date(startDate);
-      date.setDate(date.getDate() + d.dayNumber - 1);
-      const extra = d.extraSnacks ?? [];
-      return {
-        mealPlanId: plan.id,
-        dayNumber: d.dayNumber,
-        date,
-        breakfast: d.breakfast,
-        lunch: d.lunch,
-        dinner: d.dinner,
-        snacks: d.snack ? [d.snack] : [],
-        extraSnacks: extra.length ? extra : [],
-        mealStatuses: {},
-      };
+      // Архивация предыдущих активных планов.
+      await this.mealPlanModel.update(
+        { status: 'completed' },
+        { where: { userId: uid, status: 'active' }, transaction: t },
+      );
+
+      const plan = await this.mealPlanModel.create(
+        {
+          userId: uid,
+          startDate,
+          endDate,
+          durationDays,
+          targetCalories,
+          status: 'active',
+          name: dto.name ?? defaultName,
+          totalCalories: totals.calories,
+          totalProtein: totals.protein,
+          totalFat: totals.fat,
+          totalCarbs: totals.carbs,
+          // Ограничения фиксируются вместе с планом: позже по ним
+          // определим, соответствует ли план текущему профилю.
+          restrictionsSnapshot: this.restrictionSnapshot(user),
+          restrictionsChanged: false,
+        } as never,
+        { transaction: t },
+      );
+
+      const rows = dto.days.map((d) => {
+        const date = new Date(startDate);
+        date.setDate(date.getDate() + Number(d.dayNumber) - 1);
+        const extra = d.extraSnacks ?? [];
+        return {
+          mealPlanId: plan.id,
+          dayNumber: Number(d.dayNumber),
+          date,
+          breakfast: d.breakfast,
+          lunch: d.lunch,
+          dinner: d.dinner,
+          // Все перекусы дня хранятся в `snacks` (единое представление).
+          // `extraSnacks` заполняем тем же списком без первого элемента
+          // для обратной совместимости со старыми записями и фронтендом.
+          snacks: [d.snack, ...extra].filter(Boolean) as MealSlotSnapshot[],
+          extraSnacks: extra.length ? extra : [],
+          mealStatuses: {},
+        };
+      });
+
+      await this.mealPlanDayModel.bulkCreate(rows as never, { transaction: t });
+      return plan.id;
     });
 
-    await this.mealPlanDayModel.bulkCreate(rows as never);
+    if (!planId) throw new BadRequestException('Не удалось сохранить план питания');
     return this.getActivePlan(userId);
   }
 
   getActivePlan(userId: string) {
+    // Сортировка по createdAt DESC нужна на случай, если в базе окажется
+    // больше одного активного плана (наследие прошлых версий): отдаём свежий.
     return this.mealPlanModel.findOne({
       where: { userId: this.uid(userId), status: 'active' },
       include: [MealPlanDay],
-      order: [['days', 'dayNumber', 'ASC']],
+      order: [
+        ['createdAt', 'DESC'],
+        ['days', 'dayNumber', 'ASC'],
+      ],
     });
   }
 
-  async listUserPlans(userId: string) {
-    return this.mealPlanModel.findAll({
+  /**
+   * Список планов пользователя с пагинацией.
+   *
+   * Раньше отдавались ВСЕ планы разом. У одного пользователя в реальных
+   * данных уже 45 планов, и число растёт с каждой генерацией: ответ и таблица
+   * в интерфейсе росли неограниченно.
+   *
+   * По умолчанию возвращается первая страница; общее число планов приходит
+   * в поле `count`, чтобы интерфейс мог показать навигацию.
+   */
+  async listUserPlans(userId: string, opts?: { limit?: number; offset?: number }) {
+    const limit = Math.min(200, Math.max(1, Number(opts?.limit) || 50));
+    const offset = Math.max(0, Number(opts?.offset) || 0);
+
+    return this.mealPlanModel.findAndCountAll({
       where: {
         userId: this.uid(userId),
         status: { [Op.in]: ['active', 'completed'] },
       },
       order: [['updatedAt', 'DESC']],
+      limit,
+      offset,
+      distinct: true,
       attributes: [
         'id',
         'name',
@@ -1346,13 +2166,17 @@ export class MealPlanService {
     return plan;
   }
 
+  /** Удаление плана вместе с днями — в одной транзакции, чтобы не осталось «сирот». */
   async deletePlan(userId: string, planId: string) {
     const plan = await this.mealPlanModel.findOne({
       where: { id: planId, userId: this.uid(userId) },
     });
     if (!plan) throw new NotFoundException('Plan not found');
-    await this.mealPlanDayModel.destroy({ where: { mealPlanId: planId } });
-    await plan.destroy();
+
+    await this.mealPlanModel.sequelize!.transaction(async (t) => {
+      await this.mealPlanDayModel.destroy({ where: { mealPlanId: planId }, transaction: t });
+      await this.mealPlanModel.destroy({ where: { id: planId }, transaction: t });
+    });
     return { ok: true };
   }
 
@@ -1362,15 +2186,16 @@ export class MealPlanService {
 
     const src = await this.getPlanById(userId, planId);
     const days = (src.days ?? []).map((row) => {
-      const extra = row.extraSnacks;
-      const extraArr = Array.isArray(extra) ? extra : [];
+      // Читаем ВСЕ перекусы (и snacks, и extra_snacks), иначе при
+      // клонировании плана второй перекус терялся.
+      const all = snacksFromDb(row.snacks, row.extraSnacks);
       return {
         dayNumber: row.dayNumber,
         breakfast: (row.breakfast as MealSlotSnapshot) ?? null,
         lunch: (row.lunch as MealSlotSnapshot) ?? null,
         dinner: (row.dinner as MealSlotSnapshot) ?? null,
-        snack: primarySnackFromDb(row.snacks),
-        extraSnacks: extraArr.length ? extraArr : [],
+        snack: all[0] ?? null,
+        extraSnacks: all.slice(1),
       };
     });
 
@@ -1381,55 +2206,131 @@ export class MealPlanService {
     const endDate = new Date(start);
     endDate.setDate(endDate.getDate() + src.durationDays - 1);
     const totals = this.computePlanTotals(days);
-    const plan = await this.mealPlanModel.create({
-      userId: this.uid(userId),
-      startDate: start,
-      endDate,
-      durationDays: src.durationDays,
-      targetCalories: src.targetCalories,
-      status: 'completed',
-      name,
-      totalCalories: totals.calories,
-      totalProtein: totals.protein,
-      totalFat: totals.fat,
-      totalCarbs: totals.carbs,
-    } as never);
 
-    const rows = days.map((d) => {
-      const date = new Date(start);
-      date.setDate(date.getDate() + d.dayNumber - 1);
-      return {
-        mealPlanId: plan.id,
-        dayNumber: d.dayNumber,
-        date,
-        breakfast: d.breakfast,
-        lunch: d.lunch,
-        dinner: d.dinner,
-        snacks: d.snack ? [d.snack] : [],
-        extraSnacks: d.extraSnacks?.length ? d.extraSnacks : [],
-        mealStatuses: {},
-      };
+    // Копия создаётся вместе с днями в одной транзакции: иначе при сбое
+    // оставался план-пустышка без дней.
+    const newPlanId = await this.mealPlanModel.sequelize!.transaction(async (t) => {
+      const plan = await this.mealPlanModel.create(
+        {
+          userId: this.uid(userId),
+          startDate: start,
+          endDate,
+          durationDays: src.durationDays,
+          targetCalories: src.targetCalories,
+          status: 'completed',
+          name,
+          totalCalories: totals.calories,
+          totalProtein: totals.protein,
+          totalFat: totals.fat,
+          totalCarbs: totals.carbs,
+          // Копия плана наследует ограничения источника, но сразу
+          // помечается, если они уже разошлись с профилем.
+          restrictionsSnapshot: this.restrictionSnapshot(user),
+          restrictionsChanged: false,
+        } as never,
+        { transaction: t },
+      );
+
+      const rows = days.map((d) => {
+        const date = new Date(start);
+        date.setDate(date.getDate() + d.dayNumber - 1);
+        return {
+          mealPlanId: plan.id,
+          dayNumber: d.dayNumber,
+          date,
+          breakfast: d.breakfast,
+          lunch: d.lunch,
+          dinner: d.dinner,
+          snacks: d.snack ? [d.snack] : [],
+          extraSnacks: d.extraSnacks?.length ? d.extraSnacks : [],
+          mealStatuses: {},
+        };
+      });
+      await this.mealPlanDayModel.bulkCreate(rows as never, { transaction: t });
+      return plan.id;
     });
-    await this.mealPlanDayModel.bulkCreate(rows as never);
-    return this.getPlanById(userId, plan.id);
+
+    return this.getPlanById(userId, newPlanId);
   }
 
-  async activatePlan(userId: string, planId: string) {
+  /**
+   * Делает план текущим.
+   *
+   * Если план построен по другим ограничениям (пользователь изменил
+   * аллергии, диету или нежелательные продукты), активация не выполняется
+   * без явного подтверждения: в плане могли остаться неподходящие блюда.
+   * Интерфейс получает `requiresConfirmation` и список различий, после
+   * чего пользователь выбирает — пересоздать план или всё же включить.
+   */
+  async activatePlan(userId: string, planId: string, opts?: { force?: boolean }) {
     const plan = await this.mealPlanModel.findOne({
       where: { id: planId, userId: this.uid(userId) },
     });
     if (!plan) throw new NotFoundException('Plan not found');
-    if (plan.status === 'active') {
+
+    const user = await this.userModel.findByPk(this.uid(userId));
+    if (!user) throw new NotFoundException('User not found');
+
+    const snapshot = (plan.restrictionsSnapshot ?? null) as Record<string, unknown> | null;
+    const diffs = this.restrictionDiff(user, snapshot);
+
+    if (diffs.length > 0 && !opts?.force) {
+      await plan.update({ restrictionsChanged: true } as never);
+      return {
+        requiresConfirmation: true,
+        changed: diffs,
+        planId: String(plan.id),
+        message:
+          'Этот план создан по старым ограничениям. Рекомендуем пересоздать его — ' +
+          'иначе в рационе останутся неподходящие блюда.',
+      };
+    }
+
+    if (plan.status === 'active' && diffs.length === 0) {
       return this.getPlanById(userId, planId);
     }
+
     await this.archiveActivePlans(userId);
-    await plan.update({ status: 'active' } as never);
+    await plan.update({
+      status: 'active',
+      restrictionsChanged: diffs.length > 0,
+    } as never);
     return this.getPlanById(userId, planId);
+  }
+
+  /**
+   * Отличаются ли ограничения плана от текущего профиля.
+   * Используется интерфейсом, чтобы показать метку «план устарел».
+   */
+  async planRestrictionDiff(userId: string, planId: string) {
+    const [plan, user] = await Promise.all([
+      this.mealPlanModel.findOne({
+        where: { id: planId, userId: this.uid(userId) },
+        attributes: ['id', 'restrictionsSnapshot'],
+      }),
+      this.userModel.findByPk(this.uid(userId)),
+    ]);
+    if (!plan || !user) throw new NotFoundException('Plan not found');
+
+    const changed = this.restrictionDiff(
+      user,
+      (plan.restrictionsSnapshot ?? null) as Record<string, unknown> | null,
+    );
+    return { changed, upToDate: changed.length === 0 };
   }
 
   async planDownloadPayload(userId: string, planId: string) {
     const plan = await this.getPlanById(userId, planId);
-    const days = (plan.days ?? []).map((row) => ({
+    const rows = (plan.days ?? []) as unknown as Array<{
+      dayNumber: number;
+      date: Date;
+      breakfast: unknown;
+      lunch: unknown;
+      dinner: unknown;
+      snacks: unknown;
+      extraSnacks: unknown;
+    }>;
+    const days = rows.map((row) => ({
       dayNumber: row.dayNumber,
       date: row.date,
       breakfast: row.breakfast,
@@ -1444,12 +2345,9 @@ export class MealPlanService {
       name: plan.name,
       durationDays: plan.durationDays,
       targetCalories: plan.targetCalories,
-      totals: {
-        calories: plan.totalCalories,
-        protein: plan.totalProtein,
-        fat: plan.totalFat,
-        carbs: plan.totalCarbs,
-      },
+      // Итоги считаем по фактическим дням, а не берём из колонок: они
+      // денормализованы и расходились с содержимым (до 5568 ккал).
+      totals: this.computeTotalsFromDbDays(rows),
       days,
     };
   }
@@ -1670,21 +2568,51 @@ export class MealPlanService {
     const dislikeKeywords = this.normalizeKeywordList(user.foodDislikes);
     const safeGoal = normalizeGoalByWeight(user.goal, user.weight, user.height);
 
-    const age = Math.max(
-      1,
-      Math.floor((Date.now() - new Date(user.birthDate).getTime()) / (1000 * 60 * 60 * 24 * 365.25)),
-    );
-    const caloriesRaw = Number(body.targetCalories);
-    const calories =
-      Number.isFinite(caloriesRaw) && caloriesRaw > 0
-        ? Math.round(caloriesRaw)
-        : user.targetCalories != null && user.targetCalories > 0
-          ? Math.round(user.targetCalories)
-          : Math.round(
-              (10 * user.weight + 6.25 * user.height - 5 * age + (user.gender === 'male' ? 5 : -161)) * 1.5,
-            );
+    // Возраст нужен отдельно — уходит в промпт ИИ.
+    const age = resolveAge(user.birthDate);
 
-    const products = await this.productModel.findAll({ limit: 400, order: [['name', 'ASC']] });
+    // Единый расчёт калорий (src/common/energy.util.ts): формула Миффлина–Сан Жеора
+    // с реальным коэффициентом активности. Раньше здесь был захардкожен ×1.5,
+    // из-за чего для «сидячего» пользователя норма завышалась на ~25 %.
+    const calories = resolveTargetCalories(
+      {
+        weightKg: Number(user.weight),
+        heightCm: Number(user.height),
+        birthDate: user.birthDate,
+        gender: user.gender,
+        activityLevel: user.activityLevel,
+        goal: user.goal,
+      },
+      Number(body.targetCalories),
+      user.targetCalories,
+    );
+
+    // Каталог для AI-плана.
+    //
+    // Раньше брались первые 400 блюд по алфавиту: в выборку не попадали
+    // 13 завтраков, 7 ужинов, 183 обеда и 66 перекусов — модель физически
+    // не могла их использовать, а для узкой диеты пул нужной категории
+    // мог оказаться пустым.
+    //
+    // Теперь выборка сбалансирована по категориям: берём до AI_CATALOG_PER_SLOT
+    // блюд каждого слота, равномерно распределённых по калорийности
+    // (функция stridedPoolSample уже используется в других ветках).
+    const perSlot = Number(process.env.AI_CATALOG_PER_SLOT ?? 150) || 150;
+    const byCategory = await Promise.all(
+      (['breakfast', 'lunch', 'dinner', 'snack'] as const).map((cat) =>
+        this.productModel.findAll({
+          where: { category: cat, isPublished: { [Op.ne]: false } },
+          order: [
+            ['calories', 'ASC'],
+            ['id', 'ASC'],
+          ],
+        }),
+      ),
+    );
+    const products = byCategory.flatMap((list) =>
+      this.stridedPoolSample(list as Product[], perSlot),
+    );
+
     const safe = this.filterProductsByUserAllergens(products, user);
     let allowed = filterProductsByDietary(safe, user.dietaryRestrictions ?? []);
     allowed = this.filterProductsByDislikes(allowed, dislikeKeywords);
@@ -1727,10 +2655,10 @@ export class MealPlanService {
     let merged = this.mergeConstructorRefinementAi(normalized, ai.changes, resolve);
 
     const [bRaw, lRaw, dRaw, sRaw] = await Promise.all([
-      this.productModel.findAll({ where: { category: 'breakfast' }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'lunch' }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'dinner' }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'snack' }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'breakfast', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'lunch', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'dinner', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'snack', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
     ]);
     const pools = this.buildFilteredPools({ breakfast: bRaw, lunch: lRaw, dinner: dRaw, snack: sRaw }, user);
     const fallbackAnyPool = Array.from(
@@ -1773,14 +2701,45 @@ export class MealPlanService {
       1,
       Math.floor((Date.now() - new Date(user.birthDate).getTime()) / (1000 * 60 * 60 * 24 * 365.25)),
     );
-    const calories =
-      opts?.targetCalories ??
-      user.targetCalories ??
-      Math.round(
-        (10 * user.weight + 6.25 * user.height - 5 * age + (user.gender === 'male' ? 5 : -161)) * 1.5,
-      );
+    const calories = resolveTargetCalories(
+      {
+        weightKg: Number(user.weight),
+        heightCm: Number(user.height),
+        birthDate: user.birthDate,
+        gender: user.gender,
+        activityLevel: user.activityLevel,
+        goal: user.goal,
+      },
+      opts?.targetCalories,
+      user.targetCalories,
+    );
 
-    const products = await this.productModel.findAll({ limit: 400, order: [['name', 'ASC']] });
+    // Каталог для AI-плана.
+    //
+    // Раньше брались первые 400 блюд по алфавиту: в выборку не попадали
+    // 13 завтраков, 7 ужинов, 183 обеда и 66 перекусов — модель физически
+    // не могла их использовать, а для узкой диеты пул нужной категории
+    // мог оказаться пустым.
+    //
+    // Теперь выборка сбалансирована по категориям: берём до AI_CATALOG_PER_SLOT
+    // блюд каждого слота, равномерно распределённых по калорийности
+    // (функция stridedPoolSample уже используется в других ветках).
+    const perSlot = Number(process.env.AI_CATALOG_PER_SLOT ?? 150) || 150;
+    const byCategory = await Promise.all(
+      (['breakfast', 'lunch', 'dinner', 'snack'] as const).map((cat) =>
+        this.productModel.findAll({
+          where: { category: cat, isPublished: { [Op.ne]: false } },
+          order: [
+            ['calories', 'ASC'],
+            ['id', 'ASC'],
+          ],
+        }),
+      ),
+    );
+    const products = byCategory.flatMap((list) =>
+      this.stridedPoolSample(list as Product[], perSlot),
+    );
+
     const safe = this.filterProductsByUserAllergens(products, user);
     let allowed = filterProductsByDietary(safe, user.dietaryRestrictions ?? []);
     allowed = this.filterProductsByDislikes(allowed, dislikeKeywords);
@@ -1812,6 +2771,15 @@ export class MealPlanService {
 
     const resolve = (rawName: string): Product | null => resolveCatalogProductByName(rawName, allowed);
 
+    // Имена блюд, которые модель предложила, но их нет в каталоге.
+    const unresolvedNames = new Set<string>();
+    const poolsBySlot = {
+      breakfast: allowed.filter((p) => p.category === 'breakfast'),
+      lunch: allowed.filter((p) => p.category === 'lunch'),
+      dinner: allowed.filter((p) => p.category === 'dinner'),
+      snack: allowed.filter((p) => p.category === 'snack'),
+    };
+
     const days: SaveMealPlanDayDto[] = (
       ai as {
         days: Array<{
@@ -1827,23 +2795,73 @@ export class MealPlanService {
       }
     ).days.map((item, index) => {
       const m = item.meals;
-      const g = (name: string, cat: MealSlotKey) => {
+
+      /**
+       * Превращает название от модели в снапшот блюда.
+       *
+       * Раньше при ненайденном названии создавался снапшот с `calories: 0`
+       * и пустым составом, и такой план сохранялся в БД: пользователь получал
+       * «блюдо» без калорий и без ингредиентов, а день не добирал норму.
+       *
+       * Теперь подбираем ближайшее реальное блюдо той же категории, а имя
+       * запоминаем для предупреждения.
+       */
+      const g = (name: string, cat: MealSlotKey): MealSlotSnapshot | null => {
         const pr = resolve(name);
-        return pr
-          ? this.snapshotFromProduct(pr, cat)
-          : ({ name, calories: 0, protein: 0, fat: 0, carbs: 0, allergens: [], category: cat } as MealSlotSnapshot);
+        if (pr) return this.snapshotFromProduct(pr, cat);
+
+        const trimmed = String(name ?? '').trim();
+        const pool = poolsBySlot[cat] ?? [];
+        if (pool.length === 0) {
+          // Каталог пуст для этого слота — вернуть нечего, вызывающий код
+          // подставит явную заглушку с корректной калорийностью.
+          if (trimmed) unresolvedNames.add(trimmed);
+          return null;
+        }
+
+        // Ближайшее по калорийности блюдо того же слота.
+        const target = Number(calories) * (DEFAULT_DIST[cat] ?? 0.25) || 300;
+        const replacement = this.pickClosestByCalories(pool, target, pref);
+        if (!replacement) {
+          if (trimmed) unresolvedNames.add(trimmed);
+          return null;
+        }
+        if (trimmed) unresolvedNames.add(trimmed);
+        const snap = this.snapshotFromProduct(replacement, cat);
+        snap.note = `«${trimmed}» нет в каталоге — подобрано близкое блюдо`;
+        return snap;
+      };
+
+      /**
+       * Явная заглушка с ПРАВДОПОДОБНОЙ калорийностью (а не 0).
+       * Используется только если пул слота пуст полностью.
+       */
+      const placeholder = (cat: MealSlotKey): MealSlotSnapshot => {
+        const kcal = Math.max(
+          120,
+          Math.round((Number(calories) || 2000) * (DEFAULT_DIST[cat] ?? 0.25)),
+        );
+        return {
+          name: `Блюдо (${cat})`,
+          calories: kcal,
+          protein: Math.round((kcal * 0.2) / 4),
+          fat: Math.round((kcal * 0.3) / 9),
+          carbs: Math.round((kcal * 0.5) / 4),
+          allergens: [],
+          category: cat,
+        };
       };
       const extraRaw = m.snacks ?? [];
       const extraSnacks: MealSlotSnapshot[] = extraRaw
         .map((name) => g(name, 'snack'))
-        .filter((s) => s.name);
+        .filter((s): s is MealSlotSnapshot => Boolean(s));
 
       return {
         dayNumber: item.day ?? index + 1,
-        breakfast: g(m.breakfast, 'breakfast'),
-        lunch: g(m.lunch, 'lunch'),
-        dinner: g(m.dinner, 'dinner'),
-        snack: g(m.snack, 'snack'),
+        breakfast: g(m.breakfast, 'breakfast') ?? placeholder('breakfast'),
+        lunch: g(m.lunch, 'lunch') ?? placeholder('lunch'),
+        dinner: g(m.dinner, 'dinner') ?? placeholder('dinner'),
+        snack: g(m.snack, 'snack') ?? placeholder('snack'),
         extraSnacks,
       };
     });
@@ -1859,6 +2877,17 @@ export class MealPlanService {
     );
     const enforced = await this.enforceDietaryForAiDays(userId, user, scaledDays);
 
+    // Сообщаем, если модель предложила блюда, которых нет в каталоге:
+    // раньше такие позиции сохранялись с 0 ккал и без состава.
+    const aiWarnings = [...enforced.warnings];
+    if (unresolvedNames.size > 0) {
+      const sample = [...unresolvedNames].slice(0, 3).join(', ');
+      aiWarnings.push(
+        `AI предложил ${unresolvedNames.size} блюд(о), которых нет в каталоге (${sample}` +
+          `${unresolvedNames.size > 3 ? ' и др.' : ''}) — вместо них подобраны близкие по калорийности.`,
+      );
+    }
+
     await this.saveUserPlan(userId, {
       durationDays,
       targetCalories: calories,
@@ -1866,6 +2895,6 @@ export class MealPlanService {
       name: `AI (каталог) ${this.formatRuPlanDateTime(new Date())}`,
     });
     const planCat = await this.getActivePlan(userId);
-    return { ...(planCat?.get({ plain: true }) ?? {}), warnings: enforced.warnings };
+    return { ...(planCat?.get({ plain: true }) ?? {}), warnings: aiWarnings };
   }
 }

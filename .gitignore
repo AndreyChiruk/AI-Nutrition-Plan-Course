@@ -25,11 +25,15 @@ lerna-debug.log*
 !.vscode/extensions.json
 docker/nginx/certs/server.key
 docker/nginx/certs/server.crt
+# Секреты окружения: реальные значения не должны попадать в git.
+# .env.example — единственный отслеживаемый файл, он содержит только плейсхолдеры.
 .env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+.env.*
+!.env.example
+# Дампы БД (содержат хэши паролей, e-mail и фото в base64)
+backup*.sql
+dump*.sql
+dumps/
 .temp
 .tmp
 pids

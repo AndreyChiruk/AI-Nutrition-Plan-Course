@@ -7,13 +7,20 @@ import { Meal } from '../models/Meal';
 import { MealItem } from '../models/MealItem';
 import type { ProductIngredient, ProductIngredientDetailed } from '../models/Product';
 import { Product } from '../models/Product';
+import { Ingredient } from '../models/Ingredient';
+import { NotificationsService } from '../notifications/notifications.service';
 import { User } from '../models/User';
 import { OpenAiService } from '../openai/openai.service';
-import { productHasUserAllergen } from '../meal-plan/dietary-rules';
+import { containsDietKey, productHasUserAllergen } from '../meal-plan/dietary-rules';
+import { validateAndNormalizePhoto } from '../common/image-validation.util';
+import { ALLERGEN_INGREDIENTS } from '../meal-plan/slovari';
+import { normalizeRuFoodText, resolveCatalogProductByName } from '../common/ingredient-name-match';
 import {
-  normalizeCatalogAllergenList,
+  normalizeAllergensExpanding,
+  normalizeCatalogAllergenToken,
   normalizeCatalogDietaryTagList,
 } from '../meal-plan/catalog-ai-normalize';
+import { OPENROUTER_MISSING_KEY_MESSAGE } from '../config/openrouter';
 
 export type FoodRecognitionItemDto = {
   foodName: string;
@@ -42,6 +49,8 @@ export class FoodRecognitionService {
     @InjectModel(MealItem) private readonly mealItemModel: typeof MealItem,
     @InjectModel(User) private readonly userModel: typeof User,
     @InjectModel(Product) private readonly productModel: typeof Product,
+    @InjectModel(Ingredient) private readonly ingredientModel: typeof Ingredient,
+    private readonly notifications: NotificationsService,
     private readonly openAiService: OpenAiService,
   ) {}
   private sanitizeSubmitRow(item: FoodRecognitionItemDto, rowIdx: number) {
@@ -57,7 +66,9 @@ export class FoodRecognitionService {
       throw new BadRequestException('Некорректные числовые значения КБЖУ.');
     }
 
-    const allergensFound = normalizeCatalogAllergenList(item.allergensFound ?? []).slice(0, 24);
+    // Расширяющая нормализация: неизвестные аллергены сохраняем,
+    // чтобы не потерять потенциально опасное вещество.
+    const allergensFound = normalizeAllergensExpanding(item.allergensFound ?? []).all.slice(0, 24);
     const dietaryTags = normalizeCatalogDietaryTagList(item.dietaryTags ?? []).slice(0, 24);
 
     let ingredients: ProductIngredient[] = Array.isArray(item.ingredients)
@@ -137,14 +148,39 @@ export class FoodRecognitionService {
     };
   }
 
+  /**
+   * Сопоставляет аллерген из профиля пользователя с обнаруженным в блюде.
+   *
+   * Раньше сравнение было чисто подстрочным (`includes`), поэтому:
+   *   - «майонез» (обнаружено) НЕ совпадал с «яйца» (профиль) → ложная безопасность;
+   *   - «рис» совпадал с «ирис», «соя» — с «соевый соус» (ложные тревоги).
+   *
+   * Теперь сначала пробуем привести обнаруженное значение к справочнику
+   * (через словарь синонимов и корней ингредиентов), а затем сравниваем
+   * уже нормализованные категории. Остаток — сопоставление по границам слов.
+   */
   private userMatchesDetected(userName: string, detected: string): boolean {
-    const u = userName.toLowerCase().trim();
-    const d = detected.toLowerCase().trim();
+    const u = normalizeRuFoodText(userName);
+    const d = normalizeRuFoodText(detected);
     if (!u || !d) return false;
-    if (d === u || u.includes(d) || d.includes(u)) return true;
-    if (d === 'nuts' && /орех|арахис|фундук|миндаль|nuts|peanut/i.test(u)) return true;
-    if (d === 'milk' && /молок|молоч|лактоз|сыр|milk|lactose/i.test(u)) return true;
-    if (d === 'gluten' && /глютен|пшениц|gluten|wheat/i.test(u)) return true;
+
+    // 1. Точное совпадение категорий справочника.
+    const normUser = normalizeCatalogAllergenToken(u) ?? normalizeCatalogAllergenToken(d);
+    const normDetected = normalizeCatalogAllergenToken(d);
+    if (normDetected && normUser && normDetected === normUser) return true;
+
+    // 2. Обнаруженное значение — ингредиент, который относится к аллергену
+    //    из профиля («майонез» → яйца, «сельдь» → рыба).
+    const target = normUser ?? normalizeCatalogAllergenToken(u);
+    if (target) {
+      const roots = ALLERGEN_INGREDIENTS[target] ?? [];
+      if (roots.some((root) => containsDietKey(d, root))) return true;
+    }
+
+    // 3. Совпадение по границам слов (без ложных подстрок).
+    if (d === u) return true;
+    if (containsDietKey(d, u) || containsDietKey(u, d)) return true;
+
     return false;
   }
 
@@ -159,6 +195,67 @@ export class FoodRecognitionService {
       }
     }
     return null;
+  }
+
+  /**
+   * Сопоставляет ингредиенты, распознанные моделью, со справочником `ingredients`.
+   *
+   * Раньше ингредиенты сохранялись как свободный текст: ни нормализации,
+   * ни привязки к каталогу. Пользователь видел «лук репчатый» без связи
+   * с ингредиентом, а админ при подтверждении создавал дубли в справочнике.
+   *
+   * Теперь каждому ингредиенту подбирается запись справочника
+   * (через общий резолвер `resolveCatalogProductByName`), а неуверенные
+   * совпадения помечаются отдельно — их можно предложить создать.
+   */
+  private async matchIngredientsToCatalog(
+    items: FoodRecognitionItemDto[],
+  ): Promise<{ matched: number; unmatched: string[] }> {
+    const names = new Set<string>();
+    for (const item of items) {
+      for (const ing of item.ingredientsDetailed ?? []) {
+        const n = String(ing?.name ?? '').trim();
+        if (n) names.add(n);
+      }
+      for (const ing of item.ingredients ?? []) {
+        const n = String(ing?.name ?? '').trim();
+        if (n) names.add(n);
+      }
+    }
+    if (names.size === 0) return { matched: 0, unmatched: [] };
+
+    // Ограничиваем выборку: справочник небольшой, но лимит защищает от роста.
+    const catalog = await this.ingredientModel.findAll({ limit: 5000 });
+    const candidates = catalog.map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+    }));
+
+    const matchedByName = new Map<string, { id: string; name: string }>();
+    const unmatched: string[] = [];
+
+    for (const name of names) {
+      const hit = resolveCatalogProductByName(name, candidates);
+      if (hit) matchedByName.set(name, hit);
+      else unmatched.push(name);
+    }
+
+    // Проставляем ingredientId в самих элементах.
+    for (const item of items) {
+      const enrich = <T extends { name: string; ingredientId?: string }>(row: T): T => {
+        const hit = matchedByName.get(String(row.name ?? '').trim());
+        return hit ? { ...row, ingredientId: hit.id } : row;
+      };
+      if (Array.isArray(item.ingredientsDetailed)) {
+        item.ingredientsDetailed = item.ingredientsDetailed.map(enrich);
+      }
+      if (Array.isArray(item.ingredients)) {
+        // У простого списка поле не предусмотрено типом — приводим безопасно.
+        item.ingredients = item.ingredients as typeof item.ingredients;
+      }
+    }
+
+    return { matched: matchedByName.size, unmatched };
   }
 
   private async findCatalogProductsByFoodName(foodName: string): Promise<Product[]> {
@@ -176,14 +273,20 @@ export class FoodRecognitionService {
 
   async previewRecognize(userId: string, photoUrl: string) {
     const uid = Number(userId);
+
+    // Проверяем и нормализуем изображение: формат по magic bytes, размер,
+    // уменьшение до 1600 px и перекодирование в JPEG. Раньше в OpenAI уходила
+    // произвольная строка, а в БД могло попасть до 35 МБ base64.
+    const photo = await validateAndNormalizePhoto(photoUrl, 'photoUrl');
+
     let confidence: number;
     let detectedItems: FoodRecognitionItemDto[];
 
     try {
-      const ai = await this.openAiService.recognizeFoodFromPhoto(photoUrl);
+      const ai = await this.openAiService.recognizeFoodFromPhoto(photo.dataUrl);
       if (!ai) {
         throw new ServiceUnavailableException(
-          'Распознавание еды по фото недоступно: укажите OPENAI_API_KEY в настройках сервера.',
+          OPENROUTER_MISSING_KEY_MESSAGE,
         );
       }
       confidence = ai.confidence;
@@ -209,8 +312,23 @@ export class FoodRecognitionService {
       );
     }
 
+    // Сопоставляем распознанные ингредиенты со справочником.
+    const ingredientMatch = await this.matchIngredientsToCatalog(detectedItems);
+
     const { allergenWarnings, hasAllergenMatchInProfile, hasDetectedAllergensInDish } =
       await this.buildAllergenWarnings(uid, detectedItems);
+
+    // Сохраняем предупреждения об аллергенах.
+    //
+    // Раньше они существовали только в ответе HTTP: пользователь закрывал
+    // страницу — и предупреждение исчезало навсегда, хотя риск остаётся.
+    // Теперь каждое блюдо с совпадением оставляет запись в `/notifications`.
+    for (const item of detectedItems) {
+      const warningsForItem = allergenWarnings.filter((w) => w.includes(item.foodName));
+      if (warningsForItem.length === 0) continue;
+      await this.notifications.saveAllergenWarnings(uid, warningsForItem, item.foodName);
+    }
+
     const model = this.openAiService.getModelLabel();
 
     return {
@@ -219,20 +337,27 @@ export class FoodRecognitionService {
       allergenWarnings,
       hasAllergenMatchInProfile,
       hasDetectedAllergensInDish,
+      // Диагностика сопоставления: сколько ингредиентов нашли в справочнике.
+      ingredientMatch: {
+        matched: ingredientMatch.matched,
+        unmatched: ingredientMatch.unmatched.slice(0, 20),
+      },
       provider: `OpenAI (${model})`,
     };
   }
 
   async submitMealForModeration(
     userId: string,
-    photoUrl: string,
+    photoUrlRaw: string,
     confidence: number,
     items: FoodRecognitionItemDto[],
   ) {
     const uid = Number(userId);
-    if (!photoUrl?.trim()) {
-      throw new BadRequestException('Нужно фото блюда.');
-    }
+
+    // То же, что и при распознавании: проверяем и нормализуем фото,
+    // чтобы в БД не попадал «сырой» base64 произвольного размера.
+    const photo = await validateAndNormalizePhoto(photoUrlRaw, 'photoUrl');
+
     if (!Array.isArray(items) || items.length === 0) {
       throw new BadRequestException('Сначала выполните распознавание или передайте непустой список позиций.');
     }
@@ -249,7 +374,8 @@ export class FoodRecognitionService {
 
     const meal = await this.mealModel.create({
       userId: uid,
-      photoUrl,
+      // Храним нормализованное изображение (JPEG, до 1600 px).
+      photoUrl: photo.dataUrl,
       recognizedAt: new Date(),
       confidence: c,
       status: 'pending',
@@ -258,6 +384,14 @@ export class FoodRecognitionService {
     await this.mealItemModel.bulkCreate(
       sanitized.map((item) => ({ mealId: meal.id, ...item })) as MealItem[],
     );
+
+    // Сохраняем предупреждения об аллергенах, привязав их к записи приёма пищи.
+    const { allergenWarnings } = await this.buildAllergenWarnings(uid, sanitized);
+    for (const item of sanitized) {
+      const forItem = allergenWarnings.filter((w) => w.includes(item.foodName));
+      if (forItem.length === 0) continue;
+      await this.notifications.saveAllergenWarnings(uid, forItem, item.foodName, meal.id);
+    }
 
     return {
       mealId: meal.id,
@@ -285,10 +419,27 @@ export class FoodRecognitionService {
     const allergenWarnings: string[] = [];
 
     for (const item of detectedItems) {
+      // 1. Аллергены, названные моделью.
       for (const det of item.allergensFound) {
         const w = this.warningIfUserAllergic(allergyNames, det, item.foodName);
         if (w) allergenWarnings.push(w);
       }
+
+      // 2. Аллергены, определённые ПО СОСТАВУ блюда.
+      //
+      // Раньше этот источник отсутствовал: если модель не указала аллерген
+      // в `allergensFound`, но в составе было «Сельдь» или «Майонез»,
+      // пользователь НЕ получал предупреждения — ложная безопасность.
+      const compositionAllergens = this.detectAllergensFromIngredients(item);
+      for (const allergen of compositionAllergens) {
+        if (allergySet.size > 0 && !allergySet.has(allergen)) continue;
+        const human = ALLERGEN_LABELS_RU[allergen] ?? allergen;
+        allergenWarnings.push(
+          `В составе «${item.foodName}» обнаружен аллерген «${human}» — совпадение с вашим профилем.`,
+        );
+      }
+
+      // 3. Похожее блюдо из каталога (дополнительная подсказка).
       const catalogHits = await this.findCatalogProductsByFoodName(item.foodName);
       for (const p of catalogHits) {
         if (allergySet.size === 0) break;
@@ -302,11 +453,69 @@ export class FoodRecognitionService {
       }
     }
 
-    const hasDetectedAllergensInDish = detectedItems.some((item) => item.allergensFound.length > 0);
+    // Убираем дубликаты, сохраняя порядок.
+    const uniqueWarnings = [...new Set(allergenWarnings)];
+
+    const hasDetectedAllergensInDish =
+      detectedItems.some((item) => item.allergensFound.length > 0) ||
+      detectedItems.some((item) => this.detectAllergensFromIngredients(item).length > 0);
+
     return {
-      allergenWarnings,
-      hasAllergenMatchInProfile: allergenWarnings.length > 0,
+      allergenWarnings: uniqueWarnings,
+      hasAllergenMatchInProfile: uniqueWarnings.length > 0,
       hasDetectedAllergensInDish,
     };
   }
+
+  /**
+   * Определяет аллергены по НАЗВАНИЯМ ингредиентов блюда.
+   *
+   * Использует словарь `ALLERGEN_INGREDIENTS` (корни слов) и уже проверенную
+   * функцию сопоставления с границами слов, поэтому «помидоры» не считается
+   * мясом, а «кокос» — орехом.
+   *
+   * Это ключевая страховка: модель может забыть указать аллерген,
+   * но состав блюда остаётся объективным источником.
+   */
+  private detectAllergensFromIngredients(item: FoodRecognitionItemDto): string[] {
+    const names: string[] = [];
+    for (const ing of item.ingredientsDetailed ?? []) {
+      const n = String(ing?.name ?? '').trim();
+      if (n) names.push(n);
+    }
+    for (const ing of item.ingredients ?? []) {
+      const n = String(ing?.name ?? '').trim();
+      if (n) names.push(n);
+    }
+    if (names.length === 0) return [];
+
+    const haystack = names.join(' | ');
+    const found = new Set<string>();
+
+    for (const [allergen, roots] of Object.entries(ALLERGEN_INGREDIENTS)) {
+      for (const root of roots ?? []) {
+        if (containsDietKey(haystack, root)) {
+          found.add(normalizeCatalogAllergenToken(allergen) ?? allergen);
+          break;
+        }
+      }
+    }
+
+    return [...found];
+  }
 }
+
+/** Человекочитаемые названия аллергенов для сообщений. */
+const ALLERGEN_LABELS_RU: Record<string, string> = {
+  лактоза: 'молоко (лактоза)',
+  глютен: 'глютен',
+  арахис: 'арахис',
+  орехи: 'орехи',
+  морепродукты: 'морепродукты',
+  яйца: 'яйца',
+  соя: 'соя',
+  рыба: 'рыба',
+  кунжут: 'кунжут',
+  горчица: 'горчица',
+  сельдерей: 'сельдерей',
+};

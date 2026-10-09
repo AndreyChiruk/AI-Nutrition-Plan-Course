@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Знак логотипа без подписи.
+  Используется в шапке (24–32px) и как favicon (16/32px).
+  Цвет — currentColor, поэтому знак работает в светлой и тёмной теме.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="32" height="32"
+     role="img" aria-label="Планировщик питания">
+  <circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="6"/>
+  <path d="M21 33.5 L28.5 41 L44 24.5"
+        fill="none" stroke="currentColor" stroke-width="6"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

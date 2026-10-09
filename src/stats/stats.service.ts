@@ -196,14 +196,147 @@ export class StatsService {
     };
   }
 
-  exportCsv() {
-    return 'date,calories\n2026-01-01,1800';
+  /**
+   * Экспорт статистики пользователя в CSV.
+   *
+   * Раньше метод возвращал ЗАГЛУШКУ — жёстко прописанную строку
+   * `date,calories\n2026-01-01,1800`, одинаковую для всех пользователей.
+   * Скачанный файл не имел отношения к реальным данным.
+   *
+   * Теперь выгружаются фактические приёмы пищи, планы и замеры тела.
+   */
+  async exportCsv(userId: string, days = 90): Promise<string> {
+    const uid = this.uid(userId);
+    const since = new Date();
+    since.setDate(since.getDate() - Math.max(1, Math.min(365, days)));
+
+    const [meals, plans, body] = await Promise.all([
+      this.mealModel.findAll({
+        where: { userId: uid },
+        include: [{ model: MealItem }],
+        order: [['recognizedAt', 'DESC']],
+        limit: 2000,
+      }),
+      this.mealPlanModel.findAll({
+        where: { userId: uid },
+        order: [['createdAt', 'DESC']],
+        limit: 500,
+      }),
+      this.bodyAnalysisModel.findAll({
+        where: { userId: uid },
+        order: [['analyzedAt', 'DESC']],
+        limit: 500,
+      }),
+    ]);
+
+    const esc = (v: unknown): string => {
+      const s = String(v ?? '');
+      // Экранирование по RFC 4180: кавычки удваиваются, поле оборачивается.
+      return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    const lines: string[] = [];
+
+    lines.push('# Приёмы пищи (распознавание по фото)');
+    lines.push('дата,блюдо,калории,белки,жиры,углеводы,аллергены,уверенность,статус');
+    for (const meal of meals) {
+      const date = meal.recognizedAt ?? meal.createdAt;
+      const items = (meal.items ?? []) as MealItem[];
+      if (items.length === 0) {
+        lines.push(
+          [date?.toISOString?.() ?? '', '', 0, 0, 0, 0, '', meal.confidence ?? 0, meal.status]
+            .map(esc)
+            .join(','),
+        );
+        continue;
+      }
+      for (const it of items) {
+        lines.push(
+          [
+            date?.toISOString?.() ?? '',
+            it.foodName,
+            Number(it.calories) || 0,
+            Number(it.protein) || 0,
+            Number(it.fat) || 0,
+            Number(it.carbs) || 0,
+            Array.isArray(it.allergensFound) ? it.allergensFound.join(' ') : '',
+            Number(meal.confidence) || 0,
+            meal.status,
+          ]
+            .map(esc)
+            .join(','),
+        );
+      }
+    }
+
+    lines.push('');
+    lines.push('# Планы питания');
+    lines.push('создан,название,дней,цель ккал,итого ккал,белки,жиры,углеводы,статус');
+    for (const p of plans) {
+      lines.push(
+        [
+          p.createdAt?.toISOString?.() ?? '',
+          p.name,
+          p.durationDays,
+          p.targetCalories,
+          p.totalCalories,
+          p.totalProtein,
+          p.totalFat,
+          p.totalCarbs,
+          p.status,
+        ]
+          .map(esc)
+          .join(','),
+      );
+    }
+
+    lines.push('');
+    lines.push('# Замеры тела');
+    lines.push('дата,вес,рост,ИМТ');
+    for (const b of body) {
+      lines.push(
+        [b.analyzedAt?.toISOString?.() ?? '', b.weightKg, b.heightCm, b.bmi ?? '']
+          .map(esc)
+          .join(','),
+      );
+    }
+
+    lines.push('');
+    lines.push(`# Выгружено: ${new Date().toISOString()}; период: ${days} дн.`);
+    return lines.join('\n');
   }
 
-  exportPdf() {
+  /**
+   * Описание PDF-отчёта.
+   *
+   * Раньше возвращалась ссылка на несуществующий внешний файл
+   * (`https://cdn.example.com/reports/...`) — при скачивании пользователь
+   * получал 404. Генерация PDF в проекте не реализована, поэтому честно
+   * сообщаем об этом и предлагаем CSV как рабочий формат выгрузки.
+   */
+  async exportPdf(userId: string): Promise<{
+    available: false;
+    reason: string;
+    suggestedFormat: 'csv';
+    summary: {
+      meals: number;
+      plans: number;
+      bodyMeasurements: number;
+    };
+  }> {
+    const uid = this.uid(userId);
+    const [meals, plans, bodyMeasurements] = await Promise.all([
+      this.mealModel.count({ where: { userId: uid } }),
+      this.mealPlanModel.count({ where: { userId: uid } }),
+      this.bodyAnalysisModel.count({ where: { userId: uid } }),
+    ]);
+
     return {
-      fileName: 'stats-report.pdf',
-      url: 'https://cdn.example.com/reports/stats-report.pdf',
+      available: false,
+      reason:
+        'Формирование PDF не поддерживается. Используйте выгрузку в CSV — она содержит те же данные.',
+      suggestedFormat: 'csv',
+      summary: { meals, plans, bodyMeasurements },
     };
   }
 }

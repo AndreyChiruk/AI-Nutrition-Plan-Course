@@ -2,6 +2,7 @@ import { api } from './client';
 import type {
   AuthResponse,
   BodyAnalysisResult,
+  SubscriptionStatusResponse,
   BodyAnalysisPageState,
   BodyForecastResponse,
   ChatMessage,
@@ -11,6 +12,22 @@ import type {
   Recommendation,
   SendEmailCodeResponse,
 } from '../types';
+
+/**
+ * Публичные эндпоинты: работают без авторизации.
+ * Используются на главной странице и на странице входа.
+ */
+export const publicApi = {
+  /** Показатели каталога: количество блюд и категорий. */
+  catalogStats: async () => {
+    const { data } = await api.get<{
+      dishes: number;
+      categories: number;
+      withAlcohol: number;
+    }>('/health/catalog-stats');
+    return data;
+  },
+};
 
 export const authApi = {
   sendEmailCode: async (email: string, purpose: EmailCodePurpose) => {
@@ -98,6 +115,20 @@ export const userApi = {
   listUserProducts: async (userId: string | number) => {
     return userApi.listFridge(userId);
   },
+  /**
+   * Каких продуктов из рецепта не хватает в холодильнике.
+   * Используется на странице плана: что нужно докупить.
+   */
+  missingFridge: async (
+    userId: string | number,
+    ingredients: Array<{ name: string; grams?: number }>,
+  ) => {
+    const { data } = await api.post<{ have: string[]; missing: string[] }>(
+      `/users/${userId}/fridge/missing`,
+      { ingredients },
+    );
+    return data;
+  },
   addUserProduct: async (
     userId: string | number,
     payload: { name: string; quantity?: number; unit?: string; expiresAt?: string | null },
@@ -111,6 +142,36 @@ export const userApi = {
   ) => {
     return userApi.updateFridgeItem(userId, itemId, payload);
   },
+  /**
+   * Загружает фотографию продукта.
+   *
+   * Отправляется multipart/form-data: файл может весить несколько
+   * мегабайт, и base64 в JSON раздул бы запрос примерно на треть.
+   */
+  uploadUserProductImage: async (
+    userId: string | number,
+    itemId: string,
+    file: File,
+  ) => {
+    const form = new FormData();
+    form.append('image', file);
+    const { data } = await api.post<{ imageUrl: string; imageSource: 'user' }>(
+      `/users/${userId}/fridge/${itemId}/image`,
+      form,
+      // Content-Type не задаём: axios подставит его сам вместе с boundary.
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return data;
+  },
+
+  /** Удаляет фотографию продукта — остаётся заглушка по категории. */
+  deleteUserProductImage: async (userId: string | number, itemId: string) => {
+    const { data } = await api.delete<{ imageUrl: null; imageSource: 'placeholder' }>(
+      `/users/${userId}/fridge/${itemId}/image`,
+    );
+    return data;
+  },
+
   deleteUserProduct: async (userId: string | number, itemId: string) => {
     return userApi.deleteFridgeItem(userId, itemId);
   },
@@ -144,6 +205,36 @@ export const bodyApi = {
 };
 
 export const statsApi = {
+  /**
+   * Скачивает CSV со статистикой пользователя.
+   *
+   * Раньше эндпоинт экспорта возвращал заглушку `date,calories\n2026-01-01,1800`
+   * и не использовался интерфейсом вовсе. Теперь выгружаются реальные данные,
+   * а файл сохраняется через Blob.
+   */
+  downloadCsv: async (userId: string | number) => {
+    const { data } = await api.get(`/stats/export/csv/${userId}`, { responseType: 'blob' });
+    const blob = new Blob([data as BlobPart], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `stats-${userId}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return true;
+  },
+  /** Сведения о доступности PDF-отчёта (или причине недоступности). */
+  pdfInfo: async (userId: string | number) => {
+    const { data } = await api.get<{
+      available: boolean;
+      reason?: string;
+      suggestedFormat?: string;
+      summary: { meals: number; plans: number; bodyMeasurements: number };
+    }>(`/stats/export/pdf/${userId}`);
+    return data;
+  },
   progress: async (userId: string | number) => {
     const { data } = await api.get<Array<{ date: string; calories: number; mealsCount: number }>>(
       `/stats/progress/${userId}`,
@@ -373,6 +464,8 @@ export const mealPlanApi = {
       targetCalories?: number;
       calorieMode?: 'precise' | 'approximate';
       calorieBand?: 'low' | 'medium' | 'high' | 'sport';
+      /** Зерно выбора блюд — позволяет получить другой вариант плана. */
+      seed?: number;
     },
   ) => {
     const { data } = await api.post<SavedMealPlan & { warnings?: string[] }>('/meal-plan/generate-auto', {
@@ -381,6 +474,9 @@ export const mealPlanApi = {
       targetCalories: opts?.targetCalories,
       calorieMode: opts?.calorieMode,
       calorieBand: opts?.calorieBand,
+      // Зерно выбора блюд: без него сервер берёт значение от времени,
+      // и повторная генерация даёт новый вариант плана.
+      seed: opts?.seed,
     });
     return data;
   },
@@ -415,8 +511,29 @@ export const mealPlanApi = {
     }>('/meal-plan/refine-constructor-ai', { userId, ...payload });
     return data;
   },
-  listPlans: async (userId: string | number) => {
-    const { data } = await api.get<MealPlanSummary[]>(`/meal-plan/plans/${userId}`);
+  /**
+   * Список планов пользователя.
+   *
+   * Сервер отдаёт страницу `{ rows, count }`: у активного пользователя
+   * планов может быть много (в реальных данных уже 45), а раньше
+   * возвращались все сразу.
+   */
+  /**
+   * Поиск по каталогу для автокомплита предпочтений.
+   * Возвращает ингредиенты и блюда, подходящие под введённый текст.
+   */
+  catalogSearch: async (q: string, limit = 12) => {
+    const { data } = await api.get<Array<{ type: 'ingredient' | 'dish'; name: string; category?: string | null }>>(
+      '/meal-plan/catalog-search',
+      { params: { q, limit } },
+    );
+    return data;
+  },
+  listPlans: async (userId: string | number, params?: { limit?: number; offset?: number }) => {
+    const { data } = await api.get<{ rows: MealPlanSummary[]; count: number }>(
+      `/meal-plan/plans/${userId}`,
+      { params },
+    );
     return data;
   },
   getPlan: async (userId: string | number, planId: string) => {
@@ -433,8 +550,23 @@ export const mealPlanApi = {
     });
     return data;
   },
-  activatePlan: async (userId: string | number, planId: string) => {
-    const { data } = await api.post<SavedMealPlan>(`/meal-plan/plans/${userId}/${planId}/activate`);
+  /**
+   * Делает план текущим.
+   *
+   * Если план создан по другим ограничениям, сервер не активирует его
+   * сразу, а возвращает `requiresConfirmation` со списком различий.
+   * Повторный вызов с `force: true` подтверждает активацию.
+   */
+  activatePlan: async (userId: string | number, planId: string, force = false) => {
+    const { data } = await api.post<
+      | SavedMealPlan
+      | {
+          requiresConfirmation: true;
+          changed: Array<{ field: string; label: string; before: string; after: string }>;
+          planId: string;
+          message: string;
+        }
+    >(`/meal-plan/plans/${userId}/${planId}/activate`, { force });
     return data;
   },
   changeDuration: async (userId: string | number, durationDays: number) => {
@@ -502,6 +634,42 @@ export type WorkoutPlanListItem = {
   status: string;
   trackingStartedAt: string | null;
   createdAt?: string;
+};
+
+/**
+ * Подписка на ИИ-функции.
+ *
+ * Все эндпоинты требуют авторизации. Состояние отдаётся сервером,
+ * клиент не хранит его локально — иначе после оплаты интерфейс
+ * показывал бы устаревшие данные.
+ */
+export const subscriptionApi = {
+  /** Текущее состояние подписки и остаток бесплатных сообщений. */
+  status: async () => {
+    const { data } = await api.get<SubscriptionStatusResponse>('/subscription/status');
+    return data;
+  },
+
+  /**
+   * Перепроверяет подписку напрямую в Stripe.
+   * Нужно при возврате со страницы оплаты: вебхук может задержаться.
+   */
+  sync: async () => {
+    const { data } = await api.post<SubscriptionStatusResponse>('/subscription/sync');
+    return data;
+  },
+
+  /** Создаёт сессию оплаты, возвращает ссылку на Stripe Checkout. */
+  checkout: async () => {
+    const { data } = await api.post<{ url: string }>('/subscription/checkout');
+    return data;
+  },
+
+  /** Ссылка на портал управления подпиской. */
+  portal: async () => {
+    const { data } = await api.post<{ url: string }>('/subscription/portal');
+    return data;
+  },
 };
 
 export const workoutPlanApi = {
@@ -589,8 +757,10 @@ export const adminApi = {
     const { data } = await api.get('/admin/users');
     return data;
   },
-  pendingMeals: async () => {
-    const { data } = await api.get('/admin/meals/pending');
+  pendingMeals: async (params?: { limit?: number; offset?: number }) => {
+    const { data } = await api.get<{ rows: unknown[]; count: number }>('/admin/meals/pending', {
+      params,
+    });
     return data;
   },
   createUser: async (payload: Record<string, unknown>) => {
@@ -621,9 +791,22 @@ export const adminApi = {
     const { data } = await api.delete(`/admin/base-recommendations/${id}`);
     return data;
   },
-  getProducts: async () => {
-    const { data } = await api.get('/admin/products');
+  /**
+   * Продукты с пагинацией.
+   * Раньше сервер отдавал все 669 позиций (2.8 МБ) — теперь страницами.
+   */
+  getProducts: async (params?: {
+    limit?: number;
+    offset?: number;
+    search?: string;
+    category?: string;
+  }) => {
+    const { data } = await api.get<{ rows: unknown[]; count: number }>('/admin/products', { params });
     return data;
+  },
+  productsCount: async () => {
+    const { data } = await api.get<{ count: number }>('/admin/products/count');
+    return data.count;
   },
   getIngredients: async (params?: { category?: string; search?: string; limit?: number; offset?: number }) => {
     const { data } = await api.get<
@@ -740,6 +923,21 @@ export const adminApi = {
   },
   confirmMeal: async (id: string) => {
     const { data } = await api.post(`/admin/meals/${id}/confirm`);
+    return data;
+  },
+  /**
+   * Исправление распознавания перед подтверждением.
+   *
+   * Раньше админ мог только подтвердить или отклонить запись: если модель
+   * ошиблась в калорийности или не указала аллерген, исправить это было
+   * нечем — приходилось отклонять корректное в целом блюдо.
+   * ВАЖНО: передаём ПОЛНЫЙ список позиций, так как сервер заменяет его целиком.
+   */
+  correctMeal: async (
+    id: string,
+    payload: { items: Array<Record<string, unknown>>; adminNote?: string },
+  ) => {
+    const { data } = await api.put(`/admin/meals/${id}/correct`, payload);
     return data;
   },
   rejectMeal: async (id: string) => {

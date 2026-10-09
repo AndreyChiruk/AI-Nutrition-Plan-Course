@@ -5,6 +5,7 @@ import { TrainingBlock } from '../models/TrainingBlock';
 import { User } from '../models/User';
 import { WorkoutPlan } from '../models/WorkoutPlan';
 import { WorkoutPlanDay } from '../models/WorkoutPlanDay';
+import { recoverDeep } from '../common/text-recovery.util';
 
 export type WorkoutSessionSnapshot = {
   blockId?: string;
@@ -95,14 +96,18 @@ export class WorkoutPlanService {
   }
 
   snapshotFromBlock(b: TrainingBlock): WorkoutSessionSnapshot {
-    return {
+    // Восстанавливаем текст, если он пришёл с нарушенной кодировкой.
+    // Раньше снапшоты сохранялись как есть, поэтому в session2 попадали
+    // строки вида «╨б╤В╨░╨▒╨╕╨╗╤М╨╜╨╛╤Б╤В╤М ╨║╨╛╨╗╨╡╨╜╨░» вместо
+    // «Стабильность колена». Функция безопасна: корректный текст не меняется.
+    return recoverDeep({
       blockId: b.id,
       title: b.title,
       description: b.description,
       durationMin: b.durationMin,
       exercises: b.exercises ?? [],
       slot: b.slot as WorkoutSessionSnapshot['slot'],
-    };
+    });
   }
 
   async listBlocks(slot?: WorkoutSessionSnapshot['slot']) {
@@ -181,7 +186,8 @@ export class WorkoutPlanService {
       };
     });
 
-    await this.workoutPlanDayModel.bulkCreate(rows as never);
+    // Страховка на запись: восстанавливаем кодировку во всех снапшотах дня.
+    await this.workoutPlanDayModel.bulkCreate(recoverDeep(rows) as never);
     return this.getActivePlan(userId);
   }
 
@@ -276,7 +282,8 @@ export class WorkoutPlanService {
         sessionStatuses: {},
       };
     });
-    await this.workoutPlanDayModel.bulkCreate(rows as never);
+    // Страховка на запись: восстанавливаем кодировку во всех снапшотах дня.
+    await this.workoutPlanDayModel.bulkCreate(recoverDeep(rows) as never);
     return this.getPlanById(userId, plan.id);
   }
 

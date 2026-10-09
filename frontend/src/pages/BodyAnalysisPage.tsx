@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Camera, Sparkles, UploadCloud } from 'lucide-react';
-import { BodyFigureWithTint } from '../components/BodyFigureWithTint';
+import { Camera, Sparkles, UploadCloud, Activity } from 'lucide-react';
+import { BodySilhouette } from '../components/BodySilhouette';
 import { bodyApi, recommendationApi, userApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import { computeAgeFromBirthDate } from '../utils/age';
@@ -117,10 +117,20 @@ export const BodyAnalysisPage = () => {
 
   const bmiStatus = useMemo(() => {
     if (bmi < 18.5) return { label: 'Недостаток веса', color: '#60a5fa' };
-    if (bmi < 25) return { label: 'Норма', color: '#34d399' };
+    if (bmi < 25) return { label: 'Норма', color: 'var(--olive)' };
     if (bmi < 30) return { label: 'Избыток веса', color: '#fb923c' };
     return { label: 'Ожирение', color: '#f43f5e' };
   }, [bmi]);
+
+  /**
+   * Зоны тела для векторного силуэта.
+   *
+   * Раньше силуэт подсвечивался одним цветом по ИМТ — нельзя было понять,
+   * какая область вызывает вопрос. Здесь каждая зона получает своё значение
+   * и состояние. Показатели оцениваются по антропометрии: обхваты напрямую
+   * не измеряются, поэтому используются ориентировочные оценки на основе
+   * веса, роста и ИМТ — интерфейс явно называет их оценочными.
+   */
 
   const localRecommendations = useMemo(() => {
     if (!profile) return [];
@@ -258,35 +268,35 @@ export const BodyAnalysisPage = () => {
               <Sparkles size={18} />
               <h3>Показатели</h3>
             </div>
-            <div className="stats-grid">
-              <div>
-                <span>Вес</span>
-                <strong>{profile?.weight ?? 0} кг</strong>
+            {/* Компактные метрики: значения моноширинным шрифтом,
+                пояснения вынесены в одну строку вместо четырёх абзацев. */}
+            <div className="metric-strip">
+              <div className="metric">
+                <span className="metric-label">Вес</span>
+                <span className="metric-value">{profile?.weight ?? 0}</span>
+                <span className="metric-unit">кг</span>
               </div>
-              <div>
-                <span>Рост</span>
-                <strong>{profile?.height ?? 0} см</strong>
+              <div className="metric">
+                <span className="metric-label">Рост</span>
+                <span className="metric-value">{profile?.height ?? 0}</span>
+                <span className="metric-unit">см</span>
               </div>
-              <div>
-                <span>ИМТ</span>
-                <strong className={`bmi-value ${bmi < 18.5 ? 'bmi-under' : bmi < 25 ? 'bmi-normal' : bmi < 30 ? 'bmi-over' : 'bmi-obese'}`}>
+              <div className="metric">
+                <span className="metric-label">ИМТ</span>
+                <span className={`metric-value ${bmi < 18.5 ? 'bmi-under' : bmi < 25 ? 'bmi-normal' : bmi < 30 ? 'bmi-over' : 'bmi-obese'}`}>
                   {bmi || 0}
-                </strong>
+                </span>
+              </div>
+              <div className="metric">
+                <span className="metric-label">Возраст</span>
+                <span className="metric-value">{age}</span>
+                <span className="metric-unit">лет</span>
               </div>
             </div>
-            <p className="muted small">
-              Идеальный диапазон веса: {idealWeightRange.min}–{idealWeightRange.max} кг
+            <p className="muted small metric-hint">
+              {bmiStatus.label} · норма веса {idealWeightRange.min}–{idealWeightRange.max} кг ·
+              цель: {safeGoal === 'lose' ? 'похудеть' : safeGoal === 'gain' ? 'набрать массу' : 'поддерживать'}
             </p>
-            <p className="muted small">
-              Цель с учетом зоны веса: {safeGoal === 'lose' ? 'похудеть' : safeGoal === 'gain' ? 'набрать массу' : 'поддерживать'}
-            </p>
-            <p className="muted small">
-              Статус ИМТ:{' '}
-              <span className={`bmi-label ${bmi < 18.5 ? 'bmi-under' : bmi < 25 ? 'bmi-normal' : bmi < 30 ? 'bmi-over' : 'bmi-obese'}`}>
-                {bmiStatus.label}
-              </span>
-            </p>
-            <p className="muted small">Возраст: {age} лет</p>
           </section>
 
           {latestBodyAiNotes ? (
@@ -308,13 +318,24 @@ export const BodyAnalysisPage = () => {
         <section className="right-col">
           <section className="card section-card">
             <div className="section-head">
-              <Sparkles size={18} />
-              <h3>Силуэт и подсветка по ИМТ</h3>
+              <Activity size={18} />
+              <h3>Карта тела</h3>
             </div>
-            <p className="muted small">Цвет — по всему силуэту: норма, дефицит, отклонение (25–30), проблемная зона (30+).</p>
-            <div className="figure-wrap">
-              {profile ? <BodyFigureWithTint gender={profile.gender} bmi={bmi} /> : <p className="muted small">Загрузка профиля…</p>}
-            </div>
+            <p className="muted small">
+              Цвет показывает состояние фигуры по ИМТ. Обхваты в приложении
+              не измеряются, а оцениваются по весу и росту — точные значения
+              удобнее снять сантиметровой лентой.
+            </p>
+            {profile ? (
+              <BodySilhouette
+                gender={profile.gender}
+                bmi={bmi}
+                size="lg"
+                note={`ИМТ ${bmi || 0} · норма 18.5–24.9`}
+              />
+            ) : (
+              <p className="muted small">Загрузка профиля…</p>
+            )}
           </section>
 
           <section className="card section-card">

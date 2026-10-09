@@ -4,6 +4,7 @@ import { MessageSquare } from 'lucide-react';
 import { chatApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import type { ChatMessage } from '../types';
+import { formatApiError } from '../api/errors';
 
 export const ChatPage = () => {
   const { user } = useAuth();
@@ -38,8 +39,8 @@ export const ChatPage = () => {
       const result = await chatApi.sendMessage(user.id, message.trim());
       setMessages(result.history.slice().reverse());
       setMessage('');
-    } catch {
-      setError('Не удалось отправить сообщение. Попробуйте еще раз.');
+    } catch (err) {
+      setError(formatApiError(err, 'Не удалось отправить сообщение.'));
     } finally {
       setSending(false);
     }

@@ -9,16 +9,20 @@ import { User } from '../models/User';
 import { OpenAiModule } from '../openai/openai.module';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
+import { resolveJwtSecret } from '../common/jwt.config';
+import { FullUserGuard } from '../auth/full-user.guard';
+import { SubscriptionModule } from '../subscription/subscription.module';
 
 @Module({
   imports: [
+    SubscriptionModule,
     SequelizeModule.forFeature([ChatMessage, User, Allergen]),
     JwtModule.register({
-      secret: process.env.JWT_SECRET ?? 'dev-secret',
+      secret: resolveJwtSecret(),
     }),
     OpenAiModule,
   ],
   controllers: [ChatController],
-  providers: [ChatService, JwtAuthGuard, RolesGuard],
+  providers: [FullUserGuard, ChatService, JwtAuthGuard, RolesGuard],
 })
 export class ChatModule {}

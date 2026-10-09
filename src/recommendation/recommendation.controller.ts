@@ -3,6 +3,8 @@ import { Request } from 'express';
 import { assertUserAccess } from '../auth/request-access.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RecommendationService } from './recommendation.service';
+import { FullUserGuard } from '../auth/full-user.guard';
+import { RequireSubscriptionGuard } from '../subscription/require-subscription.guard';
 
 @Controller('recommendations')
 export class RecommendationController {
@@ -14,7 +16,8 @@ export class RecommendationController {
   }
 
   @Post('generate')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(RequireSubscriptionGuard)
+  @UseGuards(JwtAuthGuard, FullUserGuard)
   generate(
     @Req() req: Request & { user?: { sub?: number; role?: string } },
     @Body() body: { userId: string },

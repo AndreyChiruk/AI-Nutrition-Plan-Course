@@ -8,10 +8,13 @@ import {
   Post,
   Put,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { AdminGuard } from '../auth/admin.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { validate } from '../common/input-validation.pipe';
 import { AdminService } from './admin.service';
 import { OpenAiBillingService } from './openai-billing.service';
 
@@ -74,8 +77,11 @@ export class AdminController {
   }
 
   @Get('meals/pending')
-  pendingMeals() {
-    return this.adminService.getPendingMeals();
+  pendingMeals(@Query('limit') limit?: string, @Query('offset') offset?: string) {
+    return this.adminService.getPendingMeals({
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
   }
 
   @Get('meals/:id')
@@ -85,11 +91,22 @@ export class AdminController {
 
   @Put('meals/:id/correct')
   correctMeal(
+    @Req() req: Request & { user?: { sub?: number } },
     @Param('id') id: string,
     @Body()
-    body: { items: Array<Record<string, unknown>>; adminNote?: string; adminId?: number },
+    body: { items: Array<Record<string, unknown>>; adminNote?: string },
   ) {
-    return this.adminService.correctMeal(id, body as never);
+    // Автор правки берётся из JWT, а не из тела запроса: иначе админ мог
+    // записать правку от имени другого администратора.
+    const dto = validate<{ items?: Array<Record<string, unknown>>; adminNote?: string }>(body, {
+      items: { type: 'array', default: [] },
+      adminNote: { type: 'string', maxLength: 2000 },
+    });
+    return this.adminService.correctMeal(id, {
+      items: dto.items ?? [],
+      adminNote: dto.adminNote,
+      adminId: req.user?.sub,
+    });
   }
 
   @Delete('meals/:id/reject')
@@ -151,8 +168,24 @@ export class AdminController {
   }
 
   @Get('products')
-  getProducts() {
-    return this.adminService.getProducts();
+  getProducts(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('search') search?: string,
+    @Query('category') category?: string,
+  ) {
+    return this.adminService.getProducts({
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+      search,
+      category,
+    });
+  }
+
+  /** Общее число продуктов — для постраничной навигации. */
+  @Get('products/count')
+  async productsCount() {
+    return { count: await this.adminService.countProducts() };
   }
 
   @Get('ingredients')

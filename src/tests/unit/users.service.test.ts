@@ -139,6 +139,12 @@ describe('UsersService unit', () => {
     const result = await service.changePassword('3', 'old-password', 'new-password');
 
     assert.deepEqual(result, { ok: true });
-    assert.equal(savedHash, sha('new-password'));
+    // Раньше ожидался SHA-256 без соли. Теперь пароль хешируется scrypt
+    // со случайной солью — проверяем механизм и отсутствие открытого текста.
+    const stored = String(savedHash ?? '');
+    assert.match(stored, /^scrypt\$\d+\$\d+\$\d+\$[0-9a-f]+\$[0-9a-f]+$/);
+    assert.notInclude(stored, 'new-password');
+    const { verifyPassword } = await import('../../common/password.util');
+    assert.isTrue(await verifyPassword('new-password', stored));
   });
 });

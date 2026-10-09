@@ -10,12 +10,18 @@ import { User } from '../models/User';
 import { OpenAiModule } from '../openai/openai.module';
 import { FoodRecognitionController } from './food-recognition.controller';
 import { FoodRecognitionService } from './food-recognition.service';
+import { resolveJwtSecret } from '../common/jwt.config';
+import { Ingredient } from '../models/Ingredient';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { SubscriptionModule } from '../subscription/subscription.module';
 
 @Module({
   imports: [
+    SubscriptionModule,
     OpenAiModule,
-    SequelizeModule.forFeature([Meal, MealItem, User, Allergen, Product]),
-    JwtModule.register({ secret: process.env.JWT_SECRET ?? 'dev-secret' }),
+    SequelizeModule.forFeature([Meal, MealItem, User, Allergen, Product, Ingredient]),
+    JwtModule.register({ secret: resolveJwtSecret() }),
+    NotificationsModule,
   ],
   controllers: [FoodRecognitionController],
   providers: [FoodRecognitionService, JwtAuthGuard],

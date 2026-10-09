@@ -15,11 +15,13 @@ import { OpenAiModule } from '../openai/openai.module';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { OpenAiBillingService } from './openai-billing.service';
+import { resolveJwtSecret } from '../common/jwt.config';
+import { MealPlan } from '../models/MealPlan';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([User, Meal, MealItem, PlatformStats, BaseRecommendation, Product, MealPlanDay, Ingredient]),
-    JwtModule.register({ secret: process.env.JWT_SECRET ?? 'dev-secret' }),
+    SequelizeModule.forFeature([User, Meal, MealItem, PlatformStats, BaseRecommendation, Product, MealPlanDay, Ingredient, MealPlan]),
+    JwtModule.register({ secret: resolveJwtSecret() }),
     OpenAiModule,
   ],
   controllers: [AdminController],

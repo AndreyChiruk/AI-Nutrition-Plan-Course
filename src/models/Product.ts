@@ -143,6 +143,44 @@ export class Product extends Model<Product> {
   })
   declare mealTypes: string[];
 
+  /**
+   * Содержит ли блюдо алкоголь.
+   *
+   * Нужно для правила «не предлагать алкоголь пользователям младше 18».
+   * В каталоге есть коктейли и блюда с вином или пивом: без этого признака
+   * они попадали в план несовершеннолетним.
+   */
+  @Column({
+    type: DataType.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+    field: 'contains_alcohol',
+  })
+  declare containsAlcohol: boolean;
+
+  /**
+   * Признак публикации блюда в каталоге.
+   *
+   * `false` — блюдо отбраковано (например, испорченный состав даёт
+   * тысячи килокалорий на порцию). Такие блюда не попадают в планы
+   * и не показываются в списке, но остаются в БД для разбора.
+   */
+  @Column({
+    type: DataType.BOOLEAN,
+    allowNull: false,
+    defaultValue: true,
+    field: 'is_published',
+  })
+  declare isPublished: boolean;
+
+  /** Причина снятия с публикации (для администратора). */
+  @Column({
+    type: DataType.STRING(300),
+    allowNull: true,
+    field: 'unpublished_reason',
+  })
+  declare unpublishedReason: string | null;
+
   @Column({
     type: DataType.BOOLEAN,
     allowNull: false,

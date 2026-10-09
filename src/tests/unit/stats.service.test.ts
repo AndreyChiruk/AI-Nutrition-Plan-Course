@@ -134,9 +134,61 @@ describe('StatsService unit', () => {
     assert.equal(r.deltaVsTargetDaily, -1250);
   });
 
-  it('exportCsv и exportPdf возвращают заглушки', () => {
-    const service = new StatsService({} as never, {} as never, {} as never, {} as never, {} as never);
-    assert.include(service.exportCsv(), 'date,calories');
-    assert.property(service.exportPdf(), 'fileName');
+  it('exportCsv формирует реальный CSV, а не заглушку', async () => {
+    // Раньше метод возвращал жёстко прописанную строку
+    // 'date,calories\n2026-01-01,1800' — одинаковую для всех пользователей.
+    const mealModel = {
+      findAll: async () => [
+        {
+          recognizedAt: new Date('2026-10-06T10:00:00Z'),
+          createdAt: new Date('2026-10-06T10:00:00Z'),
+          confidence: 0.85,
+          status: 'pending',
+          items: [
+            {
+              foodName: 'Филе рыбы на гриле',
+              calories: 250,
+              protein: 30,
+              fat: 10,
+              carbs: 0,
+              allergensFound: ['рыба'],
+            },
+          ],
+        },
+      ],
+    };
+    const planModel = { findAll: async () => [] };
+    const bodyModel = { findAll: async () => [] };
+    const service = new StatsService(
+      mealModel as never,
+      planModel as never,
+      {} as never,
+      bodyModel as never,
+      {} as never,
+    );
+
+    const csv = await service.exportCsv('2');
+    assert.notInclude(csv, '2026-01-01,1800', 'заглушки быть не должно');
+    assert.include(csv, 'Филе рыбы на грибе'.replace('бе', 'ле'), 'содержит реальное блюдо');
+    assert.include(csv, 'рыба', 'содержит аллергены');
+    assert.include(csv, 'Планы питания', 'содержит раздел планов');
+  });
+
+  it('exportPdf честно сообщает о недоступности, а не отдаёт несуществующий файл', async () => {
+    // Раньше возвращалась ссылка на https://cdn.example.com/reports/... (404).
+    const counter = { count: async () => 3 };
+    const service = new StatsService(
+      counter as never,
+      counter as never,
+      counter as never,
+      counter as never,
+      counter as never,
+    );
+
+    const pdf = await service.exportPdf('2');
+    assert.isFalse(pdf.available, 'PDF не поддерживается');
+    assert.strictEqual(pdf.suggestedFormat, 'csv');
+    assert.notProperty(pdf, 'url', 'ссылки на внешний файл быть не должно');
+    assert.strictEqual(pdf.summary.meals, 3);
   });
 });

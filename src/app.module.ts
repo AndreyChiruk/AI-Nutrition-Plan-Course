@@ -34,15 +34,20 @@ import { BodyAnalysisModule } from './body-analysis/body-analysis.module';
 import { MealPlanModule } from './meal-plan/meal-plan.module';
 import { WorkoutPlanModule } from './workout-plan/workout-plan.module';
 import { FoodRecognitionModule } from './food-recognition/food-recognition.module';
+import { HealthModule } from './health/health.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { RecommendationModule } from './recommendation/recommendation.module';
 import { AdminModule } from './admin/admin.module';
 import { StatsModule } from './stats/stats.module';
 import { ChatModule } from './chat/chat.module';
+import { SubscriptionModule } from './subscription/subscription.module';
 
 @Module({
     controllers: [],
     providers: [],
     imports: [
+    HealthModule,
+    NotificationsModule,
         ThrottlerModule.forRoot([
             {
                 ttl: 60_000,
@@ -96,6 +101,7 @@ import { ChatModule } from './chat/chat.module';
         FoodRecognitionModule,
         RecommendationModule,
         ChatModule,
+        SubscriptionModule,
         AdminModule,
         StatsModule,
     ],

@@ -123,7 +123,14 @@ describe('AuthService модульные тесты', () => {
     assert.equal(result.refreshToken, 'refresh');
     assert.equal(result.user.email, 'new@mail.com');
     assert.equal(createdPayload.email, 'new@mail.com');
-    assert.equal(createdPayload.password, hash('123456'));
+    // Раньше пароль хешировался SHA-256 (без соли) — сравнение было
+    // с фиксированной строкой. Теперь используется scrypt со случайной
+    // солью, поэтому проверяем сам механизм, а не конкретное значение.
+    const stored = String(createdPayload.password ?? '');
+    assert.match(stored, /^scrypt\$\d+\$\d+\$\d+\$[0-9a-f]+\$[0-9a-f]+$/, 'пароль хеширован scrypt');
+    assert.notInclude(stored, '123456', 'пароль не хранится в открытом виде');
+    const { verifyPassword } = await import('../../common/password.util');
+    assert.isTrue(await verifyPassword('123456', stored), 'хеш соответствует паролю');
     assert.equal(createdPayload.goal, 'gain');
   });
 

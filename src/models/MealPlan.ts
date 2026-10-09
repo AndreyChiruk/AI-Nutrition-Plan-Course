@@ -58,6 +58,28 @@ export class MealPlan extends Model<MealPlan> {
   @Column({ type: DataType.FLOAT, allowNull: true, field: 'total_carbs' })
   declare totalCarbs?: number | null;
 
+  /**
+   * Снимок ограничений пользователя на момент генерации плана.
+   *
+   * Нужен, чтобы отличить план, построенный с учётом текущих аллергий
+   * и диеты, от плана, созданного до их изменения.
+   */
+  @Column({
+    type: DataType.JSONB,
+    allowNull: true,
+    field: 'restrictions_snapshot',
+  })
+  declare restrictionsSnapshot: Record<string, unknown> | null;
+
+  /** Требует ли план пересоздания из-за изменившихся ограничений. */
+  @Column({
+    type: DataType.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+    field: 'restrictions_changed',
+  })
+  declare restrictionsChanged: boolean;
+
   @Column({
     type: DataType.ENUM('active', 'completed', 'cancelled'),
     allowNull: false,

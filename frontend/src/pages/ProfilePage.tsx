@@ -1,21 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { FormEvent } from 'react';
-import {
-  Camera,
-  CircleUserRound,
-  Dumbbell,
-  LogOut,
-  Mail,
-  Save,
-  ShieldAlert,
-  Target,
-  UserPen,
-} from 'lucide-react';
+import { Camera, CircleUserRound, Dumbbell, LogOut, Mail, Save, Scale, ShieldAlert, Target, TrendingDown, UserPen } from 'lucide-react';
 import { userApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import { computeAgeFromBirthDate } from '../utils/age';
 import { ALLERGEN_HINTS_RU, DIET_HINTS_RU } from '../constants/nutrition-hints';
+import { FoodPreferencePicker, type PreferenceItem } from '../components/FoodPreferencePicker';
+import { SubscriptionCard } from '../components/SubscriptionCard';
 
 const PRESET_ALLERGENS = ['лактоза', 'глютен', 'арахис', 'орехи', 'морепродукты', 'яйца', 'соя', 'рыба'];
 
@@ -32,7 +24,6 @@ const WEIGHT_MIN = 25;
 const WEIGHT_MAX = 400;
 const AGE_MIN = 10;
 const AGE_MAX = 120;
-const MASS_UNITS = ['г', 'кг'] as const;
 const DIET_KEYS = new Set(DIETARY_OPTIONS.map((o) => o.value));
 
 function ageWordRu(years: number): string {
@@ -71,52 +62,12 @@ function validateProfile(
   return null;
 }
 
-const FOOD_LIST_CHARS_RE = /^[\p{L}\s,]+$/u;
+// Прежняя проверка синтаксиса «списка через запятую» больше не нужна:
+// значения выбираются из каталога, поэтому произвольные символы
+// в них попасть не могут.
 
-function validateFoodCommaList(raw: string, fieldLabel: string): string | null {
-  if (!raw.trim()) return null;
-  if (!FOOD_LIST_CHARS_RE.test(raw)) {
-    return `${fieldLabel}: только буквы (в т.ч. кириллица), пробелы и запятые — без цифр, скобок, «/» и прочих символов.`;
-  }
-  return null;
-}
 
-function daysUntil(dateIso: string | null | undefined): number | null {
-  if (!dateIso) return null;
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const d = new Date(dateIso);
-  if (Number.isNaN(d.getTime())) return null;
-  d.setHours(0, 0, 0, 0);
-  return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-}
 
-function validateProductExpiryYmd(ymd: string): string | null {
-  const t = ymd.trim();
-  if (!t) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) {
-    return 'Срок годности: укажите дату в формате ГГГГ-ММ-ДД.';
-  }
-  const d = new Date(`${t}T12:00:00`);
-  if (Number.isNaN(d.getTime())) {
-    return 'Срок годности: некорректная дата.';
-  }
-  const min = new Date('2000-01-01T12:00:00');
-  const max = new Date();
-  max.setFullYear(max.getFullYear() + 20);
-  if (d < min || d > max) {
-    return 'Срок годности: укажите реалистичную дату (2000 год — не более чем через 20 лет).';
-  }
-  return null;
-}
-
-function parseMassQuantity(raw: string): number | null {
-  const s = raw.trim().replace(',', '.');
-  if (!s) return null;
-  const n = Number(s);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return n;
-}
 
 export const ProfilePage = () => {
   const { pathname } = useLocation();
@@ -132,16 +83,11 @@ export const ProfilePage = () => {
   const [allergens, setAllergens] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedAllergyIds, setSelectedAllergyIds] = useState<string[]>([]);
   const [dietaryRestriction, setDietaryRestriction] = useState<string>('');
-  const [foodLikesText, setFoodLikesText] = useState('');
-  const [foodDislikesText, setFoodDislikesText] = useState('');
-  const [fridgeItems, setFridgeItems] = useState<
-    Array<{ id: string; name: string; quantity: number; unit: string; expiresAt?: string | null }>
-  >([]);
-  const [fridgeName, setFridgeName] = useState('');
-  const [fridgeQtyInput, setFridgeQtyInput] = useState('100');
-  const [fridgeUnit, setFridgeUnit] = useState<(typeof MASS_UNITS)[number]>('г');
-  const [fridgeExpire, setFridgeExpire] = useState('');
-  const [fridgeFormError, setFridgeFormError] = useState('');
+  // Предпочтения хранятся как список выбранных записей каталога,
+  // а не как текст через запятую: так планировщик гарантированно
+  // распознаёт значение (раньше «курица» не совпадала с «Куриная грудка»).
+  const [foodLikes, setFoodLikes] = useState<PreferenceItem[]>([]);
+  const [foodDislikes, setFoodDislikes] = useState<PreferenceItem[]>([]);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -204,15 +150,27 @@ export const ProfilePage = () => {
       const [current, allergenList] = await Promise.all([userApi.getById(user.id), userApi.getAllergens()]);
       setAllergens(allergenList);
       setEmail(current.email ?? '');
+      // Имя теперь хранится на сервере. Ранее оно лежало только
+      // в localStorage, поэтому у существующих пользователей переносим
+      // сохранённое значение на сервер (один раз) и убираем из браузера.
       const nameKey = `profile:name:${user.id}`;
       const legacyTemp = localStorage.getItem('profile:name:temp');
-      let storedName = localStorage.getItem(nameKey) ?? '';
-      if (!storedName && legacyTemp?.trim()) {
-        storedName = legacyTemp.trim();
-        localStorage.setItem(nameKey, storedName);
-        localStorage.removeItem('profile:name:temp');
+      const legacyName = (localStorage.getItem(nameKey) ?? legacyTemp ?? '').trim();
+      const serverName = ((current as { name?: string | null }).name ?? '').trim();
+
+      if (!serverName && legacyName) {
+        try {
+          await userApi.updateProfile(user.id, { name: legacyName } as Record<string, unknown>);
+          setName(legacyName);
+        } catch {
+          setName(legacyName);
+        }
+      } else {
+        // Запасной вариант — часть email до «@».
+        setName(serverName || String(current.email ?? '').split('@')[0]);
       }
-      setName(storedName);
+      localStorage.removeItem(nameKey);
+      localStorage.removeItem('profile:name:temp');
       if (current.height) setHeight(current.height);
       if (current.weight) setWeight(current.weight);
       if (current.birthDate) setBirthDate(String(current.birthDate).slice(0, 10));
@@ -231,10 +189,15 @@ export const ProfilePage = () => {
       }
       const likes = (current as { foodLikes?: string[] }).foodLikes ?? [];
       const dislikes = (current as { foodDislikes?: string[] }).foodDislikes ?? [];
-      setFoodLikesText(Array.isArray(likes) ? likes.join(', ') : '');
-      setFoodDislikesText(Array.isArray(dislikes) ? dislikes.join(', ') : '');
-      const fridge = await userApi.listUserProducts(user.id);
-      setFridgeItems(fridge);
+      // Значения из БД приходят строками: определяем тип по наличию
+      // в каталоге блюд; по умолчанию считаем продуктом.
+      const toItems = (list: string[]): PreferenceItem[] =>
+        (Array.isArray(list) ? list : [])
+          .map((v) => String(v ?? '').trim())
+          .filter(Boolean)
+          .map((name) => ({ name, type: 'ingredient' as const }));
+      setFoodLikes(toItems(likes));
+      setFoodDislikes(toItems(dislikes));
 
     };
     void load();
@@ -250,27 +213,10 @@ export const ProfilePage = () => {
     }
     setValidationError('');
 
-    const likesSyntaxErr = validateFoodCommaList(foodLikesText, 'Любимые продукты/блюда');
-    if (likesSyntaxErr) {
-      setValidationError(likesSyntaxErr);
-      return;
-    }
-    const dislikesSyntaxErr = validateFoodCommaList(foodDislikesText, 'Нежелательные продукты');
-    if (dislikesSyntaxErr) {
-      setValidationError(dislikesSyntaxErr);
-      return;
-    }
-
-    const likesNorm = foodLikesText
-      .split(',')
-      .map((v) => v.trim())
-      .filter(Boolean)
-      .map((v) => v.toLowerCase());
-    const dislikesNorm = foodDislikesText
-      .split(',')
-      .map((v) => v.trim())
-      .filter(Boolean)
-      .map((v) => v.toLowerCase());
+    // Значения выбираются из каталога, поэтому проверять синтаксис
+    // запятых больше не нужно — достаточно сравнить списки.
+    const likesNorm = foodLikes.map((v) => v.name.trim().toLowerCase()).filter(Boolean);
+    const dislikesNorm = foodDislikes.map((v) => v.name.trim().toLowerCase()).filter(Boolean);
     for (const l of likesNorm) {
       for (const d of dislikesNorm) {
         if (!l || !d) continue;
@@ -284,6 +230,9 @@ export const ProfilePage = () => {
     }
 
     await userApi.updateProfile(user.id, {
+      // Имя отправляется на сервер. Раньше оно писалось только
+      // в localStorage, поэтому в БД не сохранялось вовсе.
+      name: name.trim(),
       email,
       height,
       weight,
@@ -293,17 +242,14 @@ export const ProfilePage = () => {
       avatarUrl,
       dietaryRestrictions:
         dietaryRestriction && DIET_KEYS.has(dietaryRestriction) ? [dietaryRestriction] : [],
-      foodLikes: foodLikesText
-        .split(',')
-        .map((v) => v.trim())
-        .filter(Boolean),
-      foodDislikes: foodDislikesText
-        .split(',')
-        .map((v) => v.trim())
-        .filter(Boolean),
+      foodLikes: foodLikes.map((v) => v.name.trim()).filter(Boolean),
+      foodDislikes: foodDislikes.map((v) => v.name.trim()).filter(Boolean),
     });
     await userApi.setAllergies(user.id, selectedAllergyIds);
-    localStorage.setItem(`profile:name:${user.id}`, name);
+    // Имя сохраняется на сервере вместе с остальным профилем,
+    // а не в localStorage браузера.
+    localStorage.removeItem(`profile:name:${user.id}`);
+    localStorage.removeItem('profile:name:temp');
     const calories = await userApi.getCalories(user.id);
     setMessage(`Сохранено. BMR: ${calories.bmr}, дневная норма: ${calories.dailyCalories} ккал`);
   };
@@ -327,39 +273,7 @@ export const ProfilePage = () => {
     setMessage('Пароль успешно изменен.');
   };
 
-  const addFridgeItem = async () => {
-    if (!user || !fridgeName.trim()) return;
-    setFridgeFormError('');
-    const qty = parseMassQuantity(fridgeQtyInput);
-    if (qty === null) {
-      setFridgeFormError('Укажите положительное количество (число, можно с десятичной запятой или точкой).');
-      return;
-    }
-    const expErr = validateProductExpiryYmd(fridgeExpire);
-    if (expErr) {
-      setFridgeFormError(expErr);
-      return;
-    }
-    await userApi.addUserProduct(user.id, {
-      name: fridgeName.trim(),
-      quantity: qty,
-      unit: fridgeUnit,
-      expiresAt: fridgeExpire.trim() || null,
-    });
-    const fridge = await userApi.listUserProducts(user.id);
-    setFridgeItems(fridge);
-    setFridgeName('');
-    setFridgeQtyInput('100');
-    setFridgeUnit('г');
-    setFridgeExpire('');
-  };
 
-  const removeFridgeItem = async (itemId: string) => {
-    if (!user) return;
-    await userApi.deleteUserProduct(user.id, itemId);
-    const fridge = await userApi.listUserProducts(user.id);
-    setFridgeItems(fridge);
-  };
 
   return (
     <div className="profile-premium">
@@ -487,9 +401,12 @@ export const ProfilePage = () => {
             </div>
             <div className="goal-cards">
               {[
-                { key: 'lose', label: 'Похудеть', icon: '🧘' },
-                { key: 'maintain', label: 'Поддерживать', icon: '⚖️' },
-                { key: 'gain', label: 'Набрать массу', icon: '💪' },
+                // Иконки — компоненты Lucide, а не эмодзи: эмодзи
+                // выглядит по-разному в каждой системе и считается
+                // признаком сгенерированного интерфейса.
+                { key: 'lose' as const, label: 'Похудеть', Icon: TrendingDown },
+                { key: 'maintain' as const, label: 'Поддерживать', Icon: Scale },
+                { key: 'gain' as const, label: 'Набрать массу', Icon: Dumbbell },
               ].map((item) => {
                 const blocked =
                   (weightBand === 'under' && item.key === 'lose') ||
@@ -503,7 +420,7 @@ export const ProfilePage = () => {
                     title={blocked ? 'Недоступно при текущей зоне веса' : undefined}
                     onClick={() => setGoal(item.key)}
                   >
-                    <span>{item.icon}</span>
+                    <item.Icon size={18} strokeWidth={1.75} aria-hidden />
                     <span>{item.label}</span>
                   </button>
                 );
@@ -519,22 +436,22 @@ export const ProfilePage = () => {
               Длительность и калорийность планов настраиваются в разделе «План питания».
             </p>
             <div className="form-grid" style={{ marginTop: 10 }}>
-              <label>
-                Любимые продукты/блюда (через запятую)
-                <input
-                  value={foodLikesText}
-                  onChange={(e) => setFoodLikesText(e.target.value)}
-                  placeholder="сыр, чай, краб"
-                />
-              </label>
-              <label>
-                Нежелательные продукты (через запятую)
-                <input
-                  value={foodDislikesText}
-                  onChange={(e) => setFoodDislikesText(e.target.value)}
-                  placeholder="майонез, сахар"
-                />
-              </label>
+              <FoodPreferencePicker
+                label="Любимые продукты и блюда"
+                hint="выбираются из каталога"
+                tone="like"
+                values={foodLikes}
+                onChange={setFoodLikes}
+                placeholder="например: гречка, куриная грудка…"
+              />
+              <FoodPreferencePicker
+                label="Нежелательные продукты"
+                hint="не будут предлагаться в плане"
+                tone="dislike"
+                values={foodDislikes}
+                onChange={setFoodDislikes}
+                placeholder="например: майонез, грибы…"
+              />
             </div>
           </section>
 
@@ -623,83 +540,15 @@ export const ProfilePage = () => {
               <h3>Продукты пользователя</h3>
             </div>
             <p className="muted small">
-              Эти продукты учитываются при автогенерации плана питания и подборе альтернатив, даже если не хранятся в холодильнике.
+              Холодильник переехал на отдельную страницу: там группировка по категориям,
+              поиск по справочнику, изменение количества и учёт срока годности.
             </p>
-            <p className="muted small">
-              Для корректного анализа в конструкторе указывайте только массу: <strong>г</strong> или <strong>кг</strong>.
-            </p>
-            <div className="stack-row wrap-actions" style={{ marginTop: 8 }}>
-              <input
-                value={fridgeName}
-                onChange={(e) => setFridgeName(e.target.value)}
-                placeholder="Продукт (например, сыр)"
-              />
-              <input
-                type="text"
-                inputMode="decimal"
-                autoComplete="off"
-                value={fridgeQtyInput}
-                onChange={(e) => setFridgeQtyInput(e.target.value)}
-                placeholder="Масса (например 250 или 1.5)"
-              />
-              <select
-                value={fridgeUnit}
-                onChange={(e) => setFridgeUnit(e.target.value as (typeof MASS_UNITS)[number])}
-                aria-label="Единица измерения продукта"
-                title="Единица измерения"
-              >
-                {MASS_UNITS.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="date"
-                title="Срок годности"
-                value={fridgeExpire}
-                onChange={(e) => setFridgeExpire(e.target.value)}
-              />
-              <button type="button" onClick={() => void addFridgeItem()}>
-                Добавить
-              </button>
-            </div>
-            {fridgeFormError ? <p className="error small" style={{ marginTop: 8 }}>{fridgeFormError}</p> : null}
-            <div className="chip-grid" style={{ marginTop: 10 }}>
-              {fridgeItems.map((item) => {
-                const leftDays = daysUntil(item.expiresAt ?? null);
-                const expiryClass =
-                  leftDays === null
-                    ? ''
-                    : leftDays < 0
-                      ? 'user-product-expired'
-                      : leftDays <= 2
-                        ? 'user-product-expiring'
-                        : '';
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`allergy-chip selected ${expiryClass}`}
-                    onClick={() => void removeFridgeItem(item.id)}
-                    title={
-                      leftDays === null
-                        ? 'Без срока годности'
-                        : leftDays < 0
-                          ? 'Срок годности истёк'
-                          : `Срок годности: ${leftDays} дн.`
-                    }
-                  >
-                    {item.name} ({item.quantity} {item.unit})
-                  </button>
-                );
-              })}
-              {fridgeItems.length === 0 ? <span className="muted small">Пока пусто</span> : null}
-            </div>
-            <p className="muted small" style={{ marginTop: 8 }}>
-              Оранжевый: до конца срока годности осталось 2 дня. Красный: срок годности истёк.
-            </p>
+            <Link className="btn-secondary" to="/fridge">
+              Открыть «Мой холодильник»
+            </Link>
           </section>
+
+          <SubscriptionCard />
 
           <section className="card section-card">
             <div className="section-head">

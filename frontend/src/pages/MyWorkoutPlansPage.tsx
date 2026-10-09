@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { CheckCircle2, Copy, FolderOpen, Trash2 } from 'lucide-react';
 import { workoutPlanApi, type WorkoutPlanListItem } from '../api/services';
 import { useAuth } from '../context/AuthContext';
+import { formatApiError } from '../api/errors';
 
 export const MyWorkoutPlansPage = () => {
   const dateLabel = (iso: string) =>
@@ -19,8 +20,8 @@ export const MyWorkoutPlansPage = () => {
     try {
       const rows = await workoutPlanApi.listPlans(user.id);
       setPlans(rows);
-    } catch {
-      setMsg('Не удалось загрузить список планов тренировок.');
+    } catch (err) {
+      setMsg(formatApiError(err, 'Не удалось загрузить список планов тренировок.'));
     } finally {
       setLoading(false);
     }
@@ -37,8 +38,8 @@ export const MyWorkoutPlansPage = () => {
       await workoutPlanApi.deletePlan(user.id, planId);
       setMsg('План удалён.');
       await load();
-    } catch {
-      setMsg('Ошибка удаления.');
+    } catch (err) {
+      setMsg(formatApiError(err, 'Не удалось удалить план.'));
     }
   };
 
@@ -49,7 +50,7 @@ export const MyWorkoutPlansPage = () => {
       await workoutPlanApi.activatePlan(user.id, planId);
       setMsg('План сделан активным; предыдущий активный переведён в архив.');
       await load();
-    } catch {
+    } catch (err) {
       setMsg('Не удалось активировать план.');
     }
   };
@@ -63,7 +64,7 @@ export const MyWorkoutPlansPage = () => {
         `Копия создана «${copy.name ?? 'без названия'}». Она в архиве с обнулёнными отметками — откройте или активируйте.`,
       );
       await load();
-    } catch {
+    } catch (err) {
       setMsg('Не удалось скопировать план.');
     }
   };

@@ -47,6 +47,20 @@ export class User extends Model<User> {
   })
   declare id: number;
 
+  /**
+   * Имя пользователя.
+   *
+   * Раньше поля не было вовсе: фронтенд хранил имя в localStorage,
+   * поэтому оно не синхронизировалось между устройствами и терялось
+   * при очистке хранилища. Отображаемое имя нужно серверу также для
+   * писем, уведомлений и админ-панели.
+   */
+  @Column({
+    type: DataType.STRING(120),
+    allowNull: true,
+  })
+  declare name: string | null;
+
   @Column({
     type: DataType.STRING,
     unique: true,

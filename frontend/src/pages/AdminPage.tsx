@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { adminApi } from '../api/services';
 import { BarChart3, Check, Pencil, Plus, Salad, ShieldAlert, Trash2, Users2, UtensilsCrossed, Wallet, X, XCircle } from 'lucide-react';
+import { formatApiError } from '../api/errors';
+import { DishThumb } from '../components/DishThumb';
+import { CalorieValue, MacroRow } from '../components/MacroRow';
 
 type AdminUserRow = {
   id: number;
@@ -19,12 +22,30 @@ type AdminUserRow = {
 
 type UsersListResponse = { count: number; rows: AdminUserRow[] };
 
+/** Размеры страниц админки: сервер отдаёт данные порциями, а не целиком. */
+const PENDING_PAGE_SIZE = 20;
+const PRODUCTS_PAGE_SIZE = 50;
+
+type PendingMealItem = {
+  id?: string;
+  foodName: string;
+  calories: number;
+  protein?: number;
+  fat?: number;
+  carbs?: number;
+  /** Обнаруженные аллергены — ключевые данные для решения модератора. */
+  allergensFound?: string[];
+  dietaryTags?: string[];
+  ingredients?: Array<{ name: string; grams?: number }>;
+};
+
 type PendingMealRow = {
   id: string;
   photoUrl: string;
   confidence: number;
   status: string;
-  items?: Array<{ foodName: string; calories: number }>;
+  adminNote?: string;
+  items?: PendingMealItem[];
 };
 
 type BaseRec = {
@@ -40,6 +61,8 @@ type BaseRec = {
 type ProductRow = {
   id: string;
   name: string;
+  /** Ссылка на фото блюда (TheMealDB) либо null. */
+  imageUrl?: string | null;
   category: string;
   calories: number;
   protein: number;
@@ -211,6 +234,29 @@ export const AdminPage = () => {
   );
   const [usersList, setUsersList] = useState<UsersListResponse | null>(null);
   const [pendingMeals, setPendingMeals] = useState<PendingMealRow[]>([]);
+  const [pendingTotal, setPendingTotal] = useState(0);
+  /** Постраничная навигация по продуктам (раньше грузились все 2.8 МБ). */
+  const [productsPage, setProductsPage] = useState(0);
+  const [productsTotal, setProductsTotal] = useState(0);
+  const [productSearch, setProductSearch] = useState('');
+
+  /** Черновик правки распознавания (модерация). */
+  const [correctDraft, setCorrectDraft] = useState<{
+    mealId: string;
+    adminNote: string;
+    items: Array<{
+      foodName: string;
+      calories: number;
+      protein: number;
+      fat: number;
+      carbs: number;
+      allergensText: string;
+    }>;
+  } | null>(null);
+  const [correctError, setCorrectError] = useState('');
+
+  /** Ошибка последнего действия администратора (подтверждение, блокировка и т. п.). */
+  const [adminActionError, setAdminActionError] = useState('');
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [billingCosts, setBillingCosts] = useState<BillingCostsState | null>(null);
   const [billingRefreshError, setBillingRefreshError] = useState('');
@@ -249,8 +295,10 @@ export const AdminPage = () => {
   };
 
   const refreshPending = async () => {
-    const data = (await adminApi.pendingMeals()) as PendingMealRow[];
-    setPendingMeals(Array.isArray(data) ? data : []);
+    // Сервер отдаёт страницу: { rows, count }.
+    const data = await adminApi.pendingMeals({ limit: PENDING_PAGE_SIZE });
+    setPendingMeals(Array.isArray(data?.rows) ? (data.rows as PendingMealRow[]) : []);
+    setPendingTotal(typeof data?.count === 'number' ? data.count : 0);
   };
 
   const refreshBase = async () => {
@@ -259,9 +307,21 @@ export const AdminPage = () => {
   };
 
   const refreshProducts = async () => {
-    const productsData = (await adminApi.getProducts()) as ProductRow[];
-    setProducts(Array.isArray(productsData) ? productsData : []);
+    // Сервер отдаёт страницу: { rows, count }.
+    const data = await adminApi.getProducts({
+      limit: PRODUCTS_PAGE_SIZE,
+      offset: productsPage * PRODUCTS_PAGE_SIZE,
+      search: productSearch.trim() || undefined,
+    });
+    setProducts(Array.isArray(data?.rows) ? (data.rows as ProductRow[]) : []);
+    setProductsTotal(typeof data?.count === 'number' ? data.count : 0);
   };
+
+  // Перезагрузка страницы продуктов при смене номера страницы или поиска.
+  useEffect(() => {
+    void refreshProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productsPage, productSearch]);
 
   useEffect(() => {
     const load = async () => {
@@ -273,10 +333,22 @@ export const AdminPage = () => {
         adminApi.getProducts(),
       ]);
       setUsersList(usersData as UsersListResponse);
-      setPendingMeals(Array.isArray(pendingMealsData) ? (pendingMealsData as PendingMealRow[]) : []);
+
+      // Очередь модерации и каталог сервер отдаёт страницами: { rows, count }.
+      // Раньше здесь ожидался массив (`Array.isArray`), поэтому при первой
+      // загрузке админки очередь ВСЕГДА выглядела пустой: распознавания
+      // лежали в БД со статусом pending, но администратор их не видел,
+      // пока не выполнял действие, вызывающее перезагрузку списка.
+      const pending = pendingMealsData as { rows?: unknown[]; count?: number };
+      setPendingMeals(Array.isArray(pending?.rows) ? (pending.rows as PendingMealRow[]) : []);
+      setPendingTotal(typeof pending?.count === 'number' ? pending.count : 0);
+
       setStats(statsData as Record<string, unknown>);
       setBaseRecommendations(Array.isArray(baseData) ? (baseData as BaseRec[]) : []);
-      setProducts(Array.isArray(productsData) ? (productsData as ProductRow[]) : []);
+
+      const catalog = productsData as { rows?: unknown[]; count?: number };
+      setProducts(Array.isArray(catalog?.rows) ? (catalog.rows as ProductRow[]) : []);
+      setProductsTotal(typeof catalog?.count === 'number' ? catalog.count : 0);
       try {
         const billing = (await adminApi.openAiBilling()) as Record<string, unknown>;
         setBillingCosts({
@@ -346,7 +418,7 @@ export const AdminPage = () => {
 
   const onDeleteUser = async (id: number) => {
     if (!confirm('Удалить пользователя? Это действие необратимо.')) return;
-    await adminApi.deleteUser(id);
+    await runAdminAction(() => adminApi.deleteUser(id), 'удаление пользователя');
     if (userEditing?.id === id) setUserEditing(null);
     await refreshUsers();
   };
@@ -601,23 +673,95 @@ export const AdminPage = () => {
   };
 
   const onBlock = async (id: number) => {
-    await adminApi.blockUser(id);
+    await runAdminAction(() => adminApi.blockUser(id), 'блокировка пользователя');
     await refreshUsers();
   };
 
   const onUnblock = async (id: number) => {
-    await adminApi.unblockUser(id);
+    await runAdminAction(() => adminApi.unblockUser(id), 'разблокировка пользователя');
     await refreshUsers();
   };
 
+  /**
+   * Обёртка для действий администратора.
+   *
+   * Раньше вызовы API не обрабатывали ошибки вовсе: неудачный запрос
+   * приводил к необработанному отклонению промиса БЕЗ какого-либо сообщения
+   * в интерфейсе — администратор не понимал, применилось действие или нет.
+   */
+  const runAdminAction = async (action: () => Promise<unknown>, label: string) => {
+    try {
+      setAdminActionError('');
+      await action();
+    } catch (err) {
+      setAdminActionError(formatApiError(err, `Не удалось выполнить действие: ${label}.`));
+    }
+  };
+
   const onConfirmMeal = async (id: string) => {
-    await adminApi.confirmMeal(id);
+    await runAdminAction(() => adminApi.confirmMeal(id), 'подтверждение распознавания');
     await refreshPending();
   };
 
   const onRejectMeal = async (id: string) => {
-    await adminApi.rejectMeal(id);
+    await runAdminAction(() => adminApi.rejectMeal(id), 'отклонение распознавания');
     await refreshPending();
+  };
+
+  /**
+   * Открывает форму правки распознавания.
+   * Копируем позиции в локальное состояние — правки не влияют на список,
+   * пока админ не сохранит их.
+   */
+  const onStartCorrectMeal = (meal: PendingMealRow) => {
+    setCorrectDraft({
+      mealId: meal.id,
+      adminNote: '',
+      items: (meal.items ?? []).map((it) => ({
+        foodName: it.foodName,
+        calories: Number(it.calories) || 0,
+        protein: Number(it.protein) || 0,
+        fat: Number(it.fat) || 0,
+        carbs: Number(it.carbs) || 0,
+        allergensText: (it.allergensFound ?? []).join(', '),
+      })),
+    });
+    setCorrectError('');
+  };
+
+  /** Сохраняет правки: сервер заменяет список позиций целиком. */
+  const onSaveCorrectMeal = async () => {
+    if (!correctDraft) return;
+    const items = correctDraft.items
+      .filter((it) => String(it.foodName ?? '').trim())
+      .map((it) => ({
+        foodName: String(it.foodName).trim(),
+        calories: Number(it.calories) || 0,
+        protein: Number(it.protein) || 0,
+        fat: Number(it.fat) || 0,
+        carbs: Number(it.carbs) || 0,
+        // Аллергены хранятся массивом; в форме — строка через запятую.
+        allergensFound: String(it.allergensText ?? '')
+          .split(',')
+          .map((x) => x.trim())
+          .filter(Boolean),
+      }));
+
+    if (items.length === 0) {
+      setCorrectError('Нужна хотя бы одна позиция с названием.');
+      return;
+    }
+
+    try {
+      await adminApi.correctMeal(correctDraft.mealId, {
+        items,
+        adminNote: correctDraft.adminNote?.trim() || undefined,
+      });
+      setCorrectDraft(null);
+      await refreshPending();
+    } catch {
+      setCorrectError('Не удалось сохранить правки. Проверьте значения и повторите.');
+    }
   };
 
   return (
@@ -675,18 +819,21 @@ export const AdminPage = () => {
               <div className="card admin-openai-panel">
                 <div className="admin-openai-head">
                   <h3>
-                    <Wallet size={18} aria-hidden /> OpenAI API — биллинг
+                    <Wallet size={18} aria-hidden /> Расходы на AI
                   </h3>
                   <button type="button" className="btn-secondary" disabled={billingLoading} onClick={() => void refreshOpenAiBilling()}>
                     {billingLoading ? 'Обновление…' : 'Обновить'}
                   </button>
                 </div>
                 {!billingCosts ? (
-                  <p className="muted small">Не удалось загрузить данные биллинга OpenAI.</p>
+                  <p className="muted small">Не удалось загрузить данные о расходах.</p>
                 ) : !billingCosts.apiKeyConfigured ? (
                   <p className="muted small">
-                    На сервере не задан ни <code className="muted">OPENAI_API_KEY</code>, ни{' '}
-                    <code className="muted">OPENAI_USAGE_ADMIN_KEY</code>.
+                    Расходы видны в личном кабинете{' '}
+                    <a href="https://openrouter.ai/activity" target="_blank" rel="noreferrer">
+                      openrouter.ai
+                    </a>
+                    . Здесь показывается только локальный учёт токенов.
                   </p>
                 ) : (
                   <>
@@ -904,10 +1051,49 @@ export const AdminPage = () => {
                   Добавить блюдо
                 </button>
               </div>
+              {/* Поиск и пагинация: каталог отдаётся страницами, а не целиком. */}
+              <div className="pagination-bar">
+                <input
+                  type="search"
+                  placeholder="Поиск по названию"
+                  value={productSearch}
+                  onChange={(e) => {
+                    setProductSearch(e.target.value);
+                    setProductsPage(0);
+                  }}
+                />
+                <div className="pagination-controls">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={productsPage === 0}
+                    onClick={() => setProductsPage((p) => Math.max(0, p - 1))}
+                  >
+                    Назад
+                  </button>
+                  <span className="muted small">
+                    {productsTotal > 0
+                      ? `${productsPage * PRODUCTS_PAGE_SIZE + 1}–${Math.min(
+                          (productsPage + 1) * PRODUCTS_PAGE_SIZE,
+                          productsTotal,
+                        )} из ${productsTotal}`
+                      : 'нет записей'}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={(productsPage + 1) * PRODUCTS_PAGE_SIZE >= productsTotal}
+                    onClick={() => setProductsPage((p) => p + 1)}
+                  >
+                    Вперёд
+                  </button>
+                </div>
+              </div>
               <div className="table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
+                      <th style={{ width: 64 }}>Фото</th>
                       <th>Название</th>
                       <th>Кат.</th>
                       <th>Ккал</th>
@@ -922,7 +1108,7 @@ export const AdminPage = () => {
                       <tr key={p.id}>
                         {productEditingId === p.id ? (
                           <>
-                            <td colSpan={6}>
+                            <td colSpan={7}>
                               <div className="admin-inline-fields">
                                 <input
                                   value={productDraft.name ?? ''}
@@ -984,12 +1170,17 @@ export const AdminPage = () => {
                         ) : (
                           <>
                             <td>
+                              <DishThumb imageUrl={p.imageUrl} name={p.name} size="sm" />
+                            </td>
+                            <td>
                               <strong>{p.name}</strong>
                             </td>
                             <td>{p.category}</td>
-                            <td>{p.calories}</td>
                             <td>
-                              {p.protein} / {p.fat} / {p.carbs}
+                              <CalorieValue calories={p.calories} />
+                            </td>
+                            <td>
+                              <MacroRow protein={p.protein} fat={p.fat} carbs={p.carbs} />
                             </td>
                             <td className="muted small">{renderProductIngredients(p)}</td>
                             <td className="muted small">{(p.allergens ?? []).join(', ') || '—'}</td>
@@ -1382,10 +1573,167 @@ export const AdminPage = () => {
           {section === 'moderation' ? (
             <div className="card">
               <h2>Модерация сохранённых распознаваний</h2>
+              {adminActionError ? (
+                <p className="form-error" role="alert">
+                  {adminActionError}
+                </p>
+              ) : null}
               <p className="muted small">
                 Пользователь сначала смотрит КБЖУ и аллергены без записи в БД; кнопка «Сохранить» присылает сюда запись со
                 статусом «pending». Подтвердите, если блюдо можно оставить в системе, или отклоните.
               </p>
+              {correctDraft ? (
+                <div className="correct-meal-form card stack">
+                  <h3>Исправление распознавания</h3>
+                  <p className="muted small">
+                    Измените значения перед подтверждением. Аллергены перечисляйте через запятую — они влияют
+                    на предупреждения пользователям с аллергией.
+                  </p>
+                  {correctDraft.items.map((it, idx) => (
+                    <div key={idx} className="correct-meal-row">
+                      <label>
+                        Название
+                        <input
+                          type="text"
+                          value={it.foodName}
+                          onChange={(e) =>
+                            setCorrectDraft((d) =>
+                              d
+                                ? {
+                                    ...d,
+                                    items: d.items.map((x, i) =>
+                                      i === idx ? { ...x, foodName: e.target.value } : x,
+                                    ),
+                                  }
+                                : d,
+                            )
+                          }
+                        />
+                      </label>
+                      <label>
+                        Ккал
+                        <input
+                          type="number"
+                          value={it.calories}
+                          onChange={(e) =>
+                            setCorrectDraft((d) =>
+                              d
+                                ? {
+                                    ...d,
+                                    items: d.items.map((x, i) =>
+                                      i === idx ? { ...x, calories: Number(e.target.value) } : x,
+                                    ),
+                                  }
+                                : d,
+                            )
+                          }
+                        />
+                      </label>
+                      <label>
+                        Б
+                        <input
+                          type="number"
+                          value={it.protein}
+                          onChange={(e) =>
+                            setCorrectDraft((d) =>
+                              d
+                                ? {
+                                    ...d,
+                                    items: d.items.map((x, i) =>
+                                      i === idx ? { ...x, protein: Number(e.target.value) } : x,
+                                    ),
+                                  }
+                                : d,
+                            )
+                          }
+                        />
+                      </label>
+                      <label>
+                        Ж
+                        <input
+                          type="number"
+                          value={it.fat}
+                          onChange={(e) =>
+                            setCorrectDraft((d) =>
+                              d
+                                ? {
+                                    ...d,
+                                    items: d.items.map((x, i) =>
+                                      i === idx ? { ...x, fat: Number(e.target.value) } : x,
+                                    ),
+                                  }
+                                : d,
+                            )
+                          }
+                        />
+                      </label>
+                      <label>
+                        У
+                        <input
+                          type="number"
+                          value={it.carbs}
+                          onChange={(e) =>
+                            setCorrectDraft((d) =>
+                              d
+                                ? {
+                                    ...d,
+                                    items: d.items.map((x, i) =>
+                                      i === idx ? { ...x, carbs: Number(e.target.value) } : x,
+                                    ),
+                                  }
+                                : d,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="wide">
+                        Аллергены (через запятую)
+                        <input
+                          type="text"
+                          value={it.allergensText}
+                          placeholder="например: рыба, глютен"
+                          onChange={(e) =>
+                            setCorrectDraft((d) =>
+                              d
+                                ? {
+                                    ...d,
+                                    items: d.items.map((x, i) =>
+                                      i === idx ? { ...x, allergensText: e.target.value } : x,
+                                    ),
+                                  }
+                                : d,
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                  ))}
+                  <label>
+                    Замечание администратора
+                    <textarea
+                      value={correctDraft.adminNote}
+                      onChange={(e) =>
+                        setCorrectDraft((d) => (d ? { ...d, adminNote: e.target.value } : d))
+                      }
+                      rows={2}
+                    />
+                  </label>
+                  {correctError ? <p className="form-error">{correctError}</p> : null}
+                  <div className="moderation-actions">
+                    <button type="button" className="btn-primary" onClick={onSaveCorrectMeal}>
+                      <Check size={16} /> Сохранить правки
+                    </button>
+                    <button type="button" className="btn-secondary" onClick={() => setCorrectDraft(null)}>
+                      <X size={16} /> Отмена
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {pendingTotal > PENDING_PAGE_SIZE ? (
+                <p className="muted small">
+                  Показано {pendingMeals.length} из {pendingTotal} записей.
+                </p>
+              ) : null}
               {pendingMeals.length === 0 ? (
                 <p className="muted">Очередь пуста.</p>
               ) : (
@@ -1408,7 +1756,36 @@ export const AdminPage = () => {
                           <ul className="meal-items-preview">
                             {(meal.items ?? []).map((it, idx) => (
                               <li key={idx}>
-                                {it.foodName} — {it.calories} ккал
+                                <div>
+                                  <strong>{it.foodName}</strong> — {it.calories} ккал
+                                  {it.protein != null ? (
+                                    <span className="muted small">
+                                      {' '}
+                                      <MacroRow
+                                        protein={it.protein}
+                                        fat={it.fat ?? 0}
+                                        carbs={it.carbs ?? 0}
+                                      />
+                                    </span>
+                                  ) : null}
+                                </div>
+                                {/* Аллергены — главное, что нужно модератору для решения. */}
+                                {it.allergensFound?.length ? (
+                                  <div className="allergen-chips">
+                                    {it.allergensFound.map((a) => (
+                                      <span key={a} className="allergen-chip">
+                                        ⚠ {a}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="muted small">аллергены не обнаружены</div>
+                                )}
+                                {it.ingredients?.length ? (
+                                  <div className="muted small">
+                                    Состав: {it.ingredients.map((x) => x.name).join(', ')}
+                                  </div>
+                                ) : null}
                               </li>
                             ))}
                           </ul>
@@ -1417,6 +1794,13 @@ export const AdminPage = () => {
                       <div className="moderation-actions">
                         <button type="button" className="btn-primary" onClick={() => onConfirmMeal(meal.id)}>
                           <Check size={16} /> Подтвердить
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => onStartCorrectMeal(meal)}
+                        >
+                          <Pencil size={16} /> Исправить
                         </button>
                         <button type="button" className="btn-danger" onClick={() => onRejectMeal(meal.id)}>
                           <XCircle size={16} /> Отклонить

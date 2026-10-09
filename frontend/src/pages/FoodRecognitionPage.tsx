@@ -4,6 +4,8 @@ import { AlertTriangle, Camera, Save, UtensilsCrossed } from 'lucide-react';
 import { foodRecognitionApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import type { FoodPreviewResponse } from '../types';
+import { CalorieValue, MacroRow } from '../components/MacroRow';
+import { SubscriptionGate } from '../components/SubscriptionGate';
 
 export const FoodRecognitionPage = () => {
   const { user } = useAuth();
@@ -115,9 +117,11 @@ export const FoodRecognitionPage = () => {
         />
         <div className="food-recognition-preview-col">
           {photoUrl ? <img src={photoUrl} alt="Блюдо" className="food-recognition-preview" /> : null}
-          <button type="button" className="btn-primary ripple" disabled={loading} onClick={analyze}>
-            <Camera size={16} /> {loading ? 'Анализ…' : 'Распознать блюдо'}
-          </button>
+          <SubscriptionGate description="Распознавание блюд по фотографии использует модель зрения и доступно по подписке.">
+            <button type="button" className="btn-primary ripple" disabled={loading} onClick={analyze}>
+              <Camera size={16} /> {loading ? 'Анализ…' : 'Распознать блюдо'}
+            </button>
+          </SubscriptionGate>
         </div>
 
         {error ? <p className="error">{error}</p> : null}
@@ -182,9 +186,11 @@ export const FoodRecognitionPage = () => {
                 {result.items.map((row, idx) => (
                   <tr key={`${row.foodName}-${idx}`}>
                     <td>{row.foodName}</td>
-                    <td>{row.calories}</td>
                     <td>
-                      {row.protein}/{row.fat}/{row.carbs}
+                      <CalorieValue calories={row.calories} />
+                    </td>
+                    <td>
+                      <MacroRow protein={row.protein} fat={row.fat} carbs={row.carbs} />
                     </td>
                     <td>{row.allergensFound.join(', ') || '—'}</td>
                     <td className="small muted">

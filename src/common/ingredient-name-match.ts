@@ -182,6 +182,23 @@ function strongTokenOverlap(a: string, b: string): boolean {
   return false;
 }
 
+/**
+ * Находит блюдо/ингредиент каталога по названию, полученному от модели.
+ *
+ * Раньше функция умела только точное совпадение и `isIngredientMatch`, который
+ * требует строгого равенства strong/weak-ключей. Поскольку базовые продукты
+ * («лук», «сыр», «курица», «яйцо», «хлеб», «рис») отнесены к WEAK_HEADS,
+ * обобщённые названия не находились вовсе:
+ *     resolveCatalogProductByName('лук',   [Лук репчатый]) -> null
+ *     resolveCatalogProductByName('курица',[Куриная грудка]) -> null
+ *     resolveCatalogProductByName('сыр',   [Сыр чеддер])   -> null
+ *
+ * Последствие было тяжёлым: в AI-ветке нераспознанные блюда превращались
+ * в снапшот с `calories: 0`, и такой план сохранялся в базу.
+ *
+ * Теперь используется последовательность стратегий от строгой к мягкой,
+ * с обязательной проверкой «однозначности» на каждом шаге.
+ */
 export function resolveCatalogProductByName<T extends { name: string }>(
   rawName: string,
   candidates: T[],
@@ -189,6 +206,7 @@ export function resolveCatalogProductByName<T extends { name: string }>(
   const n = normalizeRuFoodText(rawName);
   if (!n || candidates.length === 0) return null;
 
+  // 1. Точное совпадение после нормализации.
   const byNorm = new Map<string, T>();
   for (const p of candidates) {
     const k = normalizeRuFoodText(p.name);
@@ -197,29 +215,78 @@ export function resolveCatalogProductByName<T extends { name: string }>(
   const exact = byNorm.get(n);
   if (exact) return exact;
 
-  const hits = candidates.filter((p) => isIngredientMatch(p.name, rawName));
-  if (hits.length === 1) return hits[0];
-  if (hits.length > 1) {
-    hits.sort(
-      (x, y) =>
-        Math.abs(normalizeRuFoodText(x.name).length - n.length) -
-        Math.abs(normalizeRuFoodText(y.name).length - n.length),
-    );
-    return hits[0];
-  }
+  // 2. Совпадение «голова + модификатор» (старый isIngredientMatch).
+  const strictHits = candidates.filter((p) => isIngredientMatch(p.name, rawName));
+  if (strictHits.length >= 1) return pickBest(strictHits, n);
 
-  let best: T | null = null;
-  let bestJ = -1;
-  for (const p of candidates) {
-    const j = tokenJaccard(rawName, p.name);
-    if (j > bestJ) {
-      bestJ = j;
-      best = p;
-    }
-  }
-  if (best && bestJ >= 0.45 && strongTokenOverlap(rawName, best.name)) return best;
+  // 3. Обобщённое название: запрос является головным словом кандидата
+  //    («лук» в «Лук репчатый», «курица» в «Куриная грудка»).
+  const headHits = candidates.filter((p) => headWordMatches(rawName, p.name));
+  if (headHits.length >= 1) return pickBest(headHits, n);
+
+  // 4. Высокое лексическое сходство (Jaccard по токенам).
+  const jaccardScored = candidates
+    .map((p) => ({ p, j: tokenJaccard(rawName, p.name) }))
+    .filter((x) => x.j >= 0.5)
+    .sort((a, b) => b.j - a.j);
+  if (jaccardScored.length >= 1) return jaccardScored[0].p;
+
+  // 5. Последний шанс: название кандидата содержит запрос как слово
+  //    (или наоборот) — но только при однозначном результате.
+  const contained = candidates.filter(
+    (p) => containsDietWord(p.name, rawName) || containsDietWord(rawName, p.name),
+  );
+  if (contained.length === 1) return contained[0];
+  if (contained.length > 1) return pickBest(contained, n);
+
   return null;
 }
 
-export const RU_ONION_WORD_RE = ruWordRegex('лук');
-export const RU_PEPPER_WORD_RE = ruWordRegex('перец');
+/** Проверяет, что запрос является головным словом названия кандидата. */
+function headWordMatches(rawName: string, candidateName: string): boolean {
+  const reqTokens = splitRuFoodTokens(rawName)
+    .map(applySynonym)
+    .filter((t) => !STOPWORDS.has(t));
+  if (reqTokens.length === 0) return false;
+
+  const candTokens = splitRuFoodTokens(candidateName).map(applySynonym);
+  if (candTokens.length === 0) return false;
+
+  // Все значимые слова запроса должны присутствовать в кандидате.
+  return reqTokens.every((t) => candTokens.includes(t));
+}
+
+/** Проверяет вхождение искомого слова в название по границам слов. */
+function containsDietWord(haystack: string, needle: string): boolean {
+  const hay = normalizeRuFoodText(haystack);
+  const words = splitRuFoodTokens(needle).map(applySynonym).filter((t) => !STOPWORDS.has(t));
+  if (words.length === 0) return false;
+  const hayWords = splitRuFoodTokens(hay).map(applySynonym);
+  return words.every((w) => hayWords.includes(w));
+}
+
+/**
+ * Из нескольких кандидатов выбирает наиболее подходящий.
+ *
+ * Приоритет: название, которое НАЧИНАЕТСЯ с искомого слова
+ * («лук» → «Лук репчатый», а не «Зелёный лук»), затем — ближайшее по длине.
+ * Так обобщённый запрос попадает на основной продукт, а не на его вариант.
+ */
+function pickBest<T extends { name: string }>(hits: T[], normalizedQuery: string): T {
+  if (hits.length === 1) return hits[0];
+  const queryHead = splitRuFoodTokens(normalizedQuery).map(applySynonym)[0] ?? '';
+  return [...hits].sort((x, y) => {
+    const xn = normalizeRuFoodText(x.name);
+    const yn = normalizeRuFoodText(y.name);
+    // Кандидат, начинающийся с искомого слова, предпочтительнее.
+    const xStarts = queryHead && xn.startsWith(queryHead) ? 0 : 1;
+    const yStarts = queryHead && yn.startsWith(queryHead) ? 0 : 1;
+    if (xStarts !== yStarts) return xStarts - yStarts;
+    // Затем — минимальная разница по длине названия.
+    return (
+      Math.abs(xn.length - normalizedQuery.length) -
+      Math.abs(yn.length - normalizedQuery.length)
+    );
+  })[0];
+}
+

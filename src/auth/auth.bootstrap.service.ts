@@ -1,7 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/sequelize';
-import { createHash, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
 import { QueryTypes, Sequelize } from 'sequelize';
+import { hashPassword } from '../common/password.util';
 import { ensureProductsSchema } from '../database/ensure-products-schema';
 import { ensureMealPlannerSchema } from '../database/ensure-meal-planner-schema';
 import { ensureUserDietarySchema } from '../database/ensure-user-dietary-schema';
@@ -9,6 +10,7 @@ import { ensureUserLastActiveSchema } from '../database/ensure-user-last-active-
 import { ensureBodyAnalysisWeightSchema } from '../database/ensure-body-analysis-weight-schema';
 import { ensurePhotoUrlTextSchema } from '../database/ensure-photo-url-text-schema';
 import { ensureBodyForecastSchema } from '../database/ensure-body-forecast-schema';
+import { runMigrations } from '../database/migration-runner';
 
 @Injectable()
 export class AuthBootstrapService implements OnModuleInit {
@@ -17,6 +19,29 @@ export class AuthBootstrapService implements OnModuleInit {
   constructor(@InjectConnection() private readonly sequelize: Sequelize) {}
 
   async onModuleInit() {
+    // Единый прогон SQL-миграций с учётом применённых.
+    // Раньше миграции из database/migrations применялись только вручную,
+    // поэтому на чистой базе схема не соответствовала коду.
+    // allowChecksumMismatch нужен для существующих баз, где схема уже
+    // создана вручную: таблица учёта пуста, и проверка контрольных сумм
+    // не должна блокировать запуск.
+    try {
+      const res = await runMigrations(this.sequelize, {
+        logger: this.logger,
+        allowChecksumMismatch: process.env.MIGRATIONS_ALLOW_CHECKSUM_MISMATCH === '1',
+      });
+      if (res.failed.length > 0) {
+        this.logger.error(
+          `Не применены миграции: ${res.failed.map((f) => f.file).join(', ')}. ` +
+            'Приложение запущено, но схема может не соответствовать коду.',
+        );
+      }
+    } catch (e) {
+      this.logger.error(
+        `Прогон миграций не удался: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+
     await ensureProductsSchema(this.sequelize);
     await ensureMealPlannerSchema(this.sequelize);
     await ensureUserDietarySchema(this.sequelize);
@@ -25,22 +50,38 @@ export class AuthBootstrapService implements OnModuleInit {
     await ensurePhotoUrlTextSchema(this.sequelize);
     await ensureBodyForecastSchema(this.sequelize);
 
-    const adminEmail = process.env.ADMIN_EMAIL ?? 'admin@example.com';
-    const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123';
-    const demoUsers = [
-      {
-        email: 'user1@example.com',
-        password: 'user123',
-        role: 'user',
-        birthDate: '1998-05-12',
-      },
-      {
-        email: 'user2@example.com',
-        password: 'user123',
-        role: 'user',
-        birthDate: '1992-11-03',
-      },
-    ];
+    const isProd = process.env.NODE_ENV === 'production';
+    const adminEmail = (process.env.ADMIN_EMAIL ?? 'admin@example.com').trim().toLowerCase();
+    const adminPassword = process.env.ADMIN_PASSWORD?.trim();
+
+    // Безопасность: пароль администратора задаётся только явно.
+    // Раньше при отсутствии ADMIN_PASSWORD создавался admin@example.com / admin123,
+    // то есть предсказуемый полный доступ к админ-панели.
+    if (!adminPassword && !isProd) {
+      this.logger.warn(
+        'ADMIN_PASSWORD не задан — первичный администратор не создан. ' +
+          'Задайте ADMIN_EMAIL и ADMIN_PASSWORD в .env и перезапустите приложение.',
+      );
+    }
+
+    // Демо-пользователи создаются только вне production и только при явном флаге.
+    const demoUsers =
+      !isProd && process.env.SEED_DEMO_USERS === 'true'
+        ? [
+            {
+              email: 'user1@example.com',
+              password: 'user123',
+              role: 'user',
+              birthDate: '1998-05-12',
+            },
+            {
+              email: 'user2@example.com',
+              password: 'user123',
+              role: 'user',
+              birthDate: '1992-11-03',
+            },
+          ]
+        : [];
     const popularAllergens = [
       'лактоза',
       'глютен',
@@ -70,12 +111,16 @@ export class AuthBootstrapService implements OnModuleInit {
     ];
 
     const bootstrapUsers = [
-      {
-        email: adminEmail,
-        password: adminPassword,
-        role: 'admin',
-        birthDate: '1990-01-01',
-      },
+      ...(adminPassword
+        ? [
+            {
+              email: adminEmail,
+              password: adminPassword,
+              role: 'admin',
+              birthDate: '1990-01-01',
+            },
+          ]
+        : []),
       ...demoUsers,
     ];
 
@@ -94,7 +139,7 @@ export class AuthBootstrapService implements OnModuleInit {
         {
           replacements: {
             email: entry.email,
-            password: createHash('sha256').update(entry.password).digest('hex'),
+            password: await hashPassword(entry.password),
             role: entry.role,
             birthDate: entry.birthDate,
           },

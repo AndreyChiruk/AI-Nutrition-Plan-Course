@@ -6,6 +6,7 @@ import { BodyAnalysisPage } from './pages/BodyAnalysisPage';
 import { ChatPage } from './pages/ChatPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { FoodRecognitionPage } from './pages/FoodRecognitionPage';
+import { FridgePage } from './pages/FridgePage';
 import { LoginPage } from './pages/LoginPage';
 import { MealPlanPage } from './pages/MealPlanPage';
 import { MyMealPlansPage } from './pages/MyMealPlansPage';
@@ -24,6 +25,7 @@ const ProtectedRoutes = () => {
       <Route element={<AppLayout />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/fridge" element={<FridgePage />} />
         <Route path="/body-analysis" element={<BodyAnalysisPage />} />
         <Route path="/meal-plan" element={<MealPlanPage />} />
         <Route path="/meal-plans" element={<MyMealPlansPage />} />

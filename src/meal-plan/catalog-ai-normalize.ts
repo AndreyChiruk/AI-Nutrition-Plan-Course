@@ -8,6 +8,10 @@ export const CATALOG_ALLERGEN_VALUES = [
   'яйца',
   'соя',
   'рыба',
+  // Добавлены как распространённые аллергены (14 основных по стандарту ЕС).
+  'кунжут',
+  'горчица',
+  'сельдерей',
 ] as const;
 export type CatalogAllergenValue = (typeof CATALOG_ALLERGEN_VALUES)[number];
 
@@ -43,6 +47,11 @@ const ALLERGEN_ALIASES: Record<string, CatalogAllergenValue> = {
   soy: 'соя',
   soya: 'соя',
   fish: 'рыба',
+  sesame: 'кунжут',
+  tahini: 'кунжут',
+  mustard: 'горчица',
+  celery: 'сельдерей',
+  celeriac: 'сельдерей',
 };
 
 const DIETARY_ALIASES: Record<string, CatalogDietaryTagValue> = {
@@ -85,6 +94,55 @@ export function normalizeCatalogAllergenList(values: unknown): CatalogAllergenVa
     if (n) out.add(n);
   }
   return [...out];
+}
+
+/** Результат «расширяющей» нормализации: что распознали, а что сохранили как есть. */
+export type AllergenNormalizationResult = {
+  /** Значения из справочника (безопасны для фильтрации и сравнения). */
+  recognized: CatalogAllergenValue[];
+  /** Значения, которых нет в справочнике, но которые НЕЛЬЗЯ терять. */
+  unrecognized: string[];
+  /** Полный список для сохранения: распознанные + нераспознанные. */
+  all: string[];
+};
+
+/**
+ * «Расширяющая» нормализация аллергенов для ответов модели и пользовательских данных.
+ *
+ * `normalizeCatalogAllergenList` отбрасывает всё, чего нет в справочнике.
+ * Для каталога это приемлемо, но для РАСПОЗНАВАНИЯ ЕДЫ — опасно: если модель
+ * вернула «майонез» или «сыр», значение исчезало, `hasDetectedAllergensInDish`
+ * становился false, и пользователь НЕ получал предупреждение об аллергене,
+ * хотя вещество в блюде есть. Это ложная безопасность.
+ *
+ * Здесь неизвестные значения сохраняются: их можно показать пользователю
+ * и записать в `meal_items.allergensFound` (тип varchar[] это позволяет).
+ */
+export function normalizeAllergensExpanding(values: unknown): AllergenNormalizationResult {
+  if (!Array.isArray(values)) return { recognized: [], unrecognized: [], all: [] };
+
+  const recognized = new Set<CatalogAllergenValue>();
+  const unrecognized = new Set<string>();
+
+  for (const raw of values) {
+    const text = String(raw ?? '').trim();
+    if (!text) continue;
+    const mapped = normalizeCatalogAllergenToken(text);
+    if (mapped) {
+      recognized.add(mapped);
+      continue;
+    }
+    // Неизвестное значение сохраняем в исходном виде (ограничив длину),
+    // чтобы не потерять потенциальный аллерген.
+    const clean = text.toLowerCase().slice(0, 64);
+    if (clean) unrecognized.add(clean);
+  }
+
+  return {
+    recognized: [...recognized],
+    unrecognized: [...unrecognized],
+    all: [...recognized, ...unrecognized],
+  };
 }
 
 export function normalizeCatalogDietaryTagToken(raw: string): CatalogDietaryTagValue | null {

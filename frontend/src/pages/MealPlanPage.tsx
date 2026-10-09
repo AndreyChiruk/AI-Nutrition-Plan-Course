@@ -10,7 +10,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { AlertTriangle, Brain, ChefHat, ClipboardList, Download, Lock, Save, Sparkles } from 'lucide-react';
+import { AlertTriangle, Brain, ChefHat, ClipboardList, Download, Lock, Save, ShoppingBasket, Check } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { isAxiosError } from 'axios';
 import {
@@ -34,6 +34,9 @@ import { dishMatchesPlanSlot } from '../utils/dish-category-infer';
 import { ALLERGEN_HINTS_RU, DIET_HINTS_RU } from '../constants/nutrition-hints';
 import { MINOR_ALCOHOL_BLOCK_MSG, mealLooksLikeAlcoholic } from '../utils/alcohol-dish';
 import { computeAgeFromBirthDate } from '../utils/age';
+import { formatApiError, getApiErrorInfo } from '../api/errors';
+import { DishThumb } from '../components/DishThumb';
+import { CalorieValue, MacroRow, round1 } from '../components/MacroRow';
 
 type Mode = 'basic' | 'ai' | 'constructor';
 type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'snack2';
@@ -355,6 +358,22 @@ function emptyDays(len: number) {
   }));
 }
 
+/**
+ * Определяет приём пищи по названию блюда — упрощённая версия серверного
+ * `inferMealSlotFromDishName`. Используется только для выбора запасной
+ * иконки миниатюры, поэтому достаточно основных признаков.
+ */
+export function inferSlotFromName(name?: string | null): 'breakfast' | 'lunch' | 'dinner' | 'snack' {
+  const n = String(name ?? '').toLowerCase().replace(/ё/g, 'е');
+  if (!n) return 'lunch';
+  if (/(каша|овсян|блин|оладь|омлет|яичниц|сырник|тост|гренк|круассан|завтрак|йогурт|мюсли|гранола)/.test(n))
+    return 'breakfast';
+  if (/(салат|десерт|торт|печенье|кекс|пирожн|мороженое|шоколад|фрукт|ягод|смузи|чипсы|орешк|батончик|чай|кофе|сок)/.test(n))
+    return 'snack';
+  if (/(запечен|тушен|рагу|овощ|баклажан|кабачок|брокколи|гриб|ужин)/.test(n)) return 'dinner';
+  return 'lunch';
+}
+
 function DraggableDish({
   dish,
   onSelect,
@@ -366,6 +385,9 @@ function DraggableDish({
 }) {
   const blocked = Boolean(dish.blockedByAllergen);
   const warn = (dish.dietWarnings?.length ?? 0) > 0;
+  // Слот нужен только для запасной SVG-иконки миниатюры:
+  // если картинка с TheMealDB не загрузится, покажем тематическую иконку.
+  const slotForDish = inferSlotFromName(dish.name);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `lib-${dish.id}`,
     disabled: blocked,
@@ -394,15 +416,36 @@ function DraggableDish({
       } ${warn && !blocked ? 'catalog-dish-diet-warn' : ''}`}
       onClick={() => onSelect?.(dish)}
     >
-      {dish.imageUrl ? (
-        <img src={dish.imageUrl} alt="" className="catalog-dish-thumb" loading="lazy" decoding="async" />
-      ) : null}
+      <DishThumb imageUrl={dish.imageUrl} name={dish.name} slot={slotForDish} size="sm" />
       <span className="catalog-dish-chip-text">
-      {blocked ? <Lock size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} /> : null}
-      {warn && !blocked ? (
-        <AlertTriangle size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-      ) : null}
-      {compact ? dish.name.slice(0, 28) : dish.name} ({Math.round(dish.calories)} ккал)
+        <span className="catalog-dish-chip-name">
+          {blocked ? <Lock size={13} aria-hidden /> : null}
+          {warn && !blocked ? <AlertTriangle size={13} aria-hidden /> : null}
+          {compact ? dish.name.slice(0, 28) : dish.name}
+        </span>
+        {/* БЖУ отдельными блоками фиксированной ширины: цифры не
+            переносятся на другую строку и выравниваются по столбцам. */}
+        <span className="macro-row catalog-dish-macros">
+          <span className="macro-cell">
+            <span className="macro-label">Б</span>
+            <span className="macro-value">{round1(dish.protein)}</span>
+            <span className="macro-unit">г</span>
+          </span>
+          <span className="macro-cell">
+            <span className="macro-label">Ж</span>
+            <span className="macro-value">{round1(dish.fat)}</span>
+            <span className="macro-unit">г</span>
+          </span>
+          <span className="macro-cell">
+            <span className="macro-label">У</span>
+            <span className="macro-value">{round1(dish.carbs)}</span>
+            <span className="macro-unit">г</span>
+          </span>
+          <span className="macro-cell macro-cell-kcal">
+            <span className="macro-value">{Math.round(dish.calories)}</span>
+            <span className="macro-unit">ккал</span>
+          </span>
+        </span>
       </span>
     </button>
   );
@@ -671,6 +714,8 @@ export const MealPlanPage = () => {
   const [saveMsg, setSaveMsg] = useState('');
   const [aiError, setAiError] = useState('');
   const [selectedMeal, setSelectedMeal] = useState<MealItem | null>(null);
+  /** Продукты из рецепта, которых нет в холодильнике (что докупить). */
+  const [fridgeMissing, setFridgeMissing] = useState<string[]>([]);
   const [dishSearch, setDishSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [dishLibrary, setDishLibrary] = useState<MealItem[]>([]);
@@ -710,10 +755,15 @@ export const MealPlanPage = () => {
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [targetInput, setTargetInput] = useState(2200);
   const [pendingGenerate, setPendingGenerate] = useState<'auto' | 'aiCat' | null>(null);
+  /**
+   * Подтверждение добавления блюда, которое нарушает ограничения.
+   * Причины собираются в список: аллергены, диета, нежелательные продукты.
+   */
   const [dietConfirm, setDietConfirm] = useState<{
     dish: MealItem;
     day: number;
     slot: MealSlot;
+    reasons: string[];
   } | null>(null);
   const [openPlanMeta, setOpenPlanMeta] = useState<{ id: string; status: string } | null>(null);
   const [days, setDays] = useState<
@@ -903,8 +953,8 @@ export const MealPlanPage = () => {
           setDays(emptyDays(14));
           setDuration(14);
         }
-      } catch {
-        if (!cancelled) setSaveMsg('Не удалось загрузить план или библиотеку.');
+      } catch (err) {
+        if (!cancelled) setSaveMsg(formatApiError(err, 'Не удалось загрузить план или библиотеку.'));
       } finally {
         if (!cancelled) setIsLoadingPlan(false);
       }
@@ -925,6 +975,9 @@ export const MealPlanPage = () => {
         const saved = await mealPlanApi.generateAuto(user.id, duration, {
           targetCalories: tc,
           calorieMode: 'precise',
+          // Новое зерно при каждой генерации: иначе повторное нажатие
+          // возвращало тот же самый план.
+          seed: Date.now() % 2_000_000_000,
         });
         applySavedPlan(saved);
         const w = (saved as SavedMealPlan & { warnings?: string[] }).warnings;
@@ -944,11 +997,19 @@ export const MealPlanPage = () => {
             : `AI-план по каталогу БД сохранён.${reviewPlanMsg}`,
         );
       }
-    } catch {
+    } catch (err) {
+      // Показываем реальное сообщение сервера: оно объясняет причину
+      // (нет ключа, лимит запросов, ошибка валидации), тогда как раньше
+      // пользователь видел общий текст и не знал, что делать.
+      const info = getApiErrorInfo(err);
       if (kind === 'aiCat') {
-        setAiError('Ошибка нейросети: проверьте ключ API в настройках сервера или используйте автогенерацию.');
+        setAiError(
+          info.status === 503
+            ? `${info.message} Используйте автогенерацию или проверьте OPENAI_API_KEY на сервере.`
+            : info.message,
+        );
       } else {
-        setSaveMsg('Ошибка генерации плана.');
+        setSaveMsg(info.hint ? `${info.message} ${info.hint}` : info.message);
       }
     } finally {
       setIsLoadingAi(false);
@@ -1086,10 +1147,25 @@ export const MealPlanPage = () => {
     if (!user || !openPlanMeta?.id) return;
     setSaveMsg('');
     try {
-      const saved = await mealPlanApi.activatePlan(user.id, openPlanMeta.id);
-      applySavedPlan(saved);
+      const res = await mealPlanApi.activatePlan(user.id, openPlanMeta.id);
+
+      // Сервер не активирует план, созданный по другим ограничениям,
+      // и возвращает список различий вместо самого плана.
+      if (res && 'requiresConfirmation' in res && res.requiresConfirmation === true) {
+        const details = res.changed
+          .map((c) => `${c.label}: ${c.before} → ${c.after}`)
+          .join('; ');
+        setSaveMsg(
+          `План создан по старым ограничениям (${details}). ` +
+            'Сгенерируйте новый план или подтвердите активацию в разделе «Мои планы».',
+        );
+        return;
+      }
+
+      // Здесь res — уже сохранённый план (ветка подтверждения вышла выше).
+      applySavedPlan(res as Parameters<typeof applySavedPlan>[0]);
       setSaveMsg('План активирован — можно отмечать приёмы пищи.');
-    } catch {
+    } catch (err) {
       setSaveMsg('Не удалось сделать план активным.');
     }
   };
@@ -1111,7 +1187,7 @@ export const MealPlanPage = () => {
           return { ...row, mealStatuses: next };
         }),
       );
-    } catch {
+    } catch (err) {
       setSaveMsg('Не удалось обновить статус приёма пищи.');
     }
   };
@@ -1154,8 +1230,19 @@ export const MealPlanPage = () => {
       return;
     }
     if (!allowConstructorAlcoholPlacement(dish)) return;
+
+    // Собираем ВСЕ причины, по которым блюдо не подходит:
+    // так пользователь видит полную картину, а не первое совпадение.
+    const reasons: string[] = [];
     if (dish.dietWarnings?.length) {
-      setDietConfirm({ dish, day: dayNum, slot });
+      reasons.push(`Не подходит для вашей диеты: ${dish.dietWarnings.join(', ')}`);
+    }
+    if (hasDetailedDislike(dish, foodDislikes)) {
+      reasons.push('Входит в список нежелательных продуктов');
+    }
+
+    if (reasons.length > 0) {
+      setDietConfirm({ dish, day: dayNum, slot, reasons });
       return;
     }
     setMealForDay(dayNum, slot, dish);
@@ -1171,8 +1258,17 @@ export const MealPlanPage = () => {
       return;
     }
     if (!allowConstructorAlcoholPlacement(dish)) return;
+
+    const reasons: string[] = [];
     if (dish.dietWarnings?.length) {
-      setDietConfirm({ dish, day: dayNum, slot });
+      reasons.push(`Не подходит для вашей диеты: ${dish.dietWarnings.join(', ')}`);
+    }
+    if (hasDetailedDislike(dish, foodDislikes)) {
+      reasons.push('Входит в список нежелательных продуктов');
+    }
+
+    if (reasons.length > 0) {
+      setDietConfirm({ dish, day: dayNum, slot, reasons });
       return;
     }
     setMealForDay(dayNum, slot, dish);
@@ -1486,7 +1582,7 @@ export const MealPlanPage = () => {
         warnings: data.warnings ?? [],
         days: data.days,
       });
-    } catch {
+    } catch (err) {
       setSaveMsg('Не удалось доработать план с ИИ. Проверьте сеть и ключ API на сервере.');
     } finally {
       setAiRefineLoading(false);
@@ -1532,6 +1628,37 @@ export const MealPlanPage = () => {
     new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 
   const selectedMealIngredients = selectedMeal ? mealIngredientsForView(selectedMeal).filter(Boolean) : [];
+
+  /**
+   * При открытии блюда проверяем, чего не хватает в холодильнике.
+   * Пользователь сразу видит список для покупки, не сверяя вручную.
+   */
+  useEffect(() => {
+    if (!selectedMeal || !user) {
+      setFridgeMissing([]);
+      return;
+    }
+    const names = mealIngredientsForView(selectedMeal)
+      .map((row) => String(row).split('—')[0]?.trim() ?? '')
+      .filter(Boolean)
+      .map((name) => ({ name }));
+    if (names.length === 0) {
+      setFridgeMissing([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await userApi.missingFridge(user.id, names);
+        if (!cancelled) setFridgeMissing(Array.isArray(res?.missing) ? res.missing : []);
+      } catch {
+        if (!cancelled) setFridgeMissing([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMeal, user]);
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -1694,7 +1821,7 @@ export const MealPlanPage = () => {
               title="Учитываются любимые и нежелательные продукты из профиля (подсказки для модели и фильтр каталога). ИИ заполнит пустые слоты и при необходимости скорректирует блюда с пояснениями."
               onClick={() => void runAiRefineConstructor()}
             >
-              <Sparkles size={16} /> {aiRefineLoading ? 'ИИ думает…' : 'Доработать с ИИ'}
+              {aiRefineLoading ? 'ИИ думает…' : 'Доработать с ИИ'}
             </button>
           ) : null}
         </div>
@@ -1857,11 +1984,18 @@ export const MealPlanPage = () => {
         {dietConfirm ? (
           <div className="modal-backdrop">
             <div className="modal-window">
-              <h4>Совместимость с диетой</h4>
+              <h4>Блюдо не соответствует ограничениям</h4>
               <p className="muted small">
-                Блюдо может не соответствовать выбранным ограничениям:{' '}
-                {dietConfirm.dish.dietWarnings?.join(', ')}
+                Вы можете добавить его принудительно, но рекомендуем выбрать другое.
               </p>
+              <ul className="confirm-reasons">
+                {dietConfirm.reasons.map((r) => (
+                  <li key={r}>
+                    <AlertTriangle size={14} aria-hidden />
+                    {r}
+                  </li>
+                ))}
+              </ul>
               <div className="chip-grid" style={{ marginTop: 12 }}>
                 <button
                   type="button"
@@ -2101,18 +2235,20 @@ export const MealPlanPage = () => {
         <div className="modal-backdrop">
           <div className="modal-window">
             <h3>{selectedMeal.name}</h3>
-            {selectedMeal.imageUrl && String(selectedMeal.imageUrl).trim() ? (
-              <img
-                src={String(selectedMeal.imageUrl).trim()}
-                alt=""
-                className="meal-detail-modal-photo"
-                loading="lazy"
-                decoding="async"
+            <DishThumb
+              imageUrl={selectedMeal.imageUrl}
+              name={selectedMeal.name}
+              slot={inferSlotFromName(selectedMeal.name)}
+              size="fill"
+              className="meal-detail-modal-photo"
+            />
+            <p className="macro-line">
+              <CalorieValue calories={selectedMeal.calories} />
+              <MacroRow
+                protein={selectedMeal.protein}
+                fat={selectedMeal.fat}
+                carbs={selectedMeal.carbs}
               />
-            ) : null}
-            <p>
-              Калории: {selectedMeal.calories} · Б: {selectedMeal.protein} / Ж: {selectedMeal.fat} / У:{' '}
-              {selectedMeal.carbs}
             </p>
             <p>
               Аллергены:{' '}
@@ -2143,6 +2279,17 @@ export const MealPlanPage = () => {
                   Нет данных по ингредиентам
                 </p>
               )}
+
+              {fridgeMissing.length > 0 ? (
+                <p className="meal-fridge-missing">
+                  <ShoppingBasket size={14} /> Докупить:{' '}
+                  <span className="meal-fridge-missing-list">{fridgeMissing.join(', ')}</span>
+                </p>
+              ) : selectedMealIngredients.length > 0 ? (
+                <p className="meal-fridge-ok">
+                  <Check size={14} /> Все продукты есть в холодильнике
+                </p>
+              ) : null}
             </div>
             <button type="button" onClick={() => setSelectedMeal(null)}>
               Закрыть

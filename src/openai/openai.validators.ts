@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { CatalogAllergenValue, CatalogDietaryTagValue } from '../meal-plan/catalog-ai-normalize';
 import {
-  normalizeCatalogAllergenList,
+  normalizeAllergensExpanding,
   normalizeCatalogDietaryTagList,
 } from '../meal-plan/catalog-ai-normalize';
 
@@ -127,7 +127,8 @@ export type FoodAiItem = {
   protein: number;
   fat: number;
   carbs: number;
-  allergensFound: CatalogAllergenValue[];
+  /** Аллергены: значения справочника + возможные нераспознанные от модели. */
+  allergensFound: string[];
   dietaryTags: CatalogDietaryTagValue[];
   ingredients: FoodAiIngredient[];
   ingredientsDetailed: FoodAiIngredientDetailed[];
@@ -160,7 +161,9 @@ export const parseFoodImageRecognitionResponse = (text: string): { confidence: n
         : Array.isArray(r.allergens)
           ? r.allergens
           : [];
-    const allergensFound = normalizeCatalogAllergenList(rawAllergens);
+    // Сохраняем и нераспознанные значения: если модель вернула «майонез»
+    // или «сыр», потерять их нельзя — иначе пропадёт предупреждение об аллергене.
+    const allergensFound = normalizeAllergensExpanding(rawAllergens).all;
 
     const rawDiets = Array.isArray(r.dietaryTags) ? r.dietaryTags : [];
     const dietaryTags = normalizeCatalogDietaryTagList(rawDiets);

@@ -1,85 +1,209 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, Apple, Dumbbell, LineChart, Sparkles, UtensilsCrossed } from 'lucide-react';
-import { FreshHeroIllustration } from '../components/FreshHeroIllustration';
-import { AccentActivitySvg } from '../components/DecorativeAccents';
+import {
+  Activity,
+  Apple,
+  ArrowRight,
+  Dumbbell,
+  LineChart,
+  Refrigerator,
+  UtensilsCrossed,
+  Salad,
+  Soup,
+  Wheat,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { publicApi } from '../api/services';
+
+/**
+ * Главная страница.
+ *
+ * Прежний вариант начинался с декоративной иллюстрации салата
+ * (`FreshHeroIllustration`) и SVG-акцентов с градиентами. Эти элементы
+ * не несли информации: занимали половину экрана и создавали ощущение
+ * сгенерированного интерфейса.
+ *
+ * Теперь вместо иллюстрации — сетка разделов: пользователь сразу видит,
+ * куда можно перейти и что даёт каждый раздел. Оформление строится
+ * на типографике и сетке, без декоративных картинок.
+ */
+
+const SECTIONS = [
+  {
+    to: '/meal-plan',
+    Icon: UtensilsCrossed,
+    title: 'План питания',
+    text: 'Сборка рациона на 7–30 дней с расчётом КБЖУ по составу блюд.',
+  },
+  {
+    to: '/fridge',
+    Icon: Refrigerator,
+    title: 'Мой холодильник',
+    text: 'Продукты по категориям, сроки годности и список покупок.',
+  },
+  {
+    to: '/body-analysis',
+    Icon: Activity,
+    title: 'Анализ тела',
+    text: 'Замеры по зонам силуэта и прогноз изменения фигуры.',
+  },
+  {
+    to: '/food',
+    Icon: Apple,
+    title: 'Распознавание еды',
+    text: 'Фото блюда — состав, калории и предупреждения об аллергенах.',
+  },
+  {
+    to: '/workout-plan',
+    Icon: Dumbbell,
+    title: 'План тренировок',
+    text: 'Нагрузка согласована с целью по весу и с питанием.',
+  },
+  {
+    to: '/stats',
+    Icon: LineChart,
+    title: 'Статистика',
+    text: 'Динамика веса, калорий и тренировок по дням.',
+  },
+] as const;
+
+/**
+ * Шаги работы с приложением.
+ * Короткие и в порядке реального использования — чтобы новый
+ * пользователь понял последовательность, а не изучал все разделы.
+ */
+const STEPS = [
+  {
+    n: '01',
+    title: 'Заполните профиль',
+    text: 'Пол, возраст, вес и рост — от них зависят норма калорий и БЖУ.',
+  },
+  {
+    n: '02',
+    title: 'Укажите ограничения',
+    text: 'Аллергии, тип питания и нежелательные продукты. Они учитываются везде.',
+  },
+  {
+    n: '03',
+    title: 'Получите план',
+    text: 'Рацион на 7–30 дней: калорийность считается по составу каждого блюда.',
+  },
+  {
+    n: '04',
+    title: 'Ведите прогресс',
+    text: 'Отмечайте приёмы пищи, следите за динамикой веса и тренировками.',
+  },
+] as const;
+
+/** Примеры блюд для главной: показывают, что внутри каталога. */
+const SAMPLE_DISHES = [
+  { name: 'Борщ украинский', slot: 'Обед', kcal: 393, Icon: Soup },
+  { name: 'Сырники со сметаной', slot: 'Завтрак', kcal: 511, Icon: Salad },
+  { name: 'Куриная грудка с овощами', slot: 'Ужин', kcal: 458, Icon: UtensilsCrossed },
+  { name: 'Гречневая каша с маслом', slot: 'Гарнир', kcal: 310, Icon: Wheat },
+] as const;
 
 export const DashboardPage = () => {
   const { user } = useAuth();
+  const name = user?.name?.trim();
+  /** Показатели каталога — публичный эндпоинт, работает без входа. */
+  const [stats, setStats] = useState<{ dishes: number; categories: number } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void publicApi
+      .catalogStats()
+      .then((data) => {
+        if (alive) setStats(data);
+      })
+      .catch(() => {
+        // Показатели не критичны: без них страница остаётся рабочей.
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   return (
     <div className="dashboard">
-      <section className="card card--interactive dashboard-hero">
-        <div>
-          <h2>Ваш личный помощник по питанию</h2>
-          <p className="lead muted">
-            Добро пожаловать,{' '}
-            {user?.email ? <strong className="dashboard-welcome-name">{user.email}</strong> : 'друг'}. Планируйте
-            рацион, следите за прогрессом и получайте дружелюбные подсказки.
-          </p>
-          <div className="dashboard-hero-cta" role="navigation" aria-label="Быстрые действия">
-            <Link className="btn-link-outline" to="/meal-plan">
-              <UtensilsCrossed size={18} strokeWidth={2} />
-              План питания
-            </Link>
-            <Link className="btn-link-outline" to="/food">
-              <Apple size={18} strokeWidth={2} />
-              Еда
-            </Link>
-            <Link className="btn-link-outline" to="/stats">
-              <LineChart size={18} strokeWidth={2} />
-              Статистика
-            </Link>
-            <Link className="btn-link-outline" to="/recommendations">
-              <Sparkles size={18} strokeWidth={2} />
-              Советы ИИ
-            </Link>
-          </div>
-          <p className="muted small dashboard-accent-hint">
-            <span className="chip chip--accent">Ккал</span>
-            важные значения выделены тёплым акцентом — следите за балансом без стресса.
-          </p>
-        </div>
-        <div className="dashboard-illustration-wrap" aria-hidden>
-          <FreshHeroIllustration />
-        </div>
-      </section>
-
-      <div className="card goal-progress-card">
-        <p className="small muted goal-progress-title">Цель дня</p>
-        <div className="progress-track" aria-hidden>
-          <div className="progress-fill progress-fill--70" />
-        </div>
-        <p className="muted small goal-progress-caption">
-          Визуализация плана (подсказка: держитесь в комфортном дефиците или поддержке)
+      <header className="dashboard-intro">
+        <p className="eyebrow">Главная</p>
+        <h1>{name ? `Здравствуйте, ${name}` : 'Личный помощник по питанию'}</h1>
+        <p className="lead">
+          Планирование рациона, учёт продуктов и анализ прогресса — в одном месте.
+          Расчёты строятся на составе блюд, а не на приблизительных оценках.
         </p>
-      </div>
+      </header>
 
-      <section className="feature-grid-animated">
-        <div className="card card--interactive feature-tile">
-          <h3>
-            <Activity size={22} strokeWidth={2} />
-            Анализ тела
-          </h3>
-          <div className="feature-tile-deco" aria-hidden>
-            <AccentActivitySvg />
-          </div>
-          <p className="muted">Фото и мягкая оценка динамики — без жёстких цифр на весь экран.</p>
-        </div>
-        <div className="card card--interactive feature-tile">
-          <h3>
-            <UtensilsCrossed size={22} strokeWidth={2} />
-            План на неделю
-          </h3>
-          <p className="muted">Сборка приёмов пищи на 7–30 дней с учётом вашей цели и вкуса.</p>
-        </div>
-        <div className="card card--interactive feature-tile feature-tile--wide">
-          <h3>
-            <Dumbbell size={22} strokeWidth={2} />
-            Движение и питание вместе
-          </h3>
-          <p className="muted">Тренировки и еда в одном сервисе — меньше переключений, больше ясности.</p>
-        </div>
+      <section className="section-grid" aria-label="Разделы">
+        {SECTIONS.map(({ to, Icon, title, text }) => (
+          <Link key={to} to={to} className="section-tile">
+            <span className="section-tile-head">
+              <Icon size={18} strokeWidth={1.75} aria-hidden />
+              <span className="section-tile-title">{title}</span>
+            </span>
+            <span className="section-tile-text">{text}</span>
+            <span className="section-tile-more">
+              Перейти <ArrowRight size={13} aria-hidden />
+            </span>
+          </Link>
+        ))}
       </section>
+
+      {/* Как это работает: последовательность действий. */}
+      <section className="dashboard-block" aria-label="Как это работает">
+        <h2 className="dashboard-block-title">Как это работает</h2>
+        <ol className="steps-grid">
+          {STEPS.map((step) => (
+            <li key={step.n} className="step-card">
+              <span className="step-number mono">{step.n}</span>
+              <span className="step-title">{step.title}</span>
+              <span className="step-text">{step.text}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {/* Примеры блюд из каталога. */}
+      <section className="dashboard-block" aria-label="Что в каталоге">
+        <h2 className="dashboard-block-title">Что в каталоге</h2>
+        <div className="dish-sample-grid">
+          {SAMPLE_DISHES.map(({ name: dish, slot, kcal, Icon }) => (
+            <article key={dish} className="dish-sample">
+              <span className="dish-sample-icon">
+                <Icon size={20} strokeWidth={1.6} aria-hidden />
+              </span>
+              <span className="dish-sample-name">{dish}</span>
+              <span className="dish-sample-meta">
+                {slot} · <span className="mono">{kcal}</span> ккал
+              </span>
+            </article>
+          ))}
+        </div>
+        <p className="muted small">
+          Калорийность рассчитана по составу блюда, а не взята приблизительно.
+        </p>
+      </section>
+
+      {/* Показатели каталога. */}
+      {stats ? (
+        <section className="dashboard-block" aria-label="Показатели">
+          <div className="dashboard-metrics">
+            <div className="metric">
+              <span className="metric-label">Блюд в каталоге</span>
+              <span className="metric-value">{stats.dishes}</span>
+            </div>
+            <div className="metric">
+              <span className="metric-label">Категорий приёмов</span>
+              <span className="metric-value">{stats.categories}</span>
+            </div>
+            <div className="metric">
+              <span className="metric-label">Продуктов в справочнике</span>
+              <span className="metric-value">1 200+</span>
+            </div>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 };

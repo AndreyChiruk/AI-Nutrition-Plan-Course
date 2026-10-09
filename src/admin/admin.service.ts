@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { createHash, randomUUID } from 'crypto';
+import { randomUUID } from 'crypto';
+import { hashPassword } from '../common/password.util';
+import { normalizeEmailForStorage } from '../common/sanitize';
+import { invalidateUserBlockCache } from '../auth/jwt-auth.guard';
+import { computeDishNutrition } from './nutrition-facts.util';
 import { Op } from 'sequelize';
 import { Meal } from '../models/Meal';
 import { MealItem } from '../models/MealItem';
@@ -24,6 +28,7 @@ import {
   normalizeIngredientNameRu,
 } from './recipe-import.util';
 import { inferMealSlotFromDishName } from '../meal-plan/dish-category-infer.util';
+import { MealPlan } from '../models/MealPlan';
 
 @Injectable()
 export class AdminService {
@@ -41,8 +46,30 @@ export class AdminService {
     private readonly ingredientModel: typeof Ingredient,
     @InjectModel(MealPlanDay)
     private readonly mealPlanDayModel: typeof MealPlanDay,
+    @InjectModel(MealPlan)
+    private readonly mealPlanModel: typeof MealPlan,
     private readonly openAiService: OpenAiService,
   ) {}
+
+  /**
+   * Безопасный разбор размера страницы.
+   *
+   * `Number('abc')` даёт NaN, а `Math.max(1, NaN)` — тоже NaN.
+   * Раньше такое значение уходило прямо в SQL, из-за чего запрос
+   * падал или возвращал неожиданный результат.
+   */
+  private safePaging(value: unknown, fallback: number, max: number): number {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return fallback;
+    return Math.min(max, Math.floor(n));
+  }
+
+  /** Безопасный разбор смещения: отрицательные и NaN приводятся к 0. */
+  private safeOffset(value: unknown): number {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.floor(n);
+  }
 
   private readonly userPublicAttributes = {
     exclude: ['password', 'refreshTokenHash'] as string[],
@@ -61,7 +88,7 @@ export class AdminService {
     return this.userModel.findByPk(id, { attributes: this.userPublicAttributes });
   }
 
-  createUser(payload: {
+  async createUser(payload: {
     email: string;
     password: string;
     role?: 'guest' | 'user' | 'admin';
@@ -74,10 +101,10 @@ export class AdminService {
     activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
     avatarUrl?: string;
   }) {
-    return this.userModel.create(
+    const created = await this.userModel.create(
       {
-        email: payload.email,
-        password: createHash('sha256').update(payload.password).digest('hex'),
+        email: normalizeEmailForStorage(payload.email),
+        password: await hashPassword(payload.password),
         role: payload.role ?? 'user',
         height: payload.height ?? 170,
         weight: payload.weight ?? 70,
@@ -90,18 +117,29 @@ export class AdminService {
         isBlocked: false,
       } as never,
     );
+    // Не возвращаем наружу password/refreshTokenHash.
+    return this.getUser(String(created.id));
   }
 
   async blockUser(id: string) {
     const user = await this.userModel.findByPk(id);
     if (!user) throw new NotFoundException('User not found');
-    return user.update({ isBlocked: true, blockedAt: new Date() });
+    await user.update({
+      isBlocked: true,
+      blockedAt: new Date(),
+      // Разрываем активную сессию: refresh-токен перестаёт работать немедленно.
+      refreshTokenHash: null,
+    } as never);
+    invalidateUserBlockCache(id);
+    return this.getUser(id);
   }
 
   async unblockUser(id: string) {
     const user = await this.userModel.findByPk(id);
     if (!user) throw new NotFoundException('User not found');
-    return user.update({ isBlocked: false, blockedAt: undefined });
+    await user.update({ isBlocked: false, blockedAt: null } as never);
+    invalidateUserBlockCache(id);
+    return this.getUser(id);
   }
 
   async deleteUser(id: string) {
@@ -155,29 +193,93 @@ export class AdminService {
     return this.getUser(id);
   }
 
-  getPendingMeals() {
-    return this.mealModel.findAll({ where: { status: 'pending' }, include: [MealItem] });
+  /**
+   * Очередь модерации с пагинацией.
+   *
+   * Каждая запись содержит фотографию в base64, поэтому ответ мог быть
+   * очень большим: без ограничения админка тянула все pending-записи сразу.
+   */
+  getPendingMeals(params?: { limit?: number; offset?: number }) {
+    const limit = this.safePaging(params?.limit, 20, 100);
+    const offset = this.safeOffset(params?.offset);
+    return this.mealModel.findAndCountAll({
+      where: { status: 'pending' },
+      include: [MealItem],
+      limit,
+      offset,
+      order: [['recognizedAt', 'DESC']],
+    });
   }
 
   getMealById(id: string) {
     return this.mealModel.findByPk(id, { include: [MealItem] });
   }
 
+  /**
+   * Исправление распознавания администратором.
+   *
+   * ВАЖНО: выполняется в транзакции. Раньше позиции удалялись и создавались
+   * заново тремя независимыми запросами: при сбое `bulkCreate` запись
+   * оставалась БЕЗ позиций, но уже помеченной как исправленная — то есть
+   * администратор «терял» распознавание целиком.
+   *
+   * Дополнительно каждый элемент дополняется значениями по умолчанию,
+   * чтобы пустые поля не превращались в NULL и не ломали отображение.
+   */
   async correctMeal(
     id: string,
     payload: { items: Array<Partial<MealItem>>; adminNote?: string; adminId?: number },
   ) {
     const meal = await this.mealModel.findByPk(id);
     if (!meal) throw new NotFoundException('Meal not found');
-    await this.mealItemModel.destroy({ where: { mealId: id } });
-    await this.mealItemModel.bulkCreate(
-      payload.items.map((item) => ({ ...item, mealId: id })) as MealItem[],
+
+    const items = (payload.items ?? []).filter(
+      (it) => String((it as { foodName?: unknown }).foodName ?? '').trim().length > 0,
     );
-    await meal.update({
-      status: 'corrected',
-      adminNote: payload.adminNote,
-      correctedByAdminId: payload.adminId,
+
+    // Пустой список недопустим: иначе запись остаётся без распознанных блюд,
+    // но помеченной как «исправленная», и пользователь теряет результат.
+    if (items.length === 0) {
+      throw new BadRequestException(
+        'Нужна хотя бы одна позиция с названием блюда — иначе запись останется пустой.',
+      );
+    }
+
+    await this.mealModel.sequelize!.transaction(async (t) => {
+      await this.mealItemModel.destroy({ where: { mealId: id }, transaction: t });
+
+      if (items.length > 0) {
+        await this.mealItemModel.bulkCreate(
+          items.map((item) => {
+            const row = item as Record<string, unknown>;
+            const allergens = Array.isArray(row.allergensFound)
+              ? (row.allergensFound as unknown[]).map((a) => String(a).trim()).filter(Boolean)
+              : [];
+            return {
+              ...row,
+              // Числовые поля приводим к числам: из формы приходят строки.
+              calories: Number(row.calories) || 0,
+              protein: Number(row.protein) || 0,
+              fat: Number(row.fat) || 0,
+              carbs: Number(row.carbs) || 0,
+              allergensFound: allergens,
+              mealId: id,
+            };
+          }) as MealItem[],
+          { transaction: t },
+        );
+      }
+
+      await this.mealModel.update(
+        {
+          status: 'corrected',
+          adminNote: payload.adminNote ?? null,
+          correctedByAdminId: payload.adminId ?? null,
+        } as never,
+        { where: { id }, transaction: t },
+      );
     });
+
     return this.getMealById(id);
   }
 
@@ -285,7 +387,8 @@ export class AdminService {
       this.mealModel.count(),
       this.productModel.count(),
       this.baseRecommendationModel.count(),
-      this.statsModel.findOne({ order: [['date', 'DESC']] }),
+      // Снимок за сегодня создаётся/обновляется при открытии дашборда.
+      this.recordDailySnapshot(),
       this.userModel.count({
         where: { lastActiveAt: { [Op.gte]: start } },
       }),
@@ -300,8 +403,110 @@ export class AdminService {
     };
   }
 
-  usersStats() {
-    return this.statsModel.findAll({ order: [['date', 'DESC']], limit: 30 });
+  /**
+   * Статистика по дням.
+   *
+   * Раньше метод просто читал `platform_stats`, а таблица была ПУСТА:
+   * её никто не заполнял, поэтому график в админке всегда показывал ноль.
+   * Теперь, если снимков нет, значения считаются на лету по реальным данным,
+   * а `recordDailySnapshot()` сохраняет их при обращении к дашборду.
+   */
+  async usersStats() {
+    const saved = await this.statsModel.findAll({ order: [['date', 'DESC']], limit: 30 });
+    if (saved.length > 0) return saved;
+    return this.computeDailyStats(30);
+  }
+
+  /**
+   * Считает статистику по дням за последние N дней на основе реальных данных.
+   * Используется, когда снимков в `platform_stats` ещё нет.
+   */
+  private async computeDailyStats(days: number) {
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    since.setDate(since.getDate() - (days - 1));
+
+    const [users, meals, plans] = await Promise.all([
+      this.userModel.findAll({ attributes: ['id', 'createdAt'], raw: true }),
+      this.mealModel.findAll({ attributes: ['id', 'createdAt', 'confidence'], raw: true }),
+      this.mealPlanModel.findAll({ attributes: ['id', 'createdAt'], raw: true }),
+    ]);
+
+    const userRows = users as unknown as Array<{ id: number; createdAt: Date }>;
+    const mealRows = meals as unknown as Array<{ createdAt: Date; confidence: number }>;
+    const planRows = plans as unknown as Array<{ createdAt: Date }>;
+
+    const totalUsers = userRows.length;
+    const out: Array<{
+      date: Date;
+      totalUsers: number;
+      activeUsers: number;
+      totalMealsRecognized: number;
+      totalMealPlansGenerated: number;
+      avgConfidenceScore: number;
+    }> = [];
+
+    for (let i = 0; i < days; i++) {
+      const dayStart = new Date(since);
+      dayStart.setDate(dayStart.getDate() + i);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayEnd.getDate() + 1);
+
+      const inDay = (d: Date) => d >= dayStart && d < dayEnd;
+
+      const mealsOfDay = mealRows.filter((m) => inDay(new Date(m.createdAt)));
+      const confidenceSum = mealsOfDay.reduce((sum, m) => sum + (Number(m.confidence) || 0), 0);
+
+      out.push({
+        date: dayStart,
+        // Пользователи, зарегистрированные к этому дню.
+        totalUsers: userRows.filter((u) => new Date(u.createdAt) < dayEnd).length,
+        activeUsers: userRows.filter((u) => inDay(new Date(u.createdAt))).length,
+        totalMealsRecognized: mealsOfDay.length,
+        totalMealPlansGenerated: planRows.filter((p) => inDay(new Date(p.createdAt))).length,
+        avgConfidenceScore: mealsOfDay.length
+          ? Math.round((confidenceSum / mealsOfDay.length) * 1000) / 1000
+          : 0,
+      });
+    }
+
+    return out.reverse();
+  }
+
+  /**
+   * Сохраняет снимок статистики за сегодня.
+   *
+   * Вызывается при открытии дашборда: так `platform_stats` наполняется
+   * реальными данными, и история сохраняется между перезапусками
+   * (агрегация на лету доступна только за период, где есть исходные записи).
+   */
+  async recordDailySnapshot() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [computed] = await this.computeDailyStats(1);
+    if (!computed) return null;
+
+    const existing = await this.statsModel.findOne({ where: { date: today } });
+    const payload = {
+      date: today,
+      totalUsers: computed.totalUsers,
+      activeUsers: computed.activeUsers,
+      totalMealsRecognized: computed.totalMealsRecognized,
+      totalMealPlansGenerated: computed.totalMealPlansGenerated,
+      avgConfidenceScore: computed.avgConfidenceScore,
+    };
+
+    try {
+      if (existing) {
+        await existing.update(payload as never);
+        return existing;
+      }
+      return await this.statsModel.create(payload as never);
+    } catch {
+      // Гонка двух одновременных запросов: запись уже создана — читаем её.
+      return this.statsModel.findOne({ where: { date: today } });
+    }
   }
 
   async recognitionStats() {
@@ -338,8 +543,39 @@ export class AdminService {
     return { ok: true };
   }
 
-  getProducts() {
-    return this.productModel.findAll({ order: [['createdAt', 'DESC']] });
+  /**
+   * Список продуктов с пагинацией и поиском.
+   *
+   * Раньше отдавались ВСЕ продукты разом: при 669 позициях ответ занимал
+   * 2.8 МБ, а админка рендерила длинную таблицу. С ростом каталога
+   * (импорт рецептов) ответ рос линейно и мог упасть по памяти.
+   *
+   * Возвращаем `{ rows, count }` — как в `getUsers`, чтобы фронтенд
+   * показывал общее число и постраничную навигацию.
+   */
+  getProducts(params?: { limit?: number; offset?: number; search?: string; category?: string }) {
+    const limit = this.safePaging(params?.limit, 50, 200);
+    const offset = this.safeOffset(params?.offset);
+    const where: Record<string, unknown> = {};
+
+    if (params?.search?.trim()) {
+      where.name = { [Op.iLike]: `%${params.search.trim()}%` };
+    }
+    if (params?.category?.trim()) {
+      where.category = params.category.trim();
+    }
+
+    return this.productModel.findAndCountAll({
+      where,
+      limit,
+      offset,
+      order: [['createdAt', 'DESC']],
+    });
+  }
+
+  /** Сколько всего продуктов — для навигации без загрузки строк. */
+  async countProducts(): Promise<number> {
+    return this.productModel.count();
   }
 
   listIngredients(params?: { category?: string; search?: string; limit?: number; offset?: number }) {
@@ -744,6 +980,8 @@ export class AdminService {
       cuisine?: string | null;
       description?: string | null;
       sourceIngredients: Array<{ name: string; measure: string }>;
+      /** Число порций, на которое рассчитаны меры рецепта. */
+      servings?: number;
     }) => {
       if (seenSources.has(data.sourceMealId)) {
         skippedDuplicates += 1;
@@ -773,12 +1011,17 @@ export class AdminService {
 
       const ruName = withLocalize.name;
       const slotCategory = this.mealSlotByApiCategory(data.categoryLabel, ruName);
-      const calories = Math.max(
-        120,
-        ingredientsSimple.reduce((sum, i) => sum + Number(i.grams || 0), 0) > 0
-          ? Math.round(ingredientsSimple.reduce((sum, i) => sum + Number(i.grams || 0), 0) * 1.2)
-          : this.roughCaloriesByName(ruName),
+
+      // КБЖУ считается по справочнику на 100 г с учётом состава.
+      // Раньше использовалась формула «сумма граммов × 1.2»: вода и соль
+      // учитывались наравне с мясом, а белки/жиры/углеводы подставлялись
+      // фиксированными долями (22/28/50 %) от выдуманной калорийности.
+      const servings = Math.max(1, Number(data.servings ?? 1) || 1);
+      const nutrition = computeDishNutrition(
+        ingredientsDetailed.length ? ingredientsDetailed : ingredientsSimple,
+        servings,
       );
+      const calories = Math.max(40, nutrition.calories);
       const mealTypes = this.mealTypesBySlot(slotCategory);
 
       let finalName = ruName;
@@ -789,9 +1032,9 @@ export class AdminService {
         name: finalName,
         category: slotCategory,
         calories,
-        protein: Math.round((calories * 0.22) / 4),
-        fat: Math.round((calories * 0.28) / 9),
-        carbs: Math.round((calories * 0.5) / 4),
+        protein: nutrition.protein,
+        fat: nutrition.fat,
+        carbs: nutrition.carbs,
         allergens: [],
         ingredients: ingredientsSimple,
         ingredientsDetailed,
@@ -832,6 +1075,8 @@ export class AdminService {
             cuisine: String(raw.strArea ?? '').trim() || null,
             description: String(raw.strInstructions ?? '').trim() || null,
             sourceIngredients,
+            // Меры TheMealDB указаны на всё блюдо (типично 4 порции).
+            servings: 4,
           });
         } catch (e: unknown) {
           errors.push(`mealdb:${id} ${String((raw.strMeal as string) ?? '')}: ${e instanceof Error ? e.message : String(e)}`);
@@ -867,6 +1112,8 @@ export class AdminService {
             cuisine: 'Напитки',
             description: String(raw.strInstructions ?? '').trim() || null,
             sourceIngredients,
+            // Коктейль — одна порция.
+            servings: 1,
           });
         } catch (e: unknown) {
           errors.push(

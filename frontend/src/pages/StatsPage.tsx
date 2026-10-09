@@ -109,7 +109,7 @@ export const StatsPage = () => {
             <div className="chart-area">
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={bodyChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(222,215,203,0.55)" />
                   <XAxis dataKey="chartLabel" tick={{ fill: '#94a3b8', fontSize: 11 }} minTickGap={32} />
                   <YAxis
                     tick={{ fill: '#94a3b8', fontSize: 11 }}
@@ -118,7 +118,7 @@ export const StatsPage = () => {
                   <Tooltip
                     contentStyle={{
                       background: '#0f172a',
-                      border: '1px solid rgba(148,163,184,0.3)',
+                      border: '1px solid rgba(222,215,203,0.7)',
                       borderRadius: 8,
                     }}
                     labelFormatter={(label) => String(label ?? '')}
@@ -128,7 +128,7 @@ export const StatsPage = () => {
                     type="monotone"
                     dataKey="weight"
                     name="Вес, кг"
-                    stroke="#8b5cf6"
+                    stroke="var(--terracotta)"
                     strokeWidth={2}
                     dot={{ r: 3 }}
                   />
@@ -149,7 +149,7 @@ export const StatsPage = () => {
             <div className="chart-area">
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={bodyChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.25)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(222,215,203,0.55)" />
                   <XAxis dataKey="chartLabel" tick={{ fill: '#94a3b8', fontSize: 11 }} minTickGap={32} />
                   <YAxis
                     tick={{ fill: '#94a3b8', fontSize: 11 }}
@@ -158,7 +158,7 @@ export const StatsPage = () => {
                   <Tooltip
                     contentStyle={{
                       background: '#0f172a',
-                      border: '1px solid rgba(148,163,184,0.3)',
+                      border: '1px solid rgba(222,215,203,0.7)',
                       borderRadius: 8,
                     }}
                     labelFormatter={(label) => String(label ?? '')}
@@ -168,7 +168,7 @@ export const StatsPage = () => {
                     type="monotone"
                     dataKey="bmi"
                     name="ИМТ"
-                    stroke="#22c55e"
+                    stroke="var(--olive)"
                     strokeWidth={2}
                     dot={{ r: 3 }}
                   />

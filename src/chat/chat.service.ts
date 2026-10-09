@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Allergen } from '../models/Allergen';
 import { ChatMessage } from '../models/ChatMessage';
@@ -24,18 +24,39 @@ export class ChatService {
   }
 
   async sendMessage(userId: string, text: string) {
+    // Выбираем поля, влияющие на рекомендации. Раньше здесь не было
+    // dietaryRestrictions, foodLikes/foodDislikes и foodHabits, поэтому
+    // ассистент не знал о диете пользователя и мог посоветовать ему
+    // запрещённые продукты (например, яйца при веганстве).
     const user = await this.userModel.findByPk(userId, {
       include: [Allergen],
-      attributes: ['id', 'gender', 'goal', 'height', 'weight', 'birthDate'],
+      attributes: [
+        'id',
+        'name',
+        'gender',
+        'goal',
+        'height',
+        'weight',
+        'birthDate',
+        'dietaryRestrictions',
+        'foodLikes',
+        'foodDislikes',
+        'foodHabits',
+      ],
     });
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
+    const question = String(text ?? '').trim();
+    if (!question) {
+      throw new BadRequestException('Сообщение не должно быть пустым');
+    }
+
     await this.chatMessageModel.create({
       userId: Number(userId),
       role: 'user',
-      content: text,
+      content: question,
     } as never);
 
     const history = await this.chatMessageModel.findAll({
@@ -57,14 +78,25 @@ export class ChatService {
         weight: user.weight,
         birthDate: user.birthDate,
         allergies: user.allergens?.map((a) => a.name) ?? [],
+        dietaryRestrictions: (user.dietaryRestrictions ?? []).filter(Boolean),
+        foodLikes: (user.foodLikes ?? []).filter(Boolean),
+        foodDislikes: (user.foodDislikes ?? []).filter(Boolean),
+        foodHabits: (user.foodHabits ?? {}) as Record<string, unknown>,
       },
       messages,
     });
 
+    // Защита от пустого ответа: модель может вернуть пустую строку или null
+    // (например, при сбое сети), а колонка `content` объявлена NOT NULL —
+    // раньше это приводило к 500 «ChatMessage.content cannot be null».
+    const safeReply =
+      String(assistantReply ?? '').trim() ||
+      'Не удалось получить ответ. Попробуйте повторить вопрос позже.';
+
     const assistantMessage = await this.chatMessageModel.create({
       userId: Number(userId),
       role: 'assistant',
-      content: assistantReply,
+      content: safeReply,
     } as never);
 
     return {

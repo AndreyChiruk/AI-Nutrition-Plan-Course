@@ -26,7 +26,7 @@ type MealPlanInput = {
   fridgeProducts?: string[];
 };
 
-type ChatPromptInput = {
+export type ChatPromptInput = {
   userProfile: {
     gender: 'male' | 'female';
     goal: 'lose' | 'maintain' | 'gain';
@@ -34,8 +34,21 @@ type ChatPromptInput = {
     weight: number;
     birthDate: Date;
     allergies: string[];
+    /**
+     * Пищевые ограничения (vegan, vegetarian, keto, gluten-free…).
+     *
+     * Раньше поле НЕ передавалось в промт: пользователь с «веган» получал
+     * советы с яйцами и молоком, потому что модель о диете не знала.
+     */
+    dietaryRestrictions?: string[];
+    /** Любимые продукты — учитываются при составлении рекомендаций. */
+    foodLikes?: string[];
+    /** Нежелательные продукты: предлагать их нельзя. */
+    foodDislikes?: string[];
+    /** Привычки (например, сколько чашек чая в день). */
+    foodHabits?: Record<string, unknown>;
   };
-  messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
+  messages: Array<{ role: string; content: string }>;
 };
 
 export const buildBodyAnalysisPrompt = () =>
@@ -198,25 +211,102 @@ ${audit || 'нет'}
 };
 
 export const buildChatPrompt = (input: ChatPromptInput) => {
+  const p = input.userProfile;
+  // trim + filter: строки из одних пробелов не должны попадать в промт
+  // (иначе «Тип питания:   » выглядит как заданное ограничение).
+  const clean = (list?: string[]) =>
+    (list ?? []).map((v) => String(v ?? '').trim()).filter((v) => v.length > 0);
+  const diet = clean(p.dietaryRestrictions);
+  const dislikes = clean(p.foodDislikes);
+  const likes = clean(p.foodLikes);
+  const allergies = clean(p.allergies);
+
   const profileBlock = `Профиль пользователя:
-- Пол: ${input.userProfile.gender}
-- Цель: ${input.userProfile.goal}
-- Рост: ${input.userProfile.height}
-- Вес: ${input.userProfile.weight}
-- Дата рождения: ${input.userProfile.birthDate}
-- Аллергии: ${input.userProfile.allergies.join(', ') || 'нет'}`;
+- Пол: ${p.gender}
+- Цель: ${p.goal}
+- Рост: ${p.height}
+- Вес: ${p.weight}
+- Дата рождения: ${p.birthDate}
+- Аллергии: ${allergies.join(', ') || 'нет'}
+- Тип питания: ${diet.join(', ') || 'без ограничений'}
+- Нежелательные продукты: ${dislikes.join(', ') || 'нет'}
+- Предпочтения: ${likes.join(', ') || 'нет'}`;
 
   const historyBlock = input.messages
     .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
     .join('\n');
 
+  // Жёсткие правила формируются отдельным блоком: модель надёжнее следует
+  // явным запретам, чем общему указанию «учитывай ограничения».
+  const rules: string[] = [];
+
+  // Возрастное ограничение: алкоголь запрещён до 18 лет.
+  // В профиле хранится дата рождения, поэтому возраст считаем здесь.
+  const ageFromBirthDate = (raw: unknown): number | null => {
+    if (!raw) return null;
+    const d = new Date(String(raw));
+    if (Number.isNaN(d.getTime())) return null;
+    const now = new Date();
+    let years = now.getFullYear() - d.getFullYear();
+    const m = now.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) years -= 1;
+    return years >= 0 && years < 130 ? years : null;
+  };
+  const userAge = ageFromBirthDate(p.birthDate);
+
+  if (userAge !== null && userAge < 18) {
+    rules.push(
+      'Пользователю меньше 18 лет: НИКОГДА не предлагай алкоголь, ' +
+        'алкогольные коктейли и блюда с вином, пивом или сидром ' +
+        '(например, «Бигос» содержит красное вино). ' +
+        'Если пользователь просит такой рецепт — откажи и предложи безалкогольную замену.',
+    );
+  }
+
+  if (diet.length > 0) {
+    rules.push(
+      `ОГРАНИЧЕНИЯ ПИТАНИЯ: ${diet.join(', ')}. ` +
+        'Не предлагай продукты и блюда, которые им противоречат. ' +
+        'Например, при vegan нельзя молоко, яйца, мясо, рыбу, мёд и желатин; ' +
+        'при vegetarian — мясо, рыбу и морепродукты; при keto — сахар, крупы и хлеб; ' +
+        'при gluten-free — пшеницу, хлеб, макароны.',
+    );
+  }
+  if (allergies.length > 0) {
+    rules.push(
+      `АЛЛЕРГИИ: ${allergies.join(', ')}. ` +
+        'Эти продукты опасны: не предлагай их даже как «небольшое исключение». ' +
+        'При упоминании состава блюда проверяй, нет ли там аллергена (например, ' +
+        'майонез содержит яйца, а соевый соус — сою).',
+    );
+  }
+  if (dislikes.length > 0) {
+    rules.push(`НЕ ПРЕДЛАГАЙ: ${dislikes.join(', ')} — пользователь их не любит.`);
+  }
+  if (likes.length > 0) {
+    rules.push(`ЖЕЛАТЕЛЬНО УЧЕСТЬ: ${likes.join(', ')} — пользователь это любит.`);
+  }
+  const habits = p.foodHabits ?? {};
+  const habitParts: string[] = [];
+  const tea = Number((habits as { teaCupsPerDay?: unknown }).teaCupsPerDay);
+  if (Number.isFinite(tea) && tea > 0) habitParts.push(`выпивает ${tea} чашк(и) чая/кофе в день`);
+  const meals = Number((habits as { mealsPerDay?: unknown }).mealsPerDay);
+  if (Number.isFinite(meals) && meals >= 3 && meals <= 5) habitParts.push(`предпочитает ${meals} приёма пищи в день`);
+  if (habitParts.length > 0) {
+    rules.push(`ПРИВЫЧКИ: пользователь ${habitParts.join(', ')}.`);
+  }
+
   return `${profileBlock}
+
+Правила, которые обязательно соблюдать:
+${rules.length > 0 ? rules.map((r) => `- ${r}`).join('\n') : '- Особых ограничений нет.'}
 
 История диалога:
 ${historyBlock}
 
 Ты персональный ассистент по питанию. Дай краткий, безопасный и практический ответ на последнюю реплику пользователя.
-Учитывай аллергии, цель и безопасность рекомендаций.
+Если запрос противоречит ограничениям питания или аллергиям, честно скажи об этом и предложи подходящую замену.
+Не предлагай блюда с аллергенами пользователя ни при каких обстоятельствах.
 Пиши ответ только на русском языке, даже если в истории встречаются иностранные слова.`;
 };
 

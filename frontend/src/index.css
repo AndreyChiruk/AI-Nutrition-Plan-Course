@@ -1,10 +1,66 @@
+/* ============================================================
+   Дизайн-токены T11: гибрид Linear (структура) + Every (палитра).
+   Подробности и обоснование — в src/styles/tokens.ts
+   ============================================================ */
+:root {
+  --sand: #F5F1EA;
+  --paper: #FBF9F5;
+  --terracotta: #B4552D;
+  --terracotta-dark: #8C3F1F;
+  --olive: #5C6B3F;
+  --charcoal: #2A2724;
+  --charcoal-soft: #6B655D;
+  --line: #DED7CB;
+  --danger: var(--danger);
+  --danger-line: #E3C4C4;
+
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-pill: 999px;
+
+  /* Семантические алиасы: ими пользуется основной CSS. */
+  --bg: var(--sand);
+  --surface: var(--paper);
+  --text: var(--charcoal);
+  --text-muted: var(--charcoal-soft);
+  --border: var(--line);
+  --accent: var(--terracotta-dark);
+  --content-width: 920px;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-sans);
+  background: var(--sand);
+  color: var(--charcoal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Заголовки — Plex Serif с отрицательным трекингом (приём Every). */
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--charcoal);
+}
+
+/* Цифры — моноширинные, чтобы метрики не «прыгали» при обновлении. */
+.mono,
+.metric-value,
+.calorie-value,
+.macro-value,
+.fridge-stat-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 #root {
@@ -24,10 +80,8 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  background: rgba(15, 23, 42, 0.7);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  background: rgba(42, 39, 36, 0.7);
+  border-bottom: 1px solid rgba(222, 215, 203, 0.2);
 }
 
 .sidebar {
@@ -37,16 +91,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  border-right: 1px solid rgba(148, 163, 184, 0.2);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  border-right: 1px solid rgba(222, 215, 203, 0.2);
 }
 
 .sidebar a {
-  color: #dbeafe;
+  color: var(--paper);
   text-decoration: none;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -59,17 +111,22 @@ body {
 }
 
 .content {
-  padding: 20px;
+  padding: 26px 22px 40px;
+  max-width: 1180px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .card {
-  background: rgba(15, 23, 42, 0.65);
-  border-radius: 16px;
+  /* Светлая поверхность и тонкая граница вместо тени:
+     тени создают «плавающие» блоки и считаются признаком
+     сгенерированного интерфейса. */
+  background: var(--paper);
+  color: var(--charcoal);
+  border-radius: var(--radius-md);
   padding: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  border: 1px solid var(--line);
+  box-shadow: none;
 }
 
 .narrow {
@@ -87,19 +144,19 @@ input,
 select,
 button {
   padding: 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.35);
 }
 
 input,
 select {
-  background: rgba(15, 23, 42, 0.6);
-  color: #f8fafc;
+  background: rgba(42, 39, 36, 0.6);
+  color: var(--sand);
 }
 
 button {
   cursor: pointer;
-  background: linear-gradient(90deg, #7c3aed, #2563eb);
+  background: var(--terracotta);
   color: #fff;
   border: none;
   font-weight: 600;
@@ -107,9 +164,9 @@ button {
 
 pre {
   background: rgba(2, 6, 23, 0.9);
-  color: #e2e8f0;
+  color: var(--line);
   padding: 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: auto;
 }
 
@@ -120,7 +177,7 @@ pre {
 }
 
 .error {
-  color: #fda4af;
+  color: var(--danger-line);
 }
 
 .brand {
@@ -138,8 +195,8 @@ pre {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: linear-gradient(120deg, #22d3ee, #8b5cf6);
-  box-shadow: 0 0 16px #8b5cf6;
+  background: var(--olive);
+  box-shadow: 0 0 16px var(--terracotta);
 }
 
 .actions {
@@ -149,7 +206,7 @@ pre {
 }
 
 .muted {
-  color: #cbd5e1;
+  color: var(--line);
 }
 
 .login-page {
@@ -162,7 +219,7 @@ pre {
 
 .auth-card {
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 24px;
+  border-radius: var(--radius-md);
   padding: 32px;
   animation: formIn 0.4s ease;
 }
@@ -175,11 +232,11 @@ pre {
 }
 
 .auth-tabs button {
-  background: rgba(15, 23, 42, 0.55);
+  background: rgba(42, 39, 36, 0.55);
 }
 
 .auth-tabs button.active {
-  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  background: var(--terracotta);
 }
 
 .auth-form {
@@ -190,10 +247,12 @@ pre {
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 12px;
+  border: 1px solid rgba(222, 215, 203, 0.35);
+  border-radius: var(--radius-md);
   padding: 0 10px;
-  background: rgba(15, 23, 42, 0.6);
+  /* Светлая поверхность вместо тёмной полупрозрачности: в светлой теме
+     поле выглядело провалом. */
+  background: var(--paper);
 }
 
 .input-icon input {
@@ -204,14 +263,14 @@ pre {
 }
 
 .input-icon:focus-within {
-  border-color: #6366f1;
+  border-color: var(--terracotta);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
 }
 
 .ghost-icon {
   background: transparent;
   border: none;
-  color: #cbd5e1;
+  color: var(--line);
   padding: 4px;
 }
 
@@ -224,7 +283,7 @@ pre {
 .link-btn {
   background: transparent;
   border: none;
-  color: #a5b4fc;
+  color: var(--charcoal-soft);
   padding: 0;
 }
 
@@ -250,11 +309,11 @@ pre {
   position: fixed;
   right: 20px;
   bottom: 20px;
-  background: rgba(15, 23, 42, 0.9);
+  background: rgba(42, 39, 36, 0.9);
   border: 1px solid rgba(110, 231, 183, 0.4);
-  color: #bbf7d0;
+  color: var(--olive);
   padding: 12px 16px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   z-index: 50;
 }
 
@@ -275,7 +334,7 @@ pre {
   width: 100%;
   height: 220px;
   object-fit: cover;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
 }
 
 .feature h3 {
@@ -285,7 +344,7 @@ pre {
 .chip {
   display: inline-block;
   background: rgba(59, 130, 246, 0.2);
-  color: #bfdbfe;
+  color: var(--line);
   border: 1px solid rgba(59, 130, 246, 0.4);
   border-radius: 999px;
   padding: 6px 10px;
@@ -295,8 +354,8 @@ pre {
 .profile-image {
   width: 100%;
   max-width: 340px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.35);
   object-fit: cover;
 }
 
@@ -315,8 +374,8 @@ pre {
   display: block;
   width: 100%;
   max-width: 420px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.35);
   object-fit: cover;
   flex: 0 0 auto;
 }
@@ -327,11 +386,11 @@ pre {
 
 .dropzone {
   border: 1px dashed rgba(147, 197, 253, 0.7);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 20px;
   text-align: center;
-  color: #bfdbfe;
-  background: rgba(30, 41, 59, 0.45);
+  color: var(--line);
+  background: rgba(42, 39, 36, 0.45);
   cursor: pointer;
 }
 
@@ -358,10 +417,10 @@ pre {
 
 .forecast-placeholder {
   padding: 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.25);
   background: rgba(2, 6, 23, 0.5);
-  color: #cbd5e1;
+  color: var(--line);
 }
 
 .modal-backdrop {
@@ -376,9 +435,9 @@ pre {
 
 .modal-window {
   width: min(520px, 92vw);
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 14px;
+  background: rgba(42, 39, 36, 0.95);
+  border: 1px solid rgba(222, 215, 203, 0.25);
+  border-radius: var(--radius-md);
   padding: 16px;
 }
 
@@ -389,8 +448,8 @@ pre {
   max-height: 220px;
   margin: 0 auto 14px;
   object-fit: cover;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.35);
 }
 
 .profile-premium {
@@ -411,14 +470,13 @@ pre {
 }
 
 .section-card {
-  border-radius: 22px;
+  border-radius: var(--radius-md);
   transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
 .section-card:hover {
-  transform: translateY(-2px);
   border-color: rgba(139, 92, 246, 0.5);
-  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.45);
+  box-shadow: 0 18px 35px rgba(42, 39, 36, 0.45);
 }
 
 .section-head {
@@ -440,7 +498,7 @@ pre {
   position: relative;
   width: 180px;
   height: 180px;
-  border-radius: 24px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   margin: 4px auto;
 }
@@ -461,7 +519,7 @@ pre {
   justify-content: center;
   font-size: 54px;
   font-weight: 700;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: var(--terracotta);
 }
 
 .avatar-overlay {
@@ -472,9 +530,9 @@ pre {
   justify-content: center;
   gap: 6px;
   padding: 8px;
-  border-radius: 12px;
-  color: #e2e8f0;
-  background: rgba(15, 23, 42, 0.78);
+  border-radius: var(--radius-md);
+  color: var(--line);
+  background: rgba(42, 39, 36, 0.78);
   opacity: 0;
   transition: opacity 0.2s ease;
 }
@@ -495,14 +553,14 @@ pre {
 
 .stats-grid div {
   padding: 10px;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  border: 1px solid rgba(222, 215, 203, 0.2);
 }
 
 .stats-grid span {
   display: block;
-  color: #a1a1aa;
+  color: var(--charcoal-soft);
   font-size: 12px;
 }
 
@@ -517,13 +575,13 @@ pre {
 
 .progress-label {
   margin-bottom: 6px;
-  color: #cbd5e1;
+  color: var(--line);
 }
 
 .progress-track {
   height: 10px;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.2);
+  background: rgba(222, 215, 203, 0.2);
   overflow: hidden;
 }
 
@@ -531,7 +589,7 @@ pre {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  background: var(--terracotta);
 }
 
 .form-grid {
@@ -544,7 +602,7 @@ pre {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #cbd5e1;
+  color: var(--line);
   font-size: 14px;
 }
 
@@ -556,8 +614,8 @@ pre {
 }
 
 .goal-card {
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.3);
   background: rgba(255, 255, 255, 0.02);
   color: #fff;
   display: flex;
@@ -570,7 +628,7 @@ pre {
 
 .goal-card.active {
   border-color: rgba(99, 102, 241, 0.7);
-  background: linear-gradient(160deg, rgba(99, 102, 241, 0.3), rgba(139, 92, 246, 0.25));
+  background: var(--paper);
 }
 
 .range-input {
@@ -585,15 +643,15 @@ pre {
 
 .allergy-chip {
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  border: 1px solid rgba(222, 215, 203, 0.3);
   background: rgba(255, 255, 255, 0.02);
-  color: #e2e8f0;
+  color: var(--line);
   padding: 8px 12px;
 }
 
 .allergy-chip.selected {
   border-color: rgba(99, 102, 241, 0.65);
-  background: linear-gradient(90deg, rgba(99, 102, 241, 0.4), rgba(139, 92, 246, 0.35));
+  background: var(--line);
 }
 
 .action-buttons {
@@ -603,13 +661,13 @@ pre {
 }
 
 .btn-primary {
-  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  background: var(--terracotta);
 }
 
 .btn-danger {
   background: rgba(244, 63, 94, 0.2);
   border: 1px solid rgba(244, 63, 94, 0.45);
-  color: #fecdd3;
+  color: var(--danger-line);
 }
 
 .auth-subtabs {
@@ -620,17 +678,17 @@ pre {
 
 .auth-subtabs button {
   padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(15, 23, 42, 0.55);
-  color: #cbd5e1;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.35);
+  background: rgba(42, 39, 36, 0.55);
+  color: var(--line);
   font-size: 0.9rem;
 }
 
 .auth-subtabs button.active {
   border-color: rgba(129, 140, 248, 0.6);
   background: rgba(99, 102, 241, 0.25);
-  color: #f8fafc;
+  color: var(--sand);
 }
 
 .auth-code-row {
@@ -647,7 +705,7 @@ pre {
 .code-send {
   align-self: stretch;
   padding: 0 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
 }
 
 .auth-modal-overlay {
@@ -658,9 +716,7 @@ pre {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(15, 23, 42, 0.75);
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
+  background: rgba(42, 39, 36, 0.75);
 }
 
 .auth-modal {
@@ -688,7 +744,7 @@ p.small {
 }
 
 .success {
-  color: #6ee7b7;
+  color: var(--olive);
 }
 
 .figure-wrap {
@@ -696,37 +752,13 @@ p.small {
   justify-content: center;
   align-items: flex-start;
   padding: 10px;
-  border-radius: 18px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  border: 1px solid rgba(222, 215, 203, 0.2);
 }
 
-.body-figure-block {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  max-width: 320px;
-}
 
-.body-figure-svg {
-  max-width: 100%;
-  height: auto;
-  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.35));
-}
 
-.body-figure-legend {
-  margin: 0;
-  padding: 0 0 0 1.1rem;
-  display: grid;
-  gap: 4px;
-  font-size: 0.82rem;
-  line-height: 1.4;
-  color: #94a3b8;
-  text-align: left;
-  width: 100%;
-}
 
 .figure-zone {
   transition: fill 0.3s ease;
@@ -735,20 +767,20 @@ p.small {
 .recommend-list {
   margin: 0 0 10px;
   padding-left: 18px;
-  color: #e5e7eb;
+  color: var(--line);
   display: grid;
   gap: 8px;
 }
 
 
 .analysis-page .recommend-list {
-  color: #0f172a;
+  color: var(--charcoal);
   font-weight: 500;
   line-height: 1.55;
 }
 
 .analysis-page .recommend-list li {
-  color: #1e293b;
+  color: var(--charcoal);
 }
 
 .analysis-page .section-card {
@@ -761,32 +793,32 @@ p.small {
 }
 
 .bmi-under {
-  color: #60a5fa;
-  border-color: #60a5fa !important;
+  color: var(--charcoal-soft);
+  border-color: var(--charcoal-soft) !important;
 }
 
 .bmi-normal {
-  color: #34d399;
-  border-color: #34d399 !important;
+  color: var(--olive);
+  border-color: var(--olive) !important;
 }
 
 .bmi-over {
-  color: #fb923c;
-  border-color: #fb923c !important;
+  color: var(--terracotta);
+  border-color: var(--terracotta) !important;
 }
 
 .bmi-obese {
-  color: #f43f5e;
-  border-color: #f43f5e !important;
+  color: var(--danger);
+  border-color: var(--danger) !important;
 }
 
 .cal-dev-over {
-  color: #f43f5e;
+  color: var(--danger);
   font-weight: 700;
 }
 
 .cal-dev-under {
-  color: #ca8a04;
+  color: var(--terracotta-dark);
   font-weight: 700;
 }
 
@@ -813,8 +845,8 @@ p.small {
 
 .table-wrap {
   overflow: auto;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.2);
 }
 
 .plan-table {
@@ -825,7 +857,7 @@ p.small {
 
 .plan-table th,
 .plan-table td {
-  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  border-bottom: 1px solid rgba(222, 215, 203, 0.18);
   padding: 10px;
   text-align: left;
   vertical-align: top;
@@ -840,17 +872,17 @@ p.small {
   text-align: left;
   min-height: 48px;
   background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(148, 163, 184, 0.26);
+  border: 1px solid rgba(222, 215, 203, 0.26);
 }
 
 .plan-table button.cell-card.meal-slot-done {
   font-weight: 600;
   color: #fff !important;
   border: none !important;
-  border-radius: 12px !important;
+  border-radius: var(--radius-md) !important;
   outline: none !important;
   box-shadow: 0 2px 8px rgba(76, 175, 80, 0.45);
-  background: linear-gradient(165deg, #66bb6a 0%, #388e3c 55%, #1b5e20 100%) !important;
+  background: var(--olive) !important;
   transition:
     background 0.2s,
     transform 0.2s,
@@ -859,17 +891,16 @@ p.small {
 
 .plan-table button.cell-card.meal-slot-done:hover {
   box-shadow: 0 4px 14px rgba(76, 175, 80, 0.55);
-  transform: translateY(-1px);
 }
 
 .plan-table button.cell-card.meal-slot-skipped {
   font-weight: 600;
   color: #fff !important;
   border: none !important;
-  border-radius: 12px !important;
+  border-radius: var(--radius-md) !important;
   outline: none !important;
   box-shadow: 0 2px 8px rgba(244, 67, 54, 0.45);
-  background: linear-gradient(165deg, #ef5350 0%, #c62828 55%, #b71c1c 100%) !important;
+  background: var(--danger) !important;
   transition:
     background 0.2s,
     transform 0.2s,
@@ -879,7 +910,6 @@ p.small {
 
 .plan-table button.cell-card.meal-slot-skipped:hover {
   box-shadow: 0 4px 14px rgba(244, 67, 54, 0.55);
-  transform: translateY(-1px);
 }
 
 .cell-card.meal-slot-replaced {
@@ -911,32 +941,32 @@ p.small {
 
 .constraint-badge-allergen {
   color: #7f1d1d;
-  background: #fee2e2;
-  border: 1px solid #fecaca;
+  background: var(--danger-line);
+  border: 1px solid var(--danger-line);
 }
 
 .constraint-badge-diet {
   color: #7c2d12;
-  background: #ffedd5;
-  border: 1px solid #fed7aa;
+  background: var(--paper);
+  border: 1px solid var(--line);
 }
 
 .constraint-badge-dislike {
-  color: #1e3a8a;
-  background: #dbeafe;
-  border: 1px solid #bfdbfe;
+  color: var(--charcoal);
+  background: var(--paper);
+  border: 1px solid var(--line);
 }
 
 .constraint-badge-missing {
-  color: #111827;
-  background: #e5e7eb;
-  border: 1px solid #d1d5db;
+  color: var(--charcoal);
+  background: var(--line);
+  border: 1px solid var(--line);
 }
 
 .meal-plan-hint-term {
   cursor: help;
   text-decoration: underline dotted;
-  text-decoration-color: rgba(148, 163, 184, 0.75);
+  text-decoration-color: rgba(222, 215, 203, 0.75);
   text-underline-offset: 3px;
 }
 
@@ -962,23 +992,23 @@ p.small {
   overflow-y: auto;
   padding: 8px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fff;
 }
 
 .chat-item {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 10px;
   background: #fff;
 }
 
 .chat-item.assistant {
-  background: #f0fdf4;
+  background: var(--paper);
 }
 
 .chat-item.user {
-  background: #f8fafc;
+  background: var(--sand);
 }
 
 @keyframes fadeIn {
@@ -1050,23 +1080,23 @@ p.small {
 }
 
 :root {
-  --primary: #10b981;
-  --primary-hover: #059669;
-  --secondary: #f97316;
-  --accent: #f59e0b;
-  --danger: #ef4444;
-  --neutral: #6b7280;
-  --bg: #f9fafb;
-  --card: #ffffff;
-  --text: #111827;
-  --muted-text: #6b7280;
-  --border: #e5e7eb;
+  --primary: var(--olive);
+  --primary-hover: var(--olive);
+  --secondary: var(--terracotta);
+  --accent: var(--terracotta);
+  --danger: var(--danger);
+  --neutral: var(--charcoal-soft);
+  --bg: var(--sand);
+  --card: var(--paper);
+  --text: var(--charcoal);
+  --muted-text: var(--charcoal-soft);
+  --border: var(--line);
 }
 
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: Inter, system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 
 .topbar,
@@ -1108,14 +1138,14 @@ body {
 .content,
 .card,
 .section-card {
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 input,
 select,
 button,
 textarea {
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: #fff;
   color: var(--text);
@@ -1168,20 +1198,20 @@ pre,
   background: #fff;
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .modal-window .muted,
 .modal-window .muted.small {
-  color: #334155;
+  color: var(--charcoal);
 }
 
 .modal-window .recommend-list {
-  color: #0f172a;
+  color: var(--charcoal);
 }
 
 .modal-window .recommend-list li {
-  color: #1e293b;
+  color: var(--charcoal);
   font-weight: 500;
   line-height: 1.5;
 }
@@ -1203,7 +1233,7 @@ pre,
 
 .goal-card.active,
 .allergy-chip.selected {
-  background: #ecfdf5;
+  background: var(--paper);
   border-color: var(--primary);
   color: var(--primary);
 }
@@ -1224,7 +1254,7 @@ pre,
 }
 
 .plan-table th {
-  background: #f3f4f6;
+  background: var(--sand);
   color: var(--text);
   font-weight: 600;
 }
@@ -1236,11 +1266,11 @@ pre,
 }
 
 .plan-table tbody tr:nth-child(odd) {
-  background: #ffffff;
+  background: var(--paper);
 }
 
 .plan-table tbody tr:nth-child(even) {
-  background: #f9fafb;
+  background: var(--sand);
 }
 
 .brand-dot {
@@ -1257,7 +1287,7 @@ pre,
 .auth-card {
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 16px;
 }
 
@@ -1278,7 +1308,7 @@ pre,
 .input-icon {
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .input-icon:focus-within {
@@ -1296,7 +1326,7 @@ pre,
   background: #fff;
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .ripple:active::after {
@@ -1388,13 +1418,13 @@ pre,
 
 .data-table th,
 .data-table td {
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  border: 1px solid rgba(222, 215, 203, 0.25);
   padding: 8px 10px;
   text-align: left;
 }
 
 .data-table th {
-  background: rgba(15, 23, 42, 0.4);
+  background: rgba(42, 39, 36, 0.4);
 }
 
 .table-wrap {
@@ -1407,11 +1437,11 @@ pre,
 }
 
 .warn-text {
-  color: #fb923c;
+  color: var(--terracotta);
 }
 
 .success-text {
-  color: #6ee7b7;
+  color: var(--olive);
 }
 
 .inner-result {
@@ -1424,7 +1454,7 @@ pre,
   align-items: flex-start;
   margin-top: 14px;
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1px solid rgba(251, 146, 60, 0.45);
   background: rgba(251, 146, 60, 0.1);
   color: #9a3412;
@@ -1446,10 +1476,10 @@ pre,
 .select-inline {
   margin-left: 6px;
   padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(15, 23, 42, 0.5);
-  color: #e5e7eb;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.35);
+  background: rgba(42, 39, 36, 0.5);
+  color: var(--line);
 }
 
 .forecast-block {
@@ -1464,9 +1494,9 @@ pre,
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(15, 23, 42, 0.35);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.25);
+  background: rgba(42, 39, 36, 0.35);
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -1550,14 +1580,14 @@ pre,
 
 .admin-openai-item {
   padding: 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.22);
   background: rgba(2, 6, 23, 0.25);
 }
 
 .admin-openai-item .openai-label {
   font-size: 0.78rem;
-  color: #94a3b8;
+  color: var(--charcoal-soft);
   margin-bottom: 6px;
 }
 
@@ -1569,7 +1599,7 @@ pre,
 
 .admin-openai-item .openai-hint {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--charcoal-soft);
   margin-top: 6px;
 }
 
@@ -1593,8 +1623,8 @@ pre,
   margin-top: 12px;
   margin-bottom: 16px;
   padding: 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.2);
   background: rgba(2, 6, 23, 0.35);
 }
 
@@ -1623,7 +1653,7 @@ pre,
   flex-direction: column;
   gap: 4px;
   font-size: 0.88rem;
-  color: #cbd5e1;
+  color: var(--line);
 }
 
 .moderation-list {
@@ -1639,9 +1669,9 @@ pre,
   justify-content: space-between;
   gap: 12px;
   padding: 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(15, 23, 42, 0.35);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.25);
+  background: rgba(42, 39, 36, 0.35);
 }
 
 .moderation-card-preview {
@@ -1656,20 +1686,20 @@ pre,
   width: 96px;
   height: 96px;
   object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.3);
 }
 
 .meal-thumb-placeholder {
   width: 96px;
   height: 96px;
-  border-radius: 8px;
-  background: rgba(148, 163, 184, 0.15);
+  border-radius: var(--radius-md);
+  background: rgba(222, 215, 203, 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--charcoal-soft);
   text-align: center;
   padding: 6px;
 }
@@ -1677,7 +1707,7 @@ pre,
 .meal-items-preview {
   margin: 6px 0 0;
   padding-left: 18px;
-  color: #cbd5e1;
+  color: var(--line);
   font-size: 0.88rem;
 }
 
@@ -1686,6 +1716,99 @@ pre,
   flex-direction: column;
   gap: 8px;
   justify-content: center;
+}
+
+/* Метки аллергенов в очереди модерации: модератор должен видеть их
+   до подтверждения, а не только название и калорийность. */
+.allergen-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.allergen-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--danger);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+}
+
+/* Форма исправления распознавания. */
+.correct-meal-form {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid rgba(222, 215, 203, 0.3);
+  border-radius: var(--radius-md);
+}
+
+.correct-meal-row {
+  display: grid;
+  grid-template-columns: 2fr repeat(4, minmax(70px, 1fr));
+  gap: 10px;
+  align-items: end;
+  padding: 10px 0;
+  border-bottom: 1px dashed rgba(222, 215, 203, 0.25);
+}
+
+.correct-meal-row .wide {
+  grid-column: 1 / -1;
+}
+
+.correct-meal-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+}
+
+.correct-meal-row input,
+.correct-meal-row textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.45);
+  font: inherit;
+}
+
+.form-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+}
+
+/* Панель поиска и постраничной навигации в админке:
+   каталог отдаётся страницами, поэтому нужны элементы управления. */
+.pagination-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pagination-bar input[type='search'] {
+  flex: 1 1 240px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.45);
+  font: inherit;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .correct-meal-row {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .wrap-actions {
@@ -1714,7 +1837,7 @@ pre,
 body.pdf-exporting .pdf-export {
   background: #fff !important;
   color: #111 !important;
-  border-color: #cbd5e1 !important;
+  border-color: var(--line) !important;
 }
 
 body.pdf-exporting .pdf-export * {
@@ -1724,14 +1847,14 @@ body.pdf-exporting .pdf-export * {
 }
 
 body.pdf-exporting .pdf-export .plan-table th {
-  background: #f1f5f9 !important;
+  background: var(--sand) !important;
   color: #111 !important;
 }
 
 body.pdf-exporting .meal-plan-pdf.meal-plan-pdf-exporting .plan-table button.cell-card.meal-slot-done,
 body.pdf-exporting .meal-plan-pdf.meal-plan-pdf-exporting .plan-table button.cell-card.meal-slot-skipped {
   background: #fff !important;
-  border: 1px solid #cbd5e1 !important;
+  border: 1px solid var(--line) !important;
   box-shadow: none !important;
   outline: none !important;
   color: #111 !important;
@@ -1789,7 +1912,7 @@ body.pdf-export-loading::before {
   content: '';
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.84);
+  background: rgba(42, 39, 36, 0.84);
   z-index: 9998;
 }
 
@@ -1800,10 +1923,10 @@ body.pdf-export-loading::after {
   top: 50%;
   transform: translate(-50%, -50%);
   padding: 12px 18px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.5);
-  background: #ffffff;
-  color: #0f172a;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.5);
+  background: var(--paper);
+  color: var(--charcoal);
   font-weight: 600;
   z-index: 9999;
 }
@@ -1824,7 +1947,7 @@ body.pdf-export-loading::after {
 }
 
 .catalog-dish-diet-warn {
-  border-color: #ca8a04 !important;
+  border-color: var(--terracotta-dark) !important;
   background: rgba(234, 179, 8, 0.1);
 }
 
@@ -1835,13 +1958,544 @@ button.catalog-dish-chip {
   text-align: left;
 }
 
-.catalog-dish-thumb {
-  width: 36px;
-  height: 36px;
-  object-fit: cover;
-  border-radius: 8px;
+/* Запасная SVG-иконка блюда: показывается, когда картинка с TheMealDB
+   недоступна (нет сети, блокировка) или отсутствует. Всегда одной формы,
+   поэтому вёрстка списка не «прыгает». */
+.dish-thumb-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.35);
+  background: rgba(222, 215, 203, 0.1);
+  color: var(--charcoal-soft);
+}
+
+.thumb-breakfast { background: rgba(245, 158, 11, 0.14); color: var(--terracotta-dark); border-color: rgba(245, 158, 11, 0.3); }
+.thumb-lunch     { background: rgba(16, 185, 129, 0.14); color: var(--olive); border-color: rgba(16, 185, 129, 0.3); }
+.thumb-dinner    { background: rgba(99, 102, 241, 0.14); color: var(--charcoal); border-color: rgba(99, 102, 241, 0.3); }
+.thumb-snack     { background: rgba(236, 72, 153, 0.14); color: var(--danger); border-color: rgba(236, 72, 153, 0.3); }
+
+.meal-detail-modal-photo.dish-thumb-fallback {
+  width: 100%;
+  max-width: 320px;
+  height: 160px;
+  border-radius: var(--radius-md);
+}
+
+/* БЖУ одной строкой без переносов.
+   Числа выводятся моноширинным шрифтом с табличными цифрами: значения
+   выравниваются по ширине и не «прыгают» при смене числа.
+   `white-space: nowrap` запрещает перенос между подписью и значением. */
+/* Выбор предпочтений через поиск по каталогу (автокомплит). */
+/* Что докупить: продукты рецепта, которых нет в холодильнике. */
+.meal-fridge-missing,
+.meal-fridge-ok {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 8px 0 0;
+  font-size: 0.84rem;
+}
+
+.meal-fridge-missing { color: var(--terracotta-dark); }
+.meal-fridge-ok { color: var(--olive); }
+
+.meal-fridge-missing-list { font-weight: 600; }
+
+/* Компактная строка метрик: подпись, значение, единица.
+   Заменяет четыре абзаца подряд — страница стала заметно легче. */
+.metric-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(222, 215, 203, 0.2);
+  border-bottom: 1px solid rgba(222, 215, 203, 0.2);
+}
+
+.metric {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.metric-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+  margin-right: 2px;
+}
+
+.metric-value {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.22rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.metric-unit { font-size: 0.78rem; opacity: 0.6; }
+
+.metric-hint { margin: 8px 0 0; }
+
+/* ===== Карта тела (векторный силуэт с зонами) ===== */
+:root {
+  --zone-low: var(--charcoal-soft);
+  --zone-normal: var(--olive);
+  --zone-high: var(--terracotta);
+  --zone-unknown: var(--line);
+  --zone-neutral: var(--line);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+/* ===== Страница «Мой холодильник» ===== */
+.fridge-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 960px;
+}
+
+.fridge-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.fridge-head h1 { margin: 2px 0 6px; }
+
+.fridge-summary {
+  display: flex;
+  gap: 28px;
+  padding: 14px 0;
+  border-top: 1px solid rgba(222, 215, 203, 0.25);
+  border-bottom: 1px solid rgba(222, 215, 203, 0.25);
+}
+
+.fridge-stat { display: flex; flex-direction: column; gap: 2px; }
+.fridge-stat-value {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.fridge-stat-label { font-size: 0.78rem; opacity: 0.65; }
+.fridge-stat.is-warn .fridge-stat-value { color: var(--terracotta-dark); }
+
+.fridge-add-head { display: flex; align-items: center; gap: 8px; }
+
+.fridge-add-grid {
+  display: grid;
+  grid-template-columns: 2fr 90px 80px 150px auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.fridge-add-grid input,
+.fridge-add-grid select {
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.45);
+  font: inherit;
+  width: 100%;
+}
+
+.fridge-name-field { position: relative; }
+.fridge-name-field .pref-suggest { top: 100%; }
+
+.fridge-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 20px;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.fridge-groups { display: flex; flex-direction: column; gap: 18px; }
+
+.fridge-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+  margin: 0 0 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(222, 215, 203, 0.2);
+}
+
+.fridge-group-count {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.74rem;
+  opacity: 0.6;
+}
+
+.fridge-items { list-style: none; margin: 0; padding: 0; }
+
+.fridge-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  border-bottom: 1px dashed rgba(222, 215, 203, 0.18);
+}
+
+.fridge-item-main { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fridge-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.fridge-item-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72rem;
+  color: var(--terracotta-dark);
+}
+
+.fridge-item-qty,
+.fridge-item-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.fridge-item-edit input {
+  width: 80px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(222, 215, 203, 0.5);
+  font: inherit;
+}
+
+.fridge-item-expiry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.76rem;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.fridge-item.is-expiring .fridge-item-expiry { color: var(--terracotta-dark); opacity: 1; }
+.fridge-item.is-expired .fridge-item-expiry { color: var(--danger); opacity: 1; }
+.fridge-item.is-expired .fridge-item-name { text-decoration: line-through; opacity: 0.65; }
+
+.fridge-item-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.55;
+  color: inherit;
+}
+
+.fridge-item-btn:hover { opacity: 1; background: rgba(222, 215, 203, 0.15); }
+.fridge-item-btn.is-danger:hover { color: var(--danger); background: rgba(220, 38, 38, 0.1); }
+
+@media (max-width: 820px) {
+  .fridge-add-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.pref-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+.pref-picker-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.pref-picker-hint {
+  font-weight: 400;
+  font-size: 0.78rem;
+  opacity: 0.6;
+}
+
+.pref-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pref-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(222, 215, 203, 0.45);
+  background: rgba(222, 215, 203, 0.08);
+  font-size: 0.84rem;
+  max-width: 100%;
+}
+
+.pref-chip-type {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: rgba(107, 101, 93, 0.2);
+}
+
+.pref-picker-like .pref-chip-type  { background: rgba(16, 185, 129, 0.22); color: var(--olive); }
+.pref-picker-dislike .pref-chip-type { background: rgba(220, 38, 38, 0.18); color: var(--danger); }
+
+.pref-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.pref-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.55;
+  color: inherit;
+}
+
+.pref-chip-remove:hover { opacity: 1; }
+
+.pref-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.pref-search-icon {
+  position: absolute;
+  left: 10px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.pref-search input {
+  width: 100%;
+  padding: 8px 30px 8px 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(222, 215, 203, 0.45);
+  font: inherit;
+}
+
+.pref-spinner {
+  position: absolute;
+  right: 10px;
+  animation: pref-spin 1s linear infinite;
+  opacity: 0.6;
+}
+
+@keyframes pref-spin { to { transform: rotate(360deg); } }
+
+.pref-suggest {
+  position: absolute;
+  /* Выше соседних блоков и топбара (у него z-index 50 на отдельных
+     страницах), иначе список уходил под шапку при прокрутке. */
+  z-index: 200;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  margin-top: 4px;
+  border-radius: var(--radius-md);
+  /* Раньше фон был `--paper` (#FBF9F5) при фоне страницы `--sand`
+     (#F5F1EA): разница всего 6 единиц, границы не читались.
+     Теперь — белая поверхность и тёмная рамка. */
+  background: #FFFFFF;
+  border: 1px solid var(--charcoal-soft);
+  /* Тень нужна: список нависает над контентом. */
+  box-shadow:
+    0 2px 4px rgba(42, 39, 36, 0.08),
+    0 10px 28px rgba(42, 39, 36, 0.18);
+}
+
+/* Тёмная тема: своя поверхность и рамка, иначе список сливался с фоном. */
+html[data-theme='dark'] .pref-suggest {
+  background: #302C27;
+  border-color: rgba(237, 232, 225, 0.32);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    0 10px 28px rgba(0, 0, 0, 0.55);
+}
+
+.pref-suggest-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  /* Пункты списка: чуть больше воздуха, как в ТЗ (10px 16px). */
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  /* Явный цвет текста: раньше пункты наследовали цвет родителя,
+     и на некоторых страницах (например, в холодильнике) название
+     сливалось с фоном выпадающего списка. */
+  color: var(--charcoal);
+}
+
+.pref-suggest-item:hover { background: rgba(42, 39, 36, 0.05); }
+
+.pref-suggest-item.is-active { background: rgba(180, 85, 45, 0.14); }
+.pref-suggest-item.is-selected { opacity: 0.55; }
+
+.pref-suggest-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--charcoal);
+}
+
+.pref-suggest-meta {
+  font-size: 0.74rem;
+  /* Было opacity 0.6 — на белом фоне текст становился слишком бледным.
+     Задаём цвет напрямую, чтобы контраст не зависел от родителя. */
+  color: var(--charcoal-soft);
+}
+
+.pref-suggest-empty {
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 0.84rem;
+  color: var(--charcoal-soft);
+}
+
+/* Тёмная тема: светлый текст на тёмной поверхности списка. */
+html[data-theme='dark'] .pref-suggest-item,
+html[data-theme='dark'] .pref-suggest-name {
+  color: #F5F0E8;
+}
+
+html[data-theme='dark'] .pref-suggest-meta,
+html[data-theme='dark'] .pref-suggest-empty {
+  color: #A89F91;
+}
+
+html[data-theme='dark'] .pref-suggest-item:hover {
+  background: rgba(245, 240, 232, 0.07);
+}
+
+.pref-empty { margin: 0; }
+
+.macro-row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.macro-cell {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.macro-label {
+  font-size: 0.78em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.62;
+  text-transform: uppercase;
+}
+
+.macro-value {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.calorie-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.calorie-unit {
+  font-size: 0.82em;
+  opacity: 0.6;
+}
+
+/* Вариант для карточек: подпись сверху, число снизу, ширина фиксирована. */
+.macro-stack {
+  display: inline-flex;
+  gap: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.macro-stack-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 44px;
+}
+
+.macro-stack-item .macro-label {
+  font-size: 0.7rem;
+  opacity: 0.55;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.macro-stack-item .macro-value {
+  font-size: 0.95rem;
+}
+
+/* Размер превью задаётся компонентом (DishThumb) через inline-стиль,
+   поэтому здесь только пропорции и оформление. Жёсткие 36px раньше
+   перебивали размер из компонента и растягивали неквадратные фото. */
+.catalog-dish-thumb {
+  object-fit: cover;
+  /* Фиксированное соотношение: все карточки одного размера,
+     исходные пропорции сохраняются за счёт object-fit. */
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  border: 1px solid var(--line);
 }
 
 .catalog-dish-chip-text {
@@ -1855,7 +2509,7 @@ html[data-theme='dark'] .catalog-dish-thumb {
 
 .cell-drop-over {
   outline: 2px dashed rgba(96, 165, 250, 0.85);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(59, 130, 246, 0.08);
 }
 
@@ -1879,7 +2533,7 @@ html[data-theme='dark'] .catalog-dish-thumb {
   margin: 12px 0 0;
   padding-left: 1.25rem;
   line-height: 1.5;
-  color: var(--muted-text, #5c5c5c);
+  color: var(--muted-text, var(--charcoal-soft));
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -1896,7 +2550,7 @@ html[data-theme='dark'] .catalog-dish-thumb {
 .meal-plan-restrictions {
   margin-bottom: 14px;
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--primary);
   background: #fff;
 }
@@ -1921,7 +2575,7 @@ html[data-theme='dark'] .catalog-dish-thumb {
 
 .btn-secondary {
   background: #fff;
-  color: #047857;
+  color: var(--olive);
   border: 1.5px solid var(--primary);
   font-weight: 600;
   white-space: nowrap;
@@ -1930,8 +2584,8 @@ html[data-theme='dark'] .catalog-dish-thumb {
 
 .btn-secondary:hover:not(:disabled) {
   background: rgba(16, 185, 129, 0.12);
-  color: #065f46;
-  border-color: #059669;
+  color: var(--olive);
+  border-color: var(--olive);
 }
 
 .btn-secondary:disabled {
@@ -2023,7 +2677,7 @@ html[data-theme='dark'] .catalog-dish-thumb {
 
   .sidebar a {
     width: 100%;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     white-space: normal;
   }
 
@@ -2069,4 +2723,976 @@ html[data-theme='dark'] .catalog-dish-thumb {
   .cell-card {
     min-height: 42px;
   }
+}
+
+/* ============================================================
+   Главная страница: сетка разделов вместо декоративной картинки.
+   ============================================================ */
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: var(--content-width);
+}
+
+.dashboard-intro { display: flex; flex-direction: column; gap: 6px; }
+
+.dashboard-intro h1 {
+  margin: 0;
+  font-size: 2.1rem;
+  line-height: 1.15;
+}
+
+.dashboard-intro .lead {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--charcoal-soft);
+}
+
+.section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 1px;
+  /* Сетка разделена линиями, а не «плавающими» карточками с тенями. */
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.section-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 18px 18px 16px;
+  background: var(--paper);
+  color: inherit;
+  text-decoration: none;
+  transition: background 0.13s ease;
+}
+
+.section-tile:hover { background: var(--sand); }
+
+.section-tile-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--terracotta-dark);
+}
+
+.section-tile-title {
+  font-weight: 600;
+  font-size: 0.98rem;
+  color: var(--charcoal);
+}
+
+.section-tile-text {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--charcoal-soft);
+}
+
+.section-tile-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--terracotta-dark);
+  opacity: 0;
+  transition: opacity 0.13s ease;
+}
+
+.section-tile:hover .section-tile-more,
+.section-tile:focus-visible .section-tile-more { opacity: 1; }
+
+/* ============================================================
+   Базовые элементы: единый вид кнопок, полей и ссылок.
+   Приёмы Linear: малый радиус, тонкая граница, фокус-обводка
+   акцентом, без градиентов и теней.
+   ============================================================ */
+.btn-primary,
+.btn-secondary,
+.btn-link-outline,
+.btn-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 15px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.btn-primary {
+  background: var(--terracotta);
+  border: 1px solid var(--terracotta);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) { background: var(--terracotta-dark); border-color: var(--terracotta-dark); }
+
+.btn-secondary,
+.btn-link-outline {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--charcoal);
+}
+.btn-secondary:hover:not(:disabled),
+.btn-link-outline:hover:not(:disabled) {
+  border-color: var(--charcoal-soft);
+  background: rgba(42, 39, 36, 0.03);
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-link-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Фокус: одна акцентная обводка на все интерактивные элементы. */
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.btn-link-outline:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--terracotta);
+  outline-offset: 1px;
+}
+
+/* Поля ввода */
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='number'],
+input[type='date'],
+input[type='search'],
+select,
+textarea {
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  color: var(--charcoal);
+  transition: border-color 0.12s ease;
+}
+
+input::placeholder,
+textarea::placeholder {
+  /* Раньше был `--charcoal-soft` с opacity 0.75 — на песочном фоне
+     текст почти не читался. Задаём цвет напрямую, без прозрачности. */
+  color: #6B655D;
+  opacity: 1;
+}
+
+/* Поля с иконкой: иконка стоит в потоке flex-контейнера,
+   поэтому дополнительный отступ слева не нужен. */
+
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) { border-color: var(--charcoal-soft); }
+
+/* Таблицы: тонкие линии, моноширинные числа */
+table { width: 100%; border-collapse: collapse; }
+
+th {
+  text-align: left;
+  font-size: 0.71rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--charcoal-soft);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: rgba(42, 39, 36, 0.02); }
+
+/* Служебные подписи */
+.eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--charcoal-soft);
+}
+
+.lead {
+  font-size: 1.0rem;
+  line-height: 1.55;
+  color: var(--charcoal-soft);
+}
+
+/* ============================================================
+   Фото блюда крупным планом (описание блюда).
+   Занимает всю ширину карточки, высота не меньше 400px.
+   ============================================================ */
+.dish-thumb-fill {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 400px;
+  max-height: 460px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--sand);
+}
+
+/* Заглушка в режиме fill: та же рамка, иконка по центру. */
+span.dish-thumb-fill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--charcoal-soft);
+}
+
+/* Превью в каталоге: крупнее и с рамкой, чтобы не сливалось с фоном. */
+.catalog-dish-thumb,
+.dish-thumb-fallback {
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  border: 1px solid var(--line);
+  background: var(--sand);
+  flex-shrink: 0;
+}
+
+.dish-thumb-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ============================================================
+   Предупреждение «план создан по старым ограничениям».
+   ============================================================ */
+.restriction-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--terracotta);
+  border-left-width: 3px;
+  border-radius: var(--radius-md);
+  background: rgba(180, 85, 45, 0.06);
+}
+
+.restriction-warning-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--terracotta-dark);
+}
+
+.restriction-diff {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.restriction-diff th {
+  text-align: left;
+  padding: 5px 8px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--charcoal-soft);
+  border-bottom: 1px solid var(--line);
+}
+
+.restriction-diff td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.restriction-diff tr:last-child td { border-bottom: none; }
+
+.restriction-warning-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 2px;
+}
+
+/* Список причин, по которым блюдо не подходит пользователю. */
+.confirm-reasons {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.confirm-reasons li {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  color: var(--terracotta-dark);
+}
+
+/* ============================================================
+   Чип блюда в каталоге: название и БЖУ в два ряда.
+   БЖУ разбито на блоки фиксированной ширины — цифры выровнены
+   по столбцам и не переносятся на новую строку.
+   ============================================================ */
+.catalog-dish-chip-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.catalog-dish-chip-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.86rem;
+  line-height: 1.25;
+}
+
+.catalog-dish-macros {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  font-size: 0.76rem;
+}
+
+.catalog-dish-chip .macro-cell {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  /* Фиксированная ширина: столбцы Б, Ж, У не «плывут» между карточками. */
+  min-width: 44px;
+  white-space: nowrap;
+}
+
+.catalog-dish-chip .macro-cell-kcal {
+  min-width: 54px;
+  margin-left: 2px;
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+}
+
+.macro-unit {
+  font-size: 0.68rem;
+  opacity: 0.6;
+}
+
+/* Тёмная тема: разделитель должен читаться. */
+html[data-theme='dark'] .catalog-dish-chip .macro-cell-kcal {
+  border-left-color: rgba(237, 232, 225, 0.2);
+}
+
+/* ============================================================
+   Силуэт тела с подсветкой целиком.
+   Форма берётся из SVG через CSS-маску, цвет — из токенов,
+   поэтому один файл работает для всех состояний и тёмной темы.
+   ============================================================ */
+.silhouette {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+
+/* Рамка силуэта: размеры задаются в компоненте (width/height в px),
+   потому что SVG без явных размеров может схлопнуться в 0. */
+.silhouette-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Обёртка вставленного SVG. Цвет приходит в fill контура через
+   `currentColor` — задаётся в компоненте. */
+.silhouette-svg,
+.silhouette-fallback {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.silhouette-svg svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Контур получает цвет состояния. Файл задаёт fill="#000",
+   поэтому переопределяем его на currentColor. */
+.silhouette-svg svg path,
+.silhouette-fallback path,
+.silhouette-fallback circle,
+.silhouette-fallback rect {
+  fill: currentColor;
+}
+
+.silhouette-fallback {
+  color: inherit;
+}
+
+/* Пропорции полов: силуэт слегка деформируется по X.
+   Для женщин плечевой пояс уже, бёдра шире; для мужчин — наоборот.
+   Небольшое искажение не воспринимается как ошибка и не требует
+   второй копии геометрии. */
+.silhouette-gender-female .silhouette-frame {
+  transform: scaleX(0.94);
+}
+
+.silhouette-gender-male .silhouette-frame {
+  transform: scaleX(1.04);
+}
+
+.silhouette-caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-align: center;
+}
+
+.silhouette-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.9rem;
+}
+
+.silhouette-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.silhouette-legend {
+  display: flex;
+  gap: 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.silhouette-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--charcoal-soft);
+  opacity: 0.55;
+}
+
+.silhouette-legend li.is-active {
+  opacity: 1;
+  color: var(--charcoal);
+  font-weight: 600;
+}
+
+/* ============================================================
+   Главная: блоки «Как это работает», примеры блюд, показатели.
+   ============================================================ */
+.dashboard-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dashboard-block-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+/* Шаги: нумерация моноширинным, без декоративных иконок. */
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  counter-reset: none;
+}
+
+.step-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 16px;
+  background: var(--paper);
+}
+
+.step-number {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--terracotta-dark);
+  letter-spacing: 0.04em;
+}
+
+.step-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--charcoal);
+}
+
+.step-text {
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--charcoal-soft);
+}
+
+/* Примеры блюд. */
+.dish-sample-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.dish-sample {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.dish-sample-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: rgba(180, 85, 45, 0.09);
+  color: var(--terracotta-dark);
+}
+
+.dish-sample-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.dish-sample-meta {
+  font-size: 0.78rem;
+  color: var(--charcoal-soft);
+}
+
+/* Показатели каталога. */
+.dashboard-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 34px;
+  padding: 16px 18px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+/* Тёмная тема. */
+html[data-theme='dark'] .step-card,
+html[data-theme='dark'] .dish-sample,
+html[data-theme='dark'] .dashboard-metrics {
+  background: #1F1D1A;
+  border-color: #2E2A25;
+}
+
+html[data-theme='dark'] .steps-grid {
+  background: #2E2A25;
+  border-color: #2E2A25;
+}
+
+html[data-theme='dark'] .step-title,
+html[data-theme='dark'] .dish-sample-name,
+html[data-theme='dark'] .dashboard-block-title {
+  color: #F5F0E8;
+}
+
+html[data-theme='dark'] .step-text,
+html[data-theme='dark'] .dish-sample-meta {
+  color: #A89F91;
+}
+
+/* ============================================================
+   Кнопка «Выйти» в шапке.
+   Иконка и текст выровнены по центру, одинаковая высота с
+   переключателем темы.
+   ============================================================ */
+.btn-logout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--charcoal);
+  font-family: var(--font-sans);
+  font-size: 0.86rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.btn-logout:hover {
+  border-color: var(--terracotta);
+  color: var(--terracotta-dark);
+  background: rgba(180, 85, 45, 0.06);
+}
+
+.btn-logout svg { flex-shrink: 0; }
+
+html[data-theme='dark'] .btn-logout {
+  border-color: #3A3630;
+  color: #D0C8BC;
+}
+
+html[data-theme='dark'] .btn-logout:hover {
+  border-color: #C77A50;
+  color: #F5F0E8;
+  background: rgba(199, 122, 80, 0.12);
+}
+
+/* ============================================================
+   Панель расходов на AI в админке.
+   Раньше был серый фон #E5E5E5, который выбивался из палитры.
+   ============================================================ */
+.admin-openai-panel {
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+
+.admin-openai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.admin-openai-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1rem;
+}
+
+.admin-openai-updated { margin: 0 0 8px; }
+
+html[data-theme='dark'] .admin-openai-panel {
+  background: #1F1D1A;
+  border-color: #2E2A25;
+}
+
+/* ============================================================
+   Тёмная тема: плейсхолдеры и рамки полей.
+   В светлой теме плейсхолдер #6B655D, на тёмном фоне он невидим.
+   ============================================================ */
+html[data-theme='dark'] input::placeholder,
+html[data-theme='dark'] textarea::placeholder {
+  color: #8A8277;
+  opacity: 1;
+}
+
+html[data-theme='dark'] input,
+html[data-theme='dark'] select,
+html[data-theme='dark'] textarea {
+  border-color: #3A3630;
+  color: #EDE8E1;
+}
+
+html[data-theme='dark'] input:hover:not(:disabled),
+html[data-theme='dark'] select:hover:not(:disabled),
+html[data-theme='dark'] textarea:hover:not(:disabled) {
+  border-color: #4A453D;
+}
+
+/* Заголовки и подписи: раньше часть из них наследовала цвет
+   родителя и оставалась тёмной на тёмном фоне. */
+html[data-theme='dark'] h1,
+html[data-theme='dark'] h2,
+html[data-theme='dark'] h3,
+html[data-theme='dark'] h4,
+html[data-theme='dark'] h5,
+html[data-theme='dark'] h6 {
+  color: #F5F0E8;
+}
+
+html[data-theme='dark'] .lead,
+html[data-theme='dark'] .muted,
+html[data-theme='dark'] .section-head + p {
+  color: #A89F91;
+}
+
+html[data-theme='dark'] .eyebrow,
+html[data-theme='dark'] .metric-label {
+  color: #A89F91;
+}
+
+html[data-theme='dark'] .metric-value {
+  color: #F5F0E8;
+}
+
+/* ============================================================
+   Изображение продукта в холодильнике.
+   Фото — из каталога или загруженное пользователем;
+   при отсутствии показывается заглушка по категории.
+   ============================================================ */
+.product-image {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--sand);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.product-image-photo { display: block; }
+
+.product-image-placeholder { color: var(--charcoal-soft); }
+
+.product-image-placeholder img {
+  display: block;
+  opacity: 0.7;
+}
+
+/* Оттенок заглушки зависит от категории: помогает различать группы
+   продуктов даже без фотографий. */
+.product-cat-dairy      { color: #7A6A9B; }
+.product-cat-meat       { color: #A8574C; }
+.product-cat-vegetables { color: var(--olive); }
+.product-cat-fruits     { color: #C2703D; }
+.product-cat-grains     { color: #9A7B4F; }
+.product-cat-drinks     { color: #5B7C8D; }
+.product-cat-other      { color: var(--charcoal-soft); }
+
+html[data-theme='dark'] .product-image {
+  border-color: #3A3630;
+  background: #201E1B;
+}
+
+html[data-theme='dark'] .product-image-placeholder img { opacity: 0.8; }
+
+/* ============================================================
+   Логотип: тарелка с галочкой.
+   Цвет — currentColor, поэтому знак наследует цвет темы.
+   ============================================================ */
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.logo-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--terracotta);
+  flex-shrink: 0;
+}
+
+.logo-icon { color: var(--terracotta); }
+
+.logo-text {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--charcoal);
+  white-space: nowrap;
+}
+
+/* Шапка: у заголовка убираем прежние стили h1. */
+.brand h1 { display: none; }
+.brand-dot { display: none; }
+
+html[data-theme='dark'] .logo-text { color: #F5F0E8; }
+html[data-theme='dark'] .logo-mark,
+html[data-theme='dark'] .logo-icon { color: #D2764A; }
+
+/* Логотип на странице входа: по центру над заголовком. */
+.login-logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+/* ============================================================
+   Карточка подписки в профиле.
+   ============================================================ */
+.subscription-badge {
+  margin-left: auto;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid currentColor;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.subscription-badge.is-active { color: var(--olive); }
+.subscription-badge.is-warn { color: var(--danger); }
+.subscription-badge.is-none { color: var(--charcoal-soft); }
+
+.subscription-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+
+.subscription-price-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--terracotta-dark);
+}
+
+.subscription-features {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.subscription-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.87rem;
+  line-height: 1.4;
+  color: var(--charcoal-soft);
+}
+
+.subscription-features svg {
+  color: var(--olive);
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.subscription-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.subscription-hint { margin: 12px 0 0; }
+
+.subscription-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 12px 0 0;
+  font-size: 0.84rem;
+  color: var(--danger);
+}
+
+.subscription-error svg { flex-shrink: 0; margin-top: 2px; }
+
+/* Тёмная тема. */
+html[data-theme='dark'] .subscription-price-value { color: #D2764A; }
+html[data-theme='dark'] .subscription-features li { color: #A89F91; }
+html[data-theme='dark'] .subscription-badge.is-active { color: #8A9A63; }
+html[data-theme='dark'] .subscription-badge.is-none { color: #A89F91; }
+
+/* Плашка «доступно по подписке» вместо формы на ИИ-страницах. */
+.subscription-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 18px;
+  border: 1px solid var(--terracotta);
+  border-left-width: 3px;
+  border-radius: var(--radius-md);
+  background: rgba(180, 85, 45, 0.05);
+}
+
+.subscription-gate-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--terracotta-dark);
+}
+
+html[data-theme='dark'] .subscription-gate {
+  background: rgba(210, 118, 74, 0.08);
+  border-color: #C77A50;
+}
+
+html[data-theme='dark'] .subscription-gate-head { color: #D2764A; }
+
+/* Кнопка загрузки фотографии продукта: это <label> с полем внутри,
+   поэтому выглядит и ведёт себя как кнопка. */
+.fridge-photo-btn {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fridge-photo-btn:hover { opacity: 1; background: rgba(42, 39, 36, 0.08); }
+
+/* Скрытое поле ввода: доступно с клавиатуры, но не занимает место. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+html[data-theme='dark'] .fridge-photo-btn:hover {
+  background: rgba(245, 240, 232, 0.10);
 }

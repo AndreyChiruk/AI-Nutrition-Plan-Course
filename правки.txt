@@ -1,0 +1,625 @@
+# КОНТЕКСТ
+
+У меня уже добавлены в .env переменные:
+OPENROUTER_API_KEY, OPENROUTER_BASE_URL, STRIPE_SECRET_KEY, 
+STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID_MONTHLY.
+Проверь, что они читаются корректно, ничего в них не меняй.
+
+# РЕЖИМ РАБОТЫ
+
+Полная автономия. НЕ жди моих подтверждений, не задавай вопросов,
+если можешь принять разумное решение сам. Все решения — на твоё
+усмотрение. Работай как senior-разработчик с чётким ТЗ.
+
+Если что-то требует моего действия (создать продукт в Stripe Dashboard,
+запустить stripe listen) — напиши в отчёте одной строкой и ПРОДОЛЖАЙ
+работу со следующей задачей, не блокируясь.
+
+# DOCKER
+
+Для сборки/перезапуска используй скрипт ./rebuild.sh в корне проекта:
+- вся сборка: ./rebuild.sh
+- только api: ./rebuild.sh api  
+- только web: ./rebuild.sh web
+
+Скрипт обрезает длинный вывод и возвращает статус. НЕ вызывай
+docker compose up --build напрямую. Разрешены read-only (до 30 сек):
+docker compose ps, docker compose logs --tail=20 <service>, curl.
+
+# ЭКОНОМИЯ ТОКЕНОВ (баланс ~$2)
+
+- не пересказывай прочитанные файлы;
+- не выводи код в чат — изменения через файловые операции;
+- diff — только изменённые строки;
+- отчёт после задачи — до 5 строк;
+- не дублируй план в каждом ответе.
+
+# ПОРЯДОК БЛОКОВ
+
+1. OR-* (OpenRouter) — критично, все AI-функции
+2. REG-* (регрессии P0)
+3. LIGHT-* (светлая тема)
+4. DARK-* (тёмная тема)
+5. FRIDGE-* + LOGO-* (холодильник + логотип)
+6. STRIPE-* (подписка)
+
+После каждого блока — отчёт до 5 строк. Переходи к следующему блоку
+без паузы.
+
+# ОБЩИЕ ПРАВИЛА
+
+- Перед каждой задачей: 1-2 строки — где в коде причина, что меняешь.
+- Не ломай работающий код. Если фикс может сломать соседа — предупреди
+  и сделай безопасно.
+- Не меняй структуру компонентов без необходимости.
+- Если задача требует миграции — создавай новую, не правь существующие.
+
+================================================================
+БЛОК 1: OPENROUTER (замена OpenAI API на OpenRouter)
+================================================================
+
+## OR-1. Аудит
+
+Найти все места: импорт openai, new OpenAI({...}), chat.completions.create,
+model: "gpt-4o*", использование OPENAI_API_KEY / OPENAI_ORGANIZATION_ID.
+Вывести списком: файл + что используется. Без изменений — только отчёт.
+
+## OR-2. Обновить .env и .env.example
+
+.env — уже содержит OPENROUTER_API_KEY и OPENROUTER_BASE_URL, ничего
+не трогай. Убери/закомментируй OPENAI_API_KEY, OPENAI_ORGANIZATION_ID,
+OPENAI_USAGE_ADMIN_KEY.
+.env.example — замени реальные значения на плейсхолдеры.
+Проверь, что .gitignore содержит .env.
+
+## OR-3. Создать центральный клиент
+
+backend/src/config/openrouter.js:
+import OpenAI from "openai";
+export const openrouter = new OpenAI({
+  baseURL: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENROUTER_API_KEY,
+  defaultHeaders: {
+    "HTTP-Referer": process.env.APP_URL || "http://localhost",
+    "X-Title": "Планировщик питания",
+  },
+});
+
+Заменить все new OpenAI({...}) на импорт openrouter.
+
+## OR-4. Заменить модели
+
+OpenRouter формат: provider/model. Заменить:
+- "gpt-4o-mini" → "openai/gpt-4o-mini"
+- "gpt-4o" → "openai/gpt-4o"
+- другие OpenAI-модели → с префиксом openai/
+
+Создать backend/src/config/ai-models.js с константами:
+FOOD_RECOGNITION, PLAN_GENERATION, BODY_ANALYSIS, RECOMMENDATIONS, CHAT
+(каждая читается из env с дефолтом "openai/gpt-4o-mini").
+Заменить захардкоженные строки на AI_MODELS.XXX.
+
+## OR-5. Проверить совместимость
+
+Chat completions, tool calling, vision (image_url в messages), streaming —
+всё работает как у OpenAI. НЕ удалять пакет openai.
+
+## OR-6. Обновить документацию
+
+README.md — обновить раздел переменных окружения.
+В config/openrouter.js — комментарий со ссылками на openrouter.ai.
+
+## OR-7. Проверка
+
+После правки .env и пересборки (./rebuild.sh api) — протестировать
+через curl: распознавание еды, генерация плана, AI-чат, рекомендации.
+Отчёт: что проверено, что работает.
+
+================================================================
+БЛОК 2: РЕГРЕССИИ (P0)
+================================================================
+
+## REG-1. Силуэт человека не отображается
+
+Компонент <BodySilhouette /> (или как называется) не рендерится на
+странице «Анализ тела».
+
+Проверить:
+- импорт компонента в страницу;
+- наличие <svg> в DOM (DevTools);
+- не 0×0 ли размер (width/height/viewBox);
+- не перекрыт ли другим блоком (z-index/position);
+- приходят ли props zones/gender — если undefined, компонент может
+  возвращать null;
+- ошибки в консоли браузера (если увидишь — напиши мне в отчёте,
+  я скину);
+- если использовалась react-body-highlighter — проверить установку
+  (npm ls) и совместимость с React-версией.
+
+Добавить fallback: если zones пусты — рендерить базовый контур
+с нейтральным цветом, не пустоту.
+
+## REG-2. Картинки блюд растянуты
+
+Найти компонент карточки блюда. Для <img>: object-fit: cover,
+aspect-ratio: 4/3 (или 16/9), width: 100%; height: auto.
+Убрать жёсткие width/height в px. Добавить onError с плейсхолдером.
+
+## REG-3. Дропдаун в холодильнике сливается с фоном
+
+Найти компонент поиска в холодильнике (может быть свой, отдельный
+от общего). Проверить базовый стиль без :hover — сейчас видно только
+при наведении. Задать явный background, border, box-shadow, z-index.
+Если используется общий компонент автокомплита — фикс в нём.
+
+## REG-4. Главная страница — добавить контент
+
+Блок «Как это работает» (3-4 шага), блок примеров блюд из БД (3-4 карточки),
+блок метрик (кол-во блюд/пользователей). SVG-иллюстрации, не стоковые фото.
+Hero компактнее + визуальный элемент. Не больше 3-4 блоков.
+
+## REG-5. Аудит Nginx как HTTPS-прокси
+
+Проверить docker-compose.yml и docker/nginx/:
+- listen 443 ssl;
+- сертификат в docker/nginx/certs/;
+- редирект http→https (return 301);
+- ssl_certificate / ssl_certificate_key;
+- location /api → proxy_pass на api:3000;
+- location / → proxy_pass на web:80 или статика;
+- security headers: HSTS, X-Content-Type-Options, X-Frame-Options,
+  Referrer-Policy;
+- TLS ≥ 1.2.
+
+Проверка: curl -kI https://localhost, curl -kI http://localhost
+(должен быть 301), curl -k https://localhost/api/health.
+Если чего-то нет — исправить конфиг.
+
+Отчёт таблицей: | Пункт ТЗ | Статус | Комментарий |
+
+================================================================
+БЛОК 3: СВЕТЛАЯ ТЕМА
+================================================================
+
+Все правки — только для светлой темы.
+
+## LIGHT-1. Карта тела: силуэт (см. REG-1, если ещё не исправлен)
+
+## LIGHT-2. Дропдауны поиска не видны без hover
+
+Найти общий компонент автокомплита. Для выпадающего контейнера:
+background: #FFFFFF; border: 1px solid #E0E0E0;
+box-shadow: 0 4px 16px rgba(0,0,0,0.08); z-index: 1000+;
+padding: 8px 0 / пункты 10px 16px; color текста — основной тёмный.
+
+## LIGHT-3. Заменить зелёный акцент на коричневый
+
+Найти CSS-переменные --accent, --primary, --active, --selected,
+--color-active, --accent-green, --border-active. Убедиться, что
+значения — коричневый (#8B4513 или точно из палитры проекта).
+Заменить все захардкоженные зелёные на var(--accent).
+
+Места:
+- LIGHT-3.1. Кнопки выбора цели («Похудеть»/«Поддерживать»/«Набрать»)
+- LIGHT-3.2. Кнопки «Автоплан»/«AI»/«Конструктор» (активная — коричневая,
+  неактивные — серые)
+- LIGHT-3.3. Кнопки длительности плана (активная — коричневая рамка,
+  кремовый фон; неактивная — серая рамка)
+- LIGHT-3.4. Карточки блюд в конструкторе
+- LIGHT-3.5. Карточки тренировок
+- LIGHT-3.6. Карточки типа рекомендаций
+
+## LIGHT-4. Блеклый плейсхолдер в «Любимые продукты»
+
+Плейсхолдер input: color #666. Если иконка absolute — padding-left: 40px
+у input. Теги выбранных продуктов — увеличить контраст текста.
+
+## LIGHT-5. Выровнять кнопку «Выйти»
+
+display: flex; align-items: center; justify-content: center; gap: 8px;
+padding: 0 16px. Проверить line-height иконки и текста.
+
+## LIGHT-6. Коричневый пробел в сетке на главной
+
+Найти grid-контейнер. Если карточек 6, а сетка на 8 — либо добавить 2,
+либо переделать на 3×2, либо последний ряд на всю ширину.
+Не должно быть пустых ячеек с фоном.
+
+## LIGHT-7. Отступ кнопки «Сделать план активным»
+
+margin-bottom: 24px у блока с кнопкой, или margin-top: 16px у следующего.
+Выровнять кнопку по правому краю.
+
+## LIGHT-8. Карточка блюда: БЖУ и «Закрыть»
+
+БЖУ: display: flex; gap: 16px; align-items: baseline; white-space: nowrap;
+ккал — крупным шрифтом, остальное — моноширинным; margin-bottom: 16px.
+Кнопка «Закрыть»: margin-top: 24px, padding: 10px 24px.
+
+## LIGHT-9. Убрать иконку-«искры» с кнопки AI-рекомендаций
+
+Убрать <svg>/Sparkles из JSX.
+
+## LIGHT-10. Блок «OpenAI API — биллинг»: убрать серый фон
+
+Заменить #E5E5E5 на #FAF7F2 или #F5F5F5. Текст «0,01 $» — контрастный.
+Подписи — не светлее #666.
+
+## LIGHT-11. Карточка модерации: убрать серый фон, выровнять кнопки
+
+Фон — белый или #FAF7F2. Границы: 1px solid #E0E0E0. Кнопки
+«Подтвердить»/«Исправить»/«Отклонить» — display: flex; align-items: center;
+justify-content: center; gap: 8px; margin 8px между ними.
+
+================================================================
+БЛОК 4: ТЁМНАЯ ТЕМА
+================================================================
+
+Все правки — только для тёмной темы (media query или класс темы).
+Проверяй контраст: WCAG AA — 4.5:1 для текста, 3:1 для крупного.
+
+## DARK-1. Тёмный текст на тёмном фоне
+
+Заголовки h1-h6 — светлые:
+- основной: #F5F0E8
+- подзаголовок: #D0C8BC
+- капсы uppercase: #A89F91
+
+Проверить: .page-title, .section-title, .card-title, .stat-label,
+.stat-caption, .text-muted, .text-secondary, .label, .caption.
+Если .text-muted = #555 — заменить на #9E968A.
+
+Затронутые места: «Каталог блюд», «Библиотека тренировок»,
+«Базовые рекомендации (CRUD)», «Продукты (CRUD)», «Пользователи»,
+«Модерация сохранённых распознаваний», плитки статистики в админке,
+«ПРОДУКТОВ/КАТЕГОРИЙ/СКОРО ИСТЕКАЕТ» в холодильнике, «Результат»
+в распознавании, «Регулярные приёмы пищи» и «habits» в рекомендациях.
+
+## DARK-2. Плейсхолдеры не видны
+
+::placeholder в тёмной теме: color #8A8277; opacity: 1.
+input border: 1px solid #3A3630.
+
+## DARK-3. Убрать зелёное свечение на кнопках
+
+Найти box-shadow/filter: drop-shadow с зелёным. Заменить на
+box-shadow: 0 4px 12px rgba(199, 122, 80, 0.25) или убрать.
+Кнопки: «Выйти», «Добавить продукт», «Закрыть» (карточка блюда),
+«Добавить пользователя», «Сохранить (на модерацию)».
+
+## DARK-4. Hover кнопок: белый фон + нечитаемый текст
+
+Найти :hover основных кнопок. background: #FFFFFF заменить на
+rgba(199, 122, 80, 0.15) или #2E2A25. Цвет текста при hover — #F5F0E8.
+Затронуто: «Сделать активным», «Копировать план» и другие.
+
+## DARK-5. Убрать зелёный при hover на карточках
+
+Найти :hover и .active/[aria-selected="true"]. Заменить:
+border #C77A50; background rgba(199, 122, 80, 0.1); текст #F5F0E8.
+Затронуто: длительности плана, «HIIT кардио»/«Беговая дорожка»,
+«Автоплан»/«AI»/«Конструктор», «AI-рекомендации»/«Базовые рекомендации».
+
+## DARK-6. Холодильник: цифры и подписи
+
+Цифры — #F5F0E8 или #C77A50 (не тёмный зелёный). Подписи — #A89F91.
+
+## DARK-7. Строка «Вода» в холодильнике
+
+Название — #F5F0E8. Подпись — #A89F91. Иконки действий — #C0B8AC.
+
+## DARK-8. Карточка блюда: заголовок
+
+Заголовок — #F5F0E8. Описание — #A89F91.
+
+## DARK-9. Кнопки карточки плана
+
+.btn-secondary / .btn-outline: background transparent;
+border 1px solid #3A3630; color #D0C8BC.
+:hover: background rgba(199, 122, 80, 0.1); border #C77A50; color #F5F0E8.
+«Удалить» — красная без зелёного glow.
+
+## DARK-10. Результат распознавания
+
+Заголовок — #F5F0E8. Подписи — #A89F91. Убрать зелёный glow на
+«Сохранить (на модерацию)».
+
+## DARK-11. Базовые рекомендации (CRUD)
+
+Заголовки — #F5F0E8. Текст — #D0C8BC. «Категория: habits» — #A89F91.
+Поля ввода — placeholder видим, рамка контрастная.
+
+## DARK-12. Админка: статистика
+
+Подписи — #A89F91. Цифры — #F5F0E8. Плитки: фон #1F1D1A,
+border 1px solid #2E2A25.
+
+## DARK-13. Управление продуктами: иконки
+
+Placeholder-иконки: если фон светлый — тёмные #5A5248; если тёмный —
+#A89F91. Не наследовать color текста.
+
+## DARK-14. Каталог блюд: поиск и селект
+
+Placeholder — #8A8277. Селект: color #D0C8BC; border #3A3630;
+выпадающий список — фон #1F1D1A, текст #F5F0E8.
+
+## DARK-15. Модерация: заголовок
+
+Заголовок секции — #F5F0E8. Описательный текст — #A89F91.
+Карточки: фон #1F1D1A, border #2E2A25.
+
+================================================================
+БЛОК 5: ХОЛОДИЛЬНИК + ЛОГОТИП
+================================================================
+
+## FRIDGE-1. Аудит текущего состояния
+
+Разобраться: модель UserProduct (есть ли поле image?); откуда картинки
+у Product (URL, путь, base64?); есть ли каталог продуктов с картинками
+или только у Dish; как отдаётся статика (Nginx / backend / public).
+Отчёт 5 строк.
+
+## FRIDGE-2. Схема хранения
+
+В UserProduct добавить: image_url (STRING, nullable),
+image_source (ENUM('user','catalog','placeholder'), default 'placeholder').
+Новая миграция, старые не трогать.
+Если у Product есть картинки — при добавлении в холодильник копировать
+image_url и image_source='catalog'.
+
+## FRIDGE-3. Загрузка картинки пользователем
+
+На странице холодильника — кнопка «Загрузить фото» / drag&drop.
+Валидация: image/*, до 5 МБ. POST /api/fridge/items/:id/image
+(multipart/form-data). Хранение: /uploads/fridge/<userId>-<productId>-
+<timestamp>.<ext>. Отдавать через Nginx.
+Кнопка «Удалить фото» — image_url=NULL, image_source='placeholder'.
+
+## FRIDGE-4. Заглушки по категориям
+
+Папка /public/placeholders/fridge/. SVG по категориям: dairy, meat,
+vegetables, fruits, grains, drinks, other. Линейные, stroke-width
+1.5-2, цвет акцента, прозрачный фон. Можно взять из Lucide/Phosphor
+(Milk, Beef, Carrot, Apple, Wheat, CupSoda, UtensilsCrossed) с
+атрибуцией.
+
+## FRIDGE-5. Компонент ProductImage
+
+<ProductImage src={image_url} category={category} alt={name} size="md" />
+- src есть → <img>; иначе или onError → SVG по category (default other).
+- size: sm 40×40, md 80×80, lg 160×160.
+- object-fit: cover; border-radius: 4px.
+Заменить все <img> продуктов в холодильнике на этот компонент.
+
+## FRIDGE-6. Отображение
+
+Список холодильника: миниатюра sm + название + количество.
+Карточка продукта: крупная картинка lg + кнопки «Загрузить»/«Удалить».
+Список покупок — тот же компонент.
+
+## FRIDGE-7. Тестирование
+
+Добавление из каталога → картинка из каталога. Добавление вручную →
+заглушка. Загрузка → отображается. Удаление → заглушка.
+
+## LOGO-1. Выбрать концепцию и сделать SVG
+
+ВЫБЕРИ КОНЦЕПЦИЮ САМ (не спрашивай меня). Стиль: минималистичный,
+векторный, современный. Смотрится в шапке 32-40px, favicon 16×16
+и 32×32, на светлой и тёмной теме, в монохроме.
+Тематика: питание, план, еда, забота о себе.
+
+Возможные идеи: тарелка с вилкой/ножом; яблоко с вырезом-галочкой;
+росток в круге; сетка 3×3 с выделенной точкой; буква «П» из еды.
+Выбери одну, обоснуй 1 строкой, реализуй.
+
+## LOGO-2. SVG
+
+viewBox="0 0 64 64", чистые path/rect/circle. Цвета:
+- основной: #C77A50 (или из палитры проекта);
+- белый вариант для тёмного фона;
+- монохромный (currentColor).
+
+Файлы:
+- frontend/public/logo.svg
+- frontend/public/logo-icon.svg
+- frontend/public/favicon.ico (или PNG 32×32)
+- обнови <link rel="icon"> в index.html
+
+## LOGO-3. Внедрение
+
+1. Шапка: иконка 24-32px + текст «Планировщик питания».
+2. Компонент <Logo variant="full|icon" theme="light|dark" />
+   в frontend/src/components/Logo.tsx.
+3. Страница логина: логотип по центру, иконка 64px + текст.
+4. Проверить в тёмной и светлой теме.
+
+================================================================
+БЛОК 6: STRIPE (подписка, тестовый режим)
+================================================================
+
+Не подключай Live mode. Только test. Ключи в .env уже есть.
+
+## STRIPE-1. Установка зависимостей
+
+Backend: npm install stripe
+Frontend: npm install @stripe/stripe-js @stripe/react-stripe-js
+
+## STRIPE-2. Конфиг
+
+backend/src/config/stripe.js — экспорт инстанса с STRIPE_SECRET_KEY,
+последняя стабильная версия API.
+.env.example — плейсхолдеры для STRIPE_*.
+
+## STRIPE-3. Модели и миграция
+
+Новая миграция:
+- subscriptions: id, user_id (FK, unique), stripe_customer_id,
+  stripe_subscription_id, status ENUM('active','past_due','canceled',
+  'incomplete','trialing','unpaid','none') default 'none',
+  current_period_end DATE, cancel_at_period_end BOOL default false,
+  created_at, updated_at.
+- ai_chat_usage: id, user_id, date, messages_count INT default 0,
+  UNIQUE(user_id, date).
+
+Модели Sequelize: Subscription, AiChatUsage. User hasOne Subscription.
+
+## STRIPE-4. Checkout и статус
+
+POST /api/subscription/checkout (auth):
+- найти/создать Stripe Customer (stripe.customers.create с email,
+  metadata.user_id); сохранить customer_id.
+- Checkout Session: mode subscription; line_items
+  [{price: STRIPE_PRICE_ID_MONTHLY, quantity: 1}]; customer;
+  success_url `${APP_URL}/profile?subscription=success`;
+  cancel_url `${APP_URL}/profile?subscription=canceled`;
+  subscription_data.metadata.user_id.
+- Вернуть { url }.
+
+GET /api/subscription/status (auth): вернуть { status,
+current_period_end, cancel_at_period_end } или { status: 'none' }.
+
+POST /api/subscription/portal (auth): billingPortal.sessions.create,
+вернуть { url }.
+
+## STRIPE-5. Вебхук
+
+POST /api/stripe/webhook — express.raw({type:'application/json'})
+ДО express.json().
+
+Обработать:
+- checkout.session.completed → customer_id, subscription_id,
+  status='active', current_period_end
+- customer.subscription.updated → обновить status,
+  current_period_end, cancel_at_period_end
+- customer.subscription.deleted → status='canceled'
+- invoice.payment_failed → status='past_due'
+
+## STRIPE-6. Middleware
+
+backend/src/middleware/requireSubscription.js: найти subscriptions;
+если нет или status !== 'active' или current_period_end < now →
+402 { error: 'subscription_required' }. Иначе next().
+
+## STRIPE-7. Обернуть ИИ-эндпоинты
+
+Найти и добавить requireSubscription:
+- POST /api/body-analysis (анализ тела)
+- POST /api/plans/generate-ai (генерация плана)
+- POST /api/food/recognize (распознавание еды)
+- POST /api/recommendations/generate-ai (AI-рекомендации)
+
+## STRIPE-8. AI-чат: 3 сообщения в день бесплатно
+
+Найти POST /api/chat/message.
+1. Если isActive — без ограничений.
+2. Если нет:
+   - получить AiChatUsage за сегодня или создать с count=0;
+   - если count >= 3 → 402 { error: 'chat_limit_reached' };
+   - иначе инкремент и продолжить.
+
+## STRIPE-9. Frontend
+
+Хук useSubscription(): GET /api/subscription/status,
+возвращает { isActive, status, currentPeriodEnd, loading }.
+
+Страница профиля — карточка «Подписка»:
+- заголовок, цена 299 ₽/мес, список возможностей;
+- кнопка: «Оформить подписку» (если none) или «Подписка активна
+  до <дата>» + «Управлять»;
+- статус-бейдж (серый/зелёный/красный).
+
+На каждой ИИ-странице: если !isActive — плашка «Доступно по подписке»
+вместо формы/кнопки.
+В AI-чате: счётчик «Осталось X из 3»; при исчерпании — блокировка поля.
+
+## STRIPE-10. Ручные шаги (напиши в отчёте одной строкой)
+
+- создать продукт в Stripe Dashboard Test mode;
+- скопировать Price ID в .env;
+- brew install stripe/stripe-cli/stripe;
+- stripe login;
+- stripe listen --forward-to localhost:3000/api/stripe/webhook;
+- скопировать whsec_ в .env;
+- пересобрать api.
+но я уже сделал PS /Users/andrey/Documents/course_project/course/course> stripe products create --name="Планировщик питания Premium" --description="Месячная подписка на все ИИ-функции приложения"
+{
+  "id": "prod_VP9tNIuoPhZuHJ",
+  "object": "product",
+  "active": true,
+  "attributes": [],
+  "created": 1791482295,
+  "default_price": null,
+  "description": "Месячная подписка на все ИИ-функции приложения",
+  "images": [],
+  "livemode": false,
+  "marketing_features": [],
+  "metadata": {},
+  "name": "Планировщик питания Premium",
+  "package_dimensions": null,
+  "shippable": null,
+  "statement_descriptor": null,
+  "tax_code": null,
+  "tax_details": null,
+  "type": "service",
+  "unit_label": null,
+  "updated": 1791482295,
+  "url": null
+}
+
+PS /Users/andrey/Documents/course_project/course/course> stripe prices create --unit-amount=2990 --currency=byn --product="prod_VP9tNIuoPhZuHJ" -d "recurring[interval]"=month     
+`stripe prices create` requires exactly 0 positional arguments. See `stripe prices create --help` for supported flags and usage
+PS /Users/andrey/Documents/course_project/course/course> stripe prices create --unit-amount=990 --currency=usd --product="prod_VP9tNIuoPhZuHJ" --recurring.interval=month      
+{
+  "id": "price_1UOLdeA4LtutUH7q0YcB0qiD",
+  "object": "price",
+  "active": true,
+  "billing_scheme": "per_unit",
+  "created": 1791482514,
+  "currency": "usd",
+  "custom_unit_amount": null,
+  "livemode": false,
+  "lookup_key": null,
+  "metadata": {},
+  "nickname": null,
+  "product": "prod_VP9tNIuoPhZuHJ",
+  "recurring": {
+    "interval": "month",
+    "interval_count": 1,
+    "meter": null,
+    "trial_period_days": null,
+    "usage_type": "licensed"
+  },
+  "tax_behavior": "unspecified",
+  "tiers_mode": null,
+  "transform_quantity": null,
+  "type": "recurring",
+  "unit_amount": 990,
+  "unit_amount_decimal": "990"
+}
+
+
+## STRIPE-11. Тестирование
+
+Карты: 4242 4242 4242 4242 (успех), 4000 0000 0000 0002 (отклонение),
+4000 0000 0000 3220 (3DS).
+
+Сценарии: оформление → возврат → вебхук → active → функции
+разблокированы → 3 сообщения в чат → 4-е 402 → отмена → canceled →
+функции заблокированы.
+
+================================================================
+ФИНАЛ
+================================================================
+
+После всех блоков — сводный отчёт:
+- какие файлы созданы/изменены (по блокам);
+- какие эндпоинты добавлены;
+- какие компоненты созданы;
+- что нужно мне сделать руками (если осталось);
+- что не удалось и почему.
+
+СТАРТ: начинай с OR-1 (аудит). Дальше — по порядку без остановок.
+
+ВАЖНО: промпт составляла другая модель и она не знает в точности особенности архитектуры, выполняй на основе того что есть, цвета используй из политры что ты предложил

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { OpenAiUsageService } from '../openai/openai-usage.service';
 
 const OPENAI_API_BASE = 'https://api.openai.com';
 
@@ -9,6 +10,13 @@ export type OpenAiBillingSnapshot = {
     totalUsdApprox?: number;
     bucketCount?: number;
   };
+  /**
+   * Расход токенов и стоимость вызовов, посчитанные САМИМ приложением
+   * по полю `usage` из ответов OpenAI. В отличие от `costs7d` (данные
+   * организации, доступные только с admin-ключом), эта статистика
+   * работает всегда и разбита по операциям.
+   */
+  localUsage?: ReturnType<OpenAiUsageService['summary']>;
 };
 
 type BillingSection = {
@@ -20,6 +28,8 @@ type BillingSection = {
 @Injectable()
 export class OpenAiBillingService {
   private readonly logger = new Logger(OpenAiBillingService.name);
+
+  constructor(private readonly usage: OpenAiUsageService) {}
 
   private billingHeaders(apiKey: string): HeadersInit {
     const h: Record<string, string> = {
@@ -39,12 +49,17 @@ export class OpenAiBillingService {
 
   async getSnapshot(): Promise<OpenAiBillingSnapshot> {
     const fetchedAt = new Date().toISOString();
+    // Внешний биллинг доступен только при прямом ключе OpenAI.
+    // При работе через OpenRouter расходы смотрят в личном кабинете
+    // openrouter.ai, поэтому здесь остаётся локальный учёт токенов.
     const openAiKey = process.env.OPENAI_API_KEY?.trim();
     const usageAdminKey = process.env.OPENAI_USAGE_ADMIN_KEY?.trim();
-    if (!openAiKey && !usageAdminKey) {
+    const viaOpenRouter = Boolean(process.env.OPENROUTER_API_KEY?.trim()) && !usageAdminKey;
+    if (viaOpenRouter || (!openAiKey && !usageAdminKey)) {
       return {
         fetchedAt,
         apiKeyConfigured: false,
+        localUsage: this.usage.summary(),
       };
     }
 
@@ -58,6 +73,7 @@ export class OpenAiBillingService {
       fetchedAt,
       apiKeyConfigured: true,
       costs7d,
+      localUsage: this.usage.summary(),
     };
   }
 

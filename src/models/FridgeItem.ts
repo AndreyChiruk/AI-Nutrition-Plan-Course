@@ -55,6 +55,32 @@ export class FridgeItem extends Model<FridgeItem> {
   })
   declare expiresAt: Date | null;
 
+  /**
+   * Изображение продукта.
+   *
+   * Заполняется из каталога при добавлении, либо загружается
+   * пользователем. Для заглушек остаётся NULL — клиент выбирает
+   * картинку по категории продукта.
+   */
+  @Column({
+    type: DataType.STRING(500),
+    allowNull: true,
+    field: 'image_url',
+  })
+  declare imageUrl: string | null;
+
+  /**
+   * Источник изображения: `user`, `catalog` или `placeholder`.
+   * Определяет, можно ли удалить картинку и что показать вместо неё.
+   */
+  @Column({
+    type: DataType.ENUM('user', 'catalog', 'placeholder'),
+    allowNull: false,
+    defaultValue: 'placeholder',
+    field: 'image_source',
+  })
+  declare imageSource: 'user' | 'catalog' | 'placeholder';
+
   @BelongsTo(() => User)
   declare user: User;
 

@@ -1,25 +1,9 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import {
-  Activity,
-  Apple,
-  BarChart3,
-  Dumbbell,
-  Home,
-  LayoutList,
-  Leaf,
-  Menu,
-  MessageCircle,
-  Moon,
-  Shield,
-  Sparkles,
-  Sun,
-  User,
-  UtensilsCrossed,
-  X,
-} from 'lucide-react';
+import { Activity, Apple, BarChart3, Dumbbell, Home, LayoutList, Leaf, LogOut, Menu, MessageCircle, Moon, Refrigerator, Shield, Sparkles, Sun, User, UtensilsCrossed, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { Logo } from '../components/Logo';
 
 const navItems: Array<{
   to: string;
@@ -31,6 +15,7 @@ const navItems: Array<{
   { to: '/', label: 'Главная', icon: Home, end: true },
   { to: '/profile', label: 'Профиль', icon: User },
   { to: '/body-analysis', label: 'Анализ тела', icon: Activity },
+  { to: '/fridge', label: 'Холодильник', icon: Refrigerator },
   { to: '/meal-plan', label: 'План питания', icon: UtensilsCrossed },
   { to: '/meal-plans', label: 'Мои планы', icon: LayoutList },
   { to: '/workout-plan', label: 'План тренировок', icon: Dumbbell },
@@ -79,8 +64,7 @@ export const AppLayout = () => {
             {navOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
           <div className="brand">
-            <span className="brand-dot" aria-hidden />
-            <h1>Планировщик питания</h1>
+            <Logo variant="full" size={26} />
           </div>
         </div>
         <div className="actions">
@@ -88,7 +72,8 @@ export const AppLayout = () => {
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
           <span className="user-email-pill">{user?.email}</span>
-          <button type="button" onClick={logout}>
+          <button type="button" className="btn-logout" onClick={logout}>
+            <LogOut size={15} strokeWidth={1.75} aria-hidden />
             Выйти
           </button>
         </div>

@@ -1,6 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
-import OpenAI, { toFile } from 'openai';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { toFile } from 'openai';
+import type OpenAI from 'openai';
+import {
+  openrouter,
+  isOpenRouterConfigured,
+  OPENROUTER_MISSING_KEY_MESSAGE,
+} from '../config/openrouter';
+import { AI_MODELS, normalizeModelId } from '../config/ai-models';
 import type { ImagesResponse } from 'openai/resources/images';
+import { FOOD_RECOGNITION_JSON_SCHEMA, jsonSchemaFormat } from './openai.schemas';
+import { OpenAiUsageService } from './openai-usage.service';
 import {
   AI_OUTPUT_RUSSIAN,
   buildBodyAnalysisPrompt,
@@ -9,6 +18,7 @@ import {
   buildBodyForecastImagePromptMinimal,
   buildBodyForecastPrompt,
   buildChatPrompt,
+  type ChatPromptInput,
   buildConstructorRefinementPrompt,
   buildMealPlanFromCatalogPrompt,
   buildNutritionRecommendationPrompt,
@@ -54,17 +64,14 @@ type MealPlanInput = {
 
 type MealPlanCatalogInput = MealPlanInput & { dishNames: string[] };
 
-type ChatReplyInput = {
-  userProfile: {
-    gender: 'male' | 'female';
-    goal: 'lose' | 'maintain' | 'gain';
-    height: number;
-    weight: number;
-    birthDate: Date;
-    allergies: string[];
-  };
-  messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
-};
+/**
+ * Входные данные для ответа ассистента.
+ *
+ * Тип берётся из построителя промта, чтобы описание профиля было
+ * описано в ОДНОМ месте: раньше здесь была копия, из-за которой новые
+ * поля (диета, предпочтения) не доходили до промта.
+ */
+type ChatReplyInput = ChatPromptInput;
 
 type BodyForecastInput = {
   durationWeeks: number;
@@ -82,6 +89,37 @@ type DishLocalizationInput = {
   ingredientsSeed?: Array<{ name: string; grams?: number }>;
 };
 
+/**
+ * Короткое описание ошибки AI-запроса для логов.
+ *
+ * `String(error)` у ошибок SDK даёт «Error», без кода и текста ответа.
+ * Здесь собираем то, что помогает понять причину: код HTTP, сообщение
+ * провайдера и тип ошибки.
+ */
+function describeAiError(error: unknown): string {
+  const e = error as {
+    status?: number;
+    code?: string;
+    message?: string;
+    response?: { data?: { error?: { message?: string } } };
+  };
+  const parts: string[] = [];
+  if (e?.status) parts.push(`HTTP ${e.status}`);
+  if (e?.code) parts.push(String(e.code));
+  const providerMessage = e?.response?.data?.error?.message;
+  if (providerMessage) parts.push(providerMessage);
+  else if (e?.message) parts.push(e.message);
+  return parts.join(' | ') || 'неизвестная ошибка';
+}
+
+/** Код ошибки для ответа клиенту. */
+function aiErrorCode(error: unknown): string {
+  const e = error as { status?: number; code?: string };
+  if (e?.status) return `http_${e.status}`;
+  if (e?.code) return String(e.code);
+  return 'ai_request_failed';
+}
+
 @Injectable()
 export class OpenAiService {
   private readonly logger = new Logger(OpenAiService.name);
@@ -89,12 +127,15 @@ export class OpenAiService {
   private readonly model: string;
   private readonly maxOutputTokens: number;
 
-  constructor() {
-    const apiKey = process.env.OPENAI_API_KEY;
-    const timeoutMs = Number(process.env.OPENAI_TIMEOUT_MS ?? 20_000);
+  constructor(private readonly usage: OpenAiUsageService) {
     this.maxOutputTokens = Number(process.env.OPENAI_MAX_TOKENS ?? 700);
-    this.model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
-    this.client = apiKey ? new OpenAI({ apiKey, timeout: timeoutMs }) : null;
+    // Модель приводится к формату OpenRouter (`провайдер/модель`):
+    // в существующих .env значение может быть без префикса.
+    this.model = normalizeModelId(
+      process.env.OPENAI_MODEL ?? AI_MODELS.PLAN_GENERATION,
+    );
+    // Клиент общий для всего приложения (см. config/openrouter.ts).
+    this.client = openrouter;
   }
 
   async analyzeBodyFromPhoto(photoUrl: string) {
@@ -109,7 +150,7 @@ export class OpenAiService {
 
     try {
       const response = await this.client.responses.create({
-        model: this.model,
+        model: AI_MODELS.BODY_ANALYSIS,
         instructions: AI_OUTPUT_RUSSIAN,
         input: [
           {
@@ -147,9 +188,12 @@ export class OpenAiService {
     if (!this.client) {
       return null;
     }
+    const startedAt = Date.now();
     try {
+      // Structured Outputs: модель обязана вернуть JSON по схеме,
+      // а не свободный текст, который потом вырезается регуляркой.
       const response = await this.client.responses.create({
-        model: this.model,
+        model: AI_MODELS.FOOD_RECOGNITION,
         instructions: AI_OUTPUT_RUSSIAN,
         input: [
           {
@@ -161,16 +205,36 @@ export class OpenAiService {
           },
         ],
         max_output_tokens: Math.max(this.maxOutputTokens, 2200),
+        text: { format: jsonSchemaFormat('food_recognition', FOOD_RECOGNITION_JSON_SCHEMA) as never },
       });
+
+      this.usage.record({
+        operation: 'food_recognition',
+        model: AI_MODELS.FOOD_RECOGNITION,
+        response,
+        durationMs: Date.now() - startedAt,
+      });
+
       const text = response.output_text?.trim();
       if (!text) throw new Error('OpenAI returned empty food recognition text');
       return parseFoodImageRecognitionResponse(text);
     } catch (error) {
+      this.usage.record({
+        operation: 'food_recognition',
+        model: AI_MODELS.FOOD_RECOGNITION,
+        durationMs: Date.now() - startedAt,
+        ok: false,
+      });
       this.logger.warn(`Food recognition failed: ${String(error)}`);
       throw error;
     }
   }
 
+  /**
+   * Модель по умолчанию — для отображения в интерфейсе и отчётах
+   * об использовании. Конкретные вызовы используют свои модели
+   * (см. `AI_MODELS`), поэтому это значение носит справочный характер.
+   */
   getModelLabel() {
     return this.model;
   }
@@ -242,7 +306,7 @@ export class OpenAiService {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         const response = await this.client.responses.create({
-          model: this.model,
+          model: AI_MODELS.FOOD_RECOGNITION,
           instructions: AI_OUTPUT_RUSSIAN,
           input: prompt,
           max_output_tokens: Math.max(this.maxOutputTokens, 900),
@@ -320,7 +384,7 @@ export class OpenAiService {
       const prompt = buildNutritionRecommendationPrompt(input);
 
       const response = await this.client.responses.create({
-        model: this.model,
+        model: AI_MODELS.RECOMMENDATIONS,
         instructions: AI_OUTPUT_RUSSIAN,
         input: prompt,
         max_output_tokens: this.maxOutputTokens,
@@ -360,7 +424,7 @@ export class OpenAiService {
     const prompt = buildMealPlanFromCatalogPrompt(input);
     try {
       const response = await this.client.responses.create({
-        model: this.model,
+        model: AI_MODELS.PLAN_GENERATION,
         instructions: AI_OUTPUT_RUSSIAN,
         input: prompt,
         max_output_tokens: Math.min(4000, this.maxOutputTokens * 4),
@@ -410,7 +474,7 @@ export class OpenAiService {
 
     try {
       const response = await this.client.responses.create({
-        model: this.model,
+        model: AI_MODELS.PLAN_GENERATION,
         instructions: AI_OUTPUT_RUSSIAN,
         input: prompt,
         max_output_tokens: maxOut,
@@ -430,7 +494,7 @@ export class OpenAiService {
 
     try {
       const completion = await this.client.chat.completions.create({
-        model: this.model,
+        model: AI_MODELS.PLAN_GENERATION,
         messages: [
           { role: 'system', content: AI_OUTPUT_RUSSIAN },
           { role: 'user', content: prompt },
@@ -457,7 +521,7 @@ export class OpenAiService {
     const prompt = buildChatPrompt(input);
     try {
       const response = await this.client.responses.create({
-        model: this.model,
+        model: AI_MODELS.CHAT,
         instructions: AI_OUTPUT_RUSSIAN,
         input: prompt,
         max_output_tokens: this.maxOutputTokens,
@@ -465,11 +529,13 @@ export class OpenAiService {
       const text = response.output_text?.trim();
       if (text) return text;
     } catch (error) {
-      this.logger.warn(`Chat responses API failed, trying chat.completions: ${String(error)}`);
+      this.logger.warn(
+        `Chat responses API failed: ${describeAiError(error)}. Пробуем chat.completions.`,
+      );
     }
     try {
       const completion = await this.client.chat.completions.create({
-        model: this.model,
+        model: AI_MODELS.CHAT,
         messages: [
           { role: 'system', content: AI_OUTPUT_RUSSIAN },
           { role: 'user', content: prompt },
@@ -479,7 +545,15 @@ export class OpenAiService {
       const text = completion.choices[0]?.message?.content?.trim();
       if (text) return text;
     } catch (error) {
-      this.logger.warn(`Chat fallback used: ${String(error)}`);
+      this.logger.error(`Chat fallback failed: ${describeAiError(error)}`);
+      // Ошибку пробрасываем наверх: вызывающий код вернёт пользователю
+      // понятный ответ со статусом 502, а не текст-заглушку, по которому
+      // невозможно понять, что именно сломалось.
+      throw new ServiceUnavailableException({
+        error: 'ai_unavailable',
+        message: 'AI временно недоступен. Попробуйте позже.',
+        details: aiErrorCode(error),
+      });
     }
     return 'Не удалось получить ответ AI. Попробуйте переформулировать вопрос или повторите позже.';
   }
@@ -518,7 +592,7 @@ export class OpenAiService {
         muscle: input.muscle,
       });
       const response = await this.client.responses.create({
-        model: this.model,
+        model: AI_MODELS.BODY_ANALYSIS,
         instructions: AI_OUTPUT_RUSSIAN,
         input: prompt,
         max_output_tokens: this.maxOutputTokens,
@@ -567,7 +641,9 @@ export class OpenAiService {
       return null;
     }
 
-    const modelEnv = process.env.OPENAI_IMAGE_MODEL ?? 'gpt-image-1';
+    const modelEnv = normalizeModelId(
+      process.env.OPENAI_IMAGE_MODEL ?? AI_MODELS.IMAGE,
+    );
     const isMini = modelEnv.includes('mini');
 
     const editSize: '1024x1024' | '1024x1536' | '1536x1024' | 'auto' = (() => {

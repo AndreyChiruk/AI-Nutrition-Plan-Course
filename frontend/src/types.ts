@@ -5,6 +5,11 @@ export type AuthResponse = {
     id: number;
     email: string;
     role: 'guest' | 'user' | 'admin';
+    /**
+     * Имя пользователя. Появилось в миграции 023 вместо хранения
+     * в localStorage: серверное значение доступно на любом устройстве.
+     */
+    name?: string | null;
   };
 };
 
@@ -97,4 +102,15 @@ export type BodyAnalysisPageState = {
   savedForecast: BodyForecastResponse | null;
   savedForecastWeeks: number | null;
   forecastUpdatedAt: string | null;
+};
+
+/** Состояние подписки на ИИ-функции. */
+export type SubscriptionStatusResponse = {
+  status: 'active' | 'past_due' | 'canceled' | 'incomplete' | 'trialing' | 'unpaid' | 'none';
+  isActive: boolean;
+  /** Дата окончания оплаченного периода в ISO. */
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  /** Остаток бесплатных сообщений; `null` при активной подписке. */
+  chatMessagesLeft: number | null;
 };

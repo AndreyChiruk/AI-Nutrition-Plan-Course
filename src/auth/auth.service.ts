@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -9,14 +10,21 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/sequelize';
 import { createHash } from 'crypto';
 import { MailService } from '../mail/mail.service';
+import { hashPassword, needsRehash, verifyPassword } from '../common/password.util';
 import { EmailVerificationCode, EmailCodePurpose } from '../models/EmailVerificationCode';
 import { User, UserRole } from '../models/User';
 
-type RegisterPayload = {
+/**
+ * Данные регистрации. Поля `role` здесь СОЗНАТЕЛЬНО нет: роль назначается
+ * только сервером ('user') либо администратором через админ-панель.
+ * Наличие `role` в payload позволяло любому зарегистрировать себе админа.
+ */
+export type RegisterPayload = {
   email: string;
+  /** Отображаемое имя (необязательно). */
+  name?: string;
   password: string;
   emailCode: string;
-  role?: UserRole;
   height: number;
   weight: number;
   gender: 'male' | 'female';
@@ -33,6 +41,8 @@ type RegisterPayload = {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectModel(User) private readonly userModel: typeof User,
     @InjectModel(EmailVerificationCode)
@@ -82,7 +92,9 @@ export class AuthService {
       expiresAt,
     } as never);
 
-    const mailDebug = process.env.MAIL_DEBUG === 'true';
+    // devCode возвращается только при явной отладке И вне production:
+    // иначе ответ API с кодом подтверждения = вход в любой аккаунт.
+    const mailDebug = process.env.MAIL_DEBUG === 'true' && process.env.NODE_ENV !== 'production';
     return {
       ok: true,
       message: 'Код отправлен на email',
@@ -127,9 +139,17 @@ export class AuthService {
 
     const user = await this.userModel.create(
       {
+        // Имя: обрезаем и ограничиваем; при отсутствии берём часть email,
+        // чтобы в интерфейсе не было пустого имени.
+        name:
+          String(payload.name ?? '')
+            .replace(/[\u0000-\u001f\u007f]/g, '')
+            .trim()
+            .slice(0, 120) || normalized.split('@')[0],
         email: normalized,
-        password: this.hash(payload.password),
-        role: payload.role ?? 'user',
+        password: await hashPassword(payload.password),
+        // Роль всегда 'user'. Повышение прав — только через админ-панель.
+        role: 'user',
         height: payload.height ?? 170,
         weight: payload.weight ?? 70,
         gender: payload.gender ?? 'male',
@@ -149,13 +169,28 @@ export class AuthService {
       where: { email: normalized },
       attributes: ['id', 'email', 'password', 'role', 'isBlocked'],
     });
-    if (!user || user.password !== this.hash(password)) {
+    // Проверяем и scrypt, и старый sha256-формат (ленивая миграция ниже).
+    if (!user || !(await verifyPassword(password, user.password))) {
       throw new UnauthorizedException('Wrong email or password');
     }
     if (user.isBlocked) {
       throw new ForbiddenException('User is blocked');
     }
+    await this.rehashIfLegacy(user, password);
     return this.issueTokens(user);
+  }
+
+  /**
+   * Если пароль хранится в старом формате (несолёный SHA-256), после успешного
+   * входа молча переводим его на scrypt. Пользователь ничего не замечает.
+   */
+  private async rehashIfLegacy(user: User, plain: string) {
+    if (!needsRehash(user.password)) return;
+    try {
+      await user.update({ password: await hashPassword(plain) } as never);
+    } catch (e) {
+      this.logger.warn(`Не удалось перехэшировать пароль: ${String(e)}`);
+    }
   }
 
   async loginWithEmailCode(email: string, code: string) {
@@ -184,7 +219,26 @@ export class AuthService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    await user.update({ password: this.hash(newPassword) } as never);
+    await user.update({
+      password: await hashPassword(newPassword),
+      // Смена пароля разрывает все активные сессии.
+      refreshTokenHash: null,
+    } as never);
+    return { ok: true };
+  }
+
+  /**
+   * Серверный выход: аннулирует refresh-токен в БД.
+   * Иначе украденный refresh-токен продолжал бы работать все 7 дней,
+   * даже после «выхода» — клиент лишь удалял его из localStorage.
+   */
+  async logout(userId: number | string) {
+    const id = Number(userId);
+    if (Number.isFinite(id)) {
+      await this.userModel.update({ refreshTokenHash: null } as never, {
+        where: { id },
+      });
+    }
     return { ok: true };
   }
 
@@ -246,6 +300,11 @@ export class AuthService {
     };
   }
 
+  /**
+   * SHA-256 для НЕ парольных значений: кодов подтверждения (6 цифр, живут 15 минут)
+   * и отпечатка refresh-токена. Пароли хэшируются отдельно через scrypt
+   * (см. src/common/password.util.ts) — там нужна соль и высокая стоимость.
+   */
   private hash(value: string) {
     return createHash('sha256').update(value).digest('hex');
   }

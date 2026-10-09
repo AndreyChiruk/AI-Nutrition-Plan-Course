@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuard
 import { Request } from 'express';
 import { assertUserAccess } from '../auth/request-access.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { FullUserGuard } from '../auth/full-user.guard';
 import {
   SaveWorkoutDayDto,
   WorkoutPlanService,
@@ -9,7 +10,7 @@ import {
 } from './workout-plan.service';
 
 @Controller('workout-plan')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, FullUserGuard)
 export class WorkoutPlanController {
   constructor(private readonly workoutPlanService: WorkoutPlanService) {}
 

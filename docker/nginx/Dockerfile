@@ -9,4 +9,7 @@ RUN npm run build
 
 FROM nginx:1.27-alpine
 COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
+# Общие заголовки безопасности подключаются через include, так как
+# add_header не наследуется в location-блоки.
+COPY docker/nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=frontend-build /frontend/dist /usr/share/nginx/html
