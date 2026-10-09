@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Camera } from '../components/icons';
 import { BodySilhouette } from '../components/BodySilhouette';
 import { bodyApi, recommendationApi, userApi } from '../api/services';
+import { formatApiError } from '../api/errors';
 import { useAuth } from '../context/AuthContext';
 import { computeAgeFromBirthDate } from '../utils/age';
 import type { BodyAnalysisPageState, BodyForecastResponse } from '../types';
@@ -37,6 +38,8 @@ export const BodyAnalysisPage = () => {
     goal: 'lose' | 'maintain' | 'gain';
   } | null>(null);
   const [message, setMessage] = useState('');
+  /** Идёт загрузка и анализ фото — блокируем кнопку. */
+  const [busy, setBusy] = useState(false);
   const [forecastWeeks, setForecastWeeks] = useState(8);
   const [forecast, setForecast] = useState<BodyForecastResponse | null>(null);
   const [forecastAtLabel, setForecastAtLabel] = useState('');
@@ -173,18 +176,53 @@ export const BodyAnalysisPage = () => {
     return items.slice(0, 5);
   }, [bmi, profile, safeGoal]);
 
+  /**
+   * Кнопка «Загрузить / заменить фото».
+   *
+   * Раньше она только отправляла уже выбранное фото, но не открывала
+   * выбор файла — нажатие ничего не делало. Теперь: если фото выбрано,
+   * отправляем его; если нет — открываем диалог выбора.
+   */
+  const onPhotoButtonClick = async () => {
+    if (!photoUrl) {
+      fileInputRef.current?.click();
+      return;
+    }
+    await uploadBodyPhoto();
+  };
+
+  /**
+   * Отправляет фото на анализ.
+   *
+   * Принимает данные явно, а не берёт из состояния: сразу после выбора
+   * файла `photoUrl` ещё не обновлён, и вызов через состояние отправил бы
+   * предыдущее фото.
+   */
+  const sendPhoto = async (photo: string) => {
+    if (!user || !photo) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      const analyzed = await bodyApi.analyze(user.id, photo);
+      if (analyzed.aiNotes?.trim()) setLatestBodyAiNotes(analyzed.aiNotes.trim());
+      const state = await bodyApi.pageState(user.id);
+      applyPageState(state);
+      setMessage('Фото успешно загружено и сохранено.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (err) {
+      setMessage(formatApiError(err, 'Не удалось загрузить фото фигуры.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const uploadBodyPhoto = async () => {
     if (!user) return;
     if (!photoUrl) {
-      setMessage('Сначала загрузите фото фигуры.');
+      fileInputRef.current?.click();
       return;
     }
-    const analyzed = await bodyApi.analyze(user.id, photoUrl);
-    if (analyzed.aiNotes?.trim()) setLatestBodyAiNotes(analyzed.aiNotes.trim());
-    const state = await bodyApi.pageState(user.id);
-    applyPageState(state);
-    setMessage('Фото успешно загружено и сохранено.');
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    await sendPhoto(photoUrl);
   };
 
   const loadDetailedRecommendation = async () => {
@@ -205,14 +243,34 @@ export const BodyAnalysisPage = () => {
     }
   };
 
+  /**
+   * Читает выбранный файл и сразу отправляет его на анализ.
+   *
+   * Общий путь для выбора через диалог и перетаскивания: раньше логика
+   * дублировалась, и в одном случае фото не отправлялось.
+   */
+  const readAndSendPhoto = useCallback(
+    (file: File | undefined | null) => {
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        setMessage('Можно загрузить только изображение.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result !== 'string') return;
+        setPhotoUrl(reader.result);
+        void sendPhoto(reader.result);
+      };
+      reader.readAsDataURL(file);
+    },
+    // sendPhoto объявлен ниже и стабилен между рендерами.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user],
+  );
+
   const onFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') setPhotoUrl(reader.result);
-    };
-    reader.readAsDataURL(file);
+    readAndSendPhoto(event.target.files?.[0]);
   };
 
   return (
@@ -229,13 +287,7 @@ export const BodyAnalysisPage = () => {
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 event.preventDefault();
-                const file = event.dataTransfer.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = () => {
-                  if (typeof reader.result === 'string') setPhotoUrl(reader.result);
-                };
-                reader.readAsDataURL(file);
+                readAndSendPhoto(event.dataTransfer.files?.[0]);
               }}
             >
               Перетащите фото или нажмите для выбора
@@ -256,8 +308,8 @@ export const BodyAnalysisPage = () => {
             <p className="muted small body-analysis-photo-hint">
               Лучше полный силуэт по рост: вертикальное фото, камера на уровне пояса, весь рост в кадре.
             </p>
-            <button type="button" onClick={uploadBodyPhoto}>
-              <Camera size={16} /> Загрузить / заменить фото
+            <button type="button" onClick={onPhotoButtonClick} disabled={busy}>
+              <Camera size={16} /> {busy ? 'Загрузка…' : 'Загрузить / заменить фото'}
             </button>
             <p className="muted small">Последнее обновление: {savedAt || '—'}</p>
           </section>
