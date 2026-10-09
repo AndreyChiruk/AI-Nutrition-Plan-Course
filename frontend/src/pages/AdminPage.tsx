@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { adminApi } from '../api/services';
-import { BarChart3, Check, Pencil, Plus, Salad, ShieldAlert, Trash2, Users2, UtensilsCrossed, Wallet, X, XCircle } from '../components/icons';
+import { BarChart3, Pencil, Plus, Salad, ShieldAlert, Trash2, Users2, UtensilsCrossed, Wallet, X, XCircle } from '../components/icons';
 import { formatApiError } from '../api/errors';
 import { DishThumb } from '../components/DishThumb';
 import { CalorieValue, MacroRow } from '../components/MacroRow';
@@ -1721,7 +1721,7 @@ export const AdminPage = () => {
                   {correctError ? <p className="form-error">{correctError}</p> : null}
                   <div className="moderation-actions">
                     <button type="button" className="btn-primary" onClick={onSaveCorrectMeal}>
-                      <Check size={16} /> Сохранить правки
+                      Сохранить правки
                     </button>
                     <button type="button" className="btn-secondary" onClick={() => setCorrectDraft(null)}>
                       <X size={16} /> Отмена
@@ -1793,7 +1793,7 @@ export const AdminPage = () => {
                       </div>
                       <div className="moderation-actions">
                         <button type="button" className="btn-primary" onClick={() => onConfirmMeal(meal.id)}>
-                          <Check size={16} /> Подтвердить
+                          Подтвердить
                         </button>
                         <button
                           type="button"

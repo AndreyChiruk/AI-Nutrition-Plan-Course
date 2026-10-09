@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertCircle, Check, CreditCard, Loader2, Settings } from '../components/icons';
+import { AlertCircle, CreditCard, Loader2, Settings } from '../components/icons';
 import { useSubscription } from '../hooks/useSubscription';
 
 /**
@@ -100,14 +100,11 @@ export function SubscriptionCard() {
                 : 'Подписка активна.'}
           </p>
 
-          <ul className="subscription-features">
+          <ol className="subscription-features">
             {FEATURES.map((f) => (
-              <li key={f}>
-                <Check size={14} aria-hidden />
-                {f}
-              </li>
+              <li key={f}>{f}</li>
             ))}
-          </ul>
+          </ol>
 
           <div className="subscription-actions">
             <button
@@ -136,14 +133,11 @@ export function SubscriptionCard() {
             <span className="muted small">в месяц</span>
           </p>
 
-          <ul className="subscription-features">
+          <ol className="subscription-features">
             {FEATURES.map((f) => (
-              <li key={f}>
-                <Check size={14} aria-hidden />
-                {f}
-              </li>
+              <li key={f}>{f}</li>
             ))}
-          </ul>
+          </ol>
 
           <div className="subscription-actions">
             <button

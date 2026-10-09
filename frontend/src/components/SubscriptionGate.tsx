@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Lock } from '../components/icons';
 import { useSubscription } from '../hooks/useSubscription';
 
 /**
@@ -32,7 +31,6 @@ export function SubscriptionGate({
   return (
     <div className="subscription-gate" role="note">
       <div className="subscription-gate-head">
-        <Lock size={16} aria-hidden />
         <strong>{title}</strong>
       </div>
       <p className="muted small">{description}</p>

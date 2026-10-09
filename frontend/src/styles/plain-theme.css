@@ -193,3 +193,48 @@ button .icon-glyph,
 .btn-secondary .icon-glyph {
   margin-right: 4px;
 }
+
+/* ── 8. Списки ────────────────────────────────────────────────
+   Нумерованные там, где перечисляются возможности или ограничения.
+   Обычные списки без маркеров. */
+.subscription-features,
+.profile-restrictions-summary__list {
+  list-style: decimal !important;
+  padding-left: 22px !important;
+  margin: 10px 0 0 !important;
+}
+
+.subscription-features li,
+.profile-restrictions-summary__list li {
+  display: list-item !important;   /* сбрасываем flex, иначе маркер пропадёт */
+  margin-bottom: 4px;
+  gap: 0 !important;
+}
+
+.subscription-features li::marker,
+.profile-restrictions-summary__list li::marker {
+  font-family: Arial, Helvetica, sans-serif !important;
+  color: inherit;
+}
+
+/* Рекомендации — просто строки, без точек и отступов. */
+.recommend-list--plain {
+  list-style: none !important;
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+
+.recommend-list--plain li {
+  margin-bottom: 6px;
+}
+
+.recommend-list--plain li::before {
+  content: none !important;
+}
+
+/* Символы внутри кнопок больше не нужны — там остался только текст. */
+.btn-primary .icon-glyph,
+.btn-secondary .icon-glyph,
+.btn-link-outline .icon-glyph {
+  margin-right: 0 !important;
+}

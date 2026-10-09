@@ -457,7 +457,7 @@ export const ProfilePage = () => {
             </div>
             <div className="profile-restrictions-summary" aria-live="polite">
               <p className="profile-restrictions-summary__title">Текущий выбор</p>
-              <ul className="profile-restrictions-summary__list">
+              <ol className="profile-restrictions-summary__list">
                 <li>
                   <span className="profile-restrictions-summary__key">Аллергены:</span>{' '}
                   {selectedAllergenNames.length > 0 ? (
@@ -491,7 +491,7 @@ export const ProfilePage = () => {
                     <span className="muted">не выбрана — нажмите чип ниже</span>
                   )}
                 </li>
-              </ul>
+              </ol>
             </div>
             <div className="chip-grid">
               {allergens

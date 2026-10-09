@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CalendarClock, ImageOff, ImagePlus, Loader2, Package, Pencil, Plus, Trash2, X } from '../components/icons';
+import { CalendarClock, ImageOff, ImagePlus, Loader2, Package, Pencil, Plus, Trash2, X } from '../components/icons';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { mealPlanApi, userApi } from '../api/services';
@@ -429,7 +429,7 @@ export function FridgePage() {
                             className="fridge-item-flag"
                             title="Продукт не найден в справочнике — планировщик может не учесть его"
                           >
-                            <AlertTriangle size={12} /> нет в справочнике
+                            нет в справочнике
                           </span>
                         ) : null}
                       </div>

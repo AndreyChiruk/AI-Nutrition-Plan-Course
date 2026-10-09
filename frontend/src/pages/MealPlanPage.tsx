@@ -10,7 +10,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { AlertTriangle, Brain, ChefHat, ClipboardList, Download, Lock, Save, ShoppingBasket, Check } from '../components/icons';
+import { AlertTriangle, Brain, ChefHat, ClipboardList, Lock, ShoppingBasket } from '../components/icons';
 import html2pdf from 'html2pdf.js';
 import { isAxiosError } from 'axios';
 import {
@@ -1783,10 +1783,10 @@ export const MealPlanPage = () => {
             </button>
           ) : null}
           <button type="button" className="btn-secondary" onClick={saveToServer}>
-            <Save size={16} /> Сохранить план
+            Сохранить план
           </button>
           <button type="button" className="btn-secondary" onClick={exportPdf}>
-            <Download size={16} /> PDF
+            PDF
           </button>
           {mode === 'constructor' ? (
             <button type="button" className="btn-secondary" onClick={clearAll}>
@@ -2286,7 +2286,7 @@ export const MealPlanPage = () => {
                 </p>
               ) : selectedMealIngredients.length > 0 ? (
                 <p className="meal-fridge-ok">
-                  <Check size={14} /> Все продукты есть в холодильнике
+                  Все продукты есть в холодильнике
                 </p>
               ) : null}
             </div>

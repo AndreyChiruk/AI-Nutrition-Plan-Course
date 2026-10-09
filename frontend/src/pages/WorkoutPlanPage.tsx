@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Dumbbell, Download, ListChecks, Save } from '../components/icons';
+import { Dumbbell, ListChecks, Save } from '../components/icons';
 import html2pdf from 'html2pdf.js';
 import axios from 'axios';
 import {
@@ -563,7 +563,7 @@ export const WorkoutPlanPage = () => {
             <Save size={16} /> Сохранить в БД
           </button>
           <button type="button" className="btn-secondary" onClick={exportPdf}>
-            <Download size={16} /> PDF
+            PDF
           </button>
           {planMeta?.status !== 'active' ? (
             <button type="button" className="btn-secondary" onClick={() => void makePlanActive()}>

@@ -394,7 +394,7 @@ export const BodyAnalysisPage = () => {
                 )}
                 <p>{forecast.summary}</p>
                 <p className="muted small">{forecast.visualDescription}</p>
-                <ul className="recommend-list">
+                <ul className="recommend-list recommend-list--plain">
                   {forecast.milestones.slice(0, 8).map((m) => (
                     <li key={m.week}>
                       <strong>Неделя {m.week}.</strong> {m.note}
@@ -410,7 +410,7 @@ export const BodyAnalysisPage = () => {
             <div className="section-head">
               <h3>Локальные рекомендации</h3>
             </div>
-            <ul className="recommend-list">
+            <ul className="recommend-list recommend-list--plain">
               {localRecommendations.map((item) => (
                 <li key={item}>{item}</li>
               ))}
