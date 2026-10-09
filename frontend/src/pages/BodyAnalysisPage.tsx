@@ -6,6 +6,7 @@ import { bodyApi, recommendationApi, userApi } from '../api/services';
 import { formatApiError } from '../api/errors';
 import { useAuth } from '../context/AuthContext';
 import { computeAgeFromBirthDate } from '../utils/age';
+import { prepareImage } from '../utils/prepare-image';
 import type { BodyAnalysisPageState, BodyForecastResponse } from '../types';
 
 function suggestionContentToDisplay(data: Record<string, unknown> | null): {
@@ -256,25 +257,30 @@ export const BodyAnalysisPage = () => {
   /**
    * Читает выбранный файл и показывает предпросмотр.
    *
-   * Сохранение происходит отдельно, по кнопке «Загрузить / заменить
-   * фото»: пользователь сначала видит, какое фото выбрано, и только
-   * потом подтверждает отправку. Общий путь для диалога и перетаскивания.
+   * Фото сжимается в браузере перед отправкой. Причина: сервер принимает
+   * data URL до 8 МБ, а телефонный снимок 6–10 МБ превращается в base64
+   * примерно на треть больше и не проходит проверку — приходил ответ 400.
+   * Сжатие уменьшает сторону до 1600 px и перекодирует в JPEG.
+   *
+   * Сохранение происходит отдельно, по кнопке: пользователь видит,
+   * какое фото выбрано, и только потом подтверждает отправку.
    */
-  const previewSelectedPhoto = useCallback((file: File | undefined | null) => {
+  const previewSelectedPhoto = useCallback(async (file: File | undefined | null) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      setMessage('Можно загрузить только изображение.');
+      setMessage('Можно загрузить только изображение (JPEG, PNG или WebP).');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') return;
-      setPhotoUrl(reader.result);
+
+    setMessage('');
+    try {
+      const prepared = await prepareImage(file);
+      setPhotoUrl(prepared);
       setDirty(true);
-      // Сообщаем, что файл выбран, но ещё не сохранён.
       setMessage('Фото выбрано. Нажмите «Загрузить / заменить фото», чтобы сохранить.');
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      setMessage('Не удалось прочитать изображение. Попробуйте другой файл.');
+    }
   }, []);
 
   const onFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
