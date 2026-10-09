@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Activity, Apple, BarChart3, Dumbbell, Home, LayoutList, Leaf, LogOut, Menu, MessageCircle, Moon, Refrigerator, Shield, Sparkles, Sun, User, UtensilsCrossed, X } from '../components/icons';
+import { Activity, Apple, BarChart3, Dumbbell, Home, LayoutList, Leaf, Menu, MessageCircle, Refrigerator, Shield, Sparkles, User, UtensilsCrossed, X } from '../components/icons';
 import type { LucideIcon } from '../components/icons';
 import { useAuth } from '../context/AuthContext';
 import { Logo } from '../components/Logo';
@@ -68,12 +68,16 @@ export const AppLayout = () => {
           </div>
         </div>
         <div className="actions">
-          <button type="button" className="ghost-icon theme-toggle" onClick={toggleTheme} title="Тема">
-            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+          >
+            Сменить тему
           </button>
           <span className="user-email-pill">{user?.email}</span>
           <button type="button" className="btn-logout" onClick={logout}>
-            <LogOut size={15} strokeWidth={1.75} aria-hidden />
             Выйти
           </button>
         </div>
