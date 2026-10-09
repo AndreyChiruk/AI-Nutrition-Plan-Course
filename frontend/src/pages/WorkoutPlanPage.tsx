@@ -193,10 +193,23 @@ export const WorkoutPlanPage = () => {
         const blockList = await workoutPlanApi.blocks();
         setAllBlocks(blockList);
         if (loadPlanId) {
-          const plan = await workoutPlanApi.getPlan(user.id, loadPlanId);
+          // План мог быть удалён со страницы «Мои планы тренировок».
+          // Идентификатор при этом остаётся в sessionStorage, и попытка
+          // его открыть давала «Plan not found». Вместо ошибки просто
+          // показываем пустой план.
+          let plan = null;
+          try {
+            plan = await workoutPlanApi.getPlan(user.id, loadPlanId);
+          } catch {
+            sessionStorage.removeItem('workoutPlan:lastOpened');
+          }
           if (plan?.days?.length) {
             applySaved(plan);
             if (plan.id) sessionStorage.setItem('workoutPlan:lastOpened', String(plan.id));
+          } else {
+            setPlanMeta(null);
+            setDays(emptyWorkoutDays(14));
+            setDuration(14);
           }
           return;
         }
@@ -556,7 +569,7 @@ export const WorkoutPlanPage = () => {
         </div>
         <div className="stack-row wrap-actions">
           <button type="button" className="btn-primary" onClick={generateServer}>
-            Сгенерировать из библиотеки и сохранить
+            Сгенерировать из библиотеки
           </button>
           <button type="button" className="btn-secondary" onClick={savePlan}>
             <Save size={16} /> Сохранить в БД

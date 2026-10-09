@@ -36,6 +36,11 @@ export const MyWorkoutPlansPage = () => {
     setMsg('');
     try {
       await workoutPlanApi.deletePlan(user.id, planId);
+      // Убираем ссылку на удалённый план: иначе страница «План тренировок»
+      // попытается открыть его при следующем заходе.
+      if (sessionStorage.getItem('workoutPlan:lastOpened') === String(planId)) {
+        sessionStorage.removeItem('workoutPlan:lastOpened');
+      }
       setMsg('План удалён.');
       await load();
     } catch (err) {
