@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Search, X } from 'lucide-react';
+import { Loader2, Search, X } from '../components/icons';
 import { mealPlanApi } from '../api/services';
 
 /**

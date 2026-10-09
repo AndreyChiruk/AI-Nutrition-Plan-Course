@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle2, Copy, Trash2 } from 'lucide-react';
+import { CheckCircle2, Copy, Trash2 } from '../components/icons';
 import { workoutPlanApi, type WorkoutPlanListItem } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import { formatApiError } from '../api/errors';

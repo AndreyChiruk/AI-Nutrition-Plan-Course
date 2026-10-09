@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CookingPot, Coffee, Salad, Soup } from 'lucide-react';
+import { CookingPot, Coffee, Salad, Soup } from '../components/icons';
 
 /**
  * Миниатюра блюда с запасным SVG-изображением.

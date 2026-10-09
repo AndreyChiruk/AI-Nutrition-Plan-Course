@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Activity, Apple, BarChart3, Dumbbell, Home, LayoutList, Leaf, LogOut, Menu, MessageCircle, Moon, Refrigerator, Shield, Sparkles, Sun, User, UtensilsCrossed, X } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { Activity, Apple, BarChart3, Dumbbell, Home, LayoutList, Leaf, LogOut, Menu, MessageCircle, Moon, Refrigerator, Shield, Sparkles, Sun, User, UtensilsCrossed, X } from '../components/icons';
+import type { LucideIcon } from '../components/icons';
 import { useAuth } from '../context/AuthContext';
 import { Logo } from '../components/Logo';
 

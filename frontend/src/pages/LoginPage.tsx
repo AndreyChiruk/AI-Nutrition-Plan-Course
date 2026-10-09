@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Eye, EyeOff, KeyRound, Lock, Mail, Moon, Sun, User, X } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, Lock, Mail, Moon, Sun, User, X } from '../components/icons';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';

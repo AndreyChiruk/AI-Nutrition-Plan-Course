@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Camera } from 'lucide-react';
+import { Camera } from '../components/icons';
 import { BodySilhouette } from '../components/BodySilhouette';
 import { bodyApi, recommendationApi, userApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';

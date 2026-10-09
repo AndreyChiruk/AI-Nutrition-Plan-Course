@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import type { FormEvent } from 'react';
-import { Camera, Dumbbell, LogOut, Save, Scale, TrendingDown } from 'lucide-react';
+import { Camera, Dumbbell, LogOut, Save, Scale, TrendingDown } from '../components/icons';
 import { userApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import { computeAgeFromBirthDate } from '../utils/age';

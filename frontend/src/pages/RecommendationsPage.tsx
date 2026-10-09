@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Apple, Droplet, Moon } from 'lucide-react';
-import { Brain, ListChecks } from 'lucide-react';
+import { Apple, Droplet, Moon } from '../components/icons';
+import { Brain, ListChecks } from '../components/icons';
 import { recommendationApi, userApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import { computeAgeFromBirthDate } from '../utils/age';

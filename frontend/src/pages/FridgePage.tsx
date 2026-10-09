@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CalendarClock, ImageOff, ImagePlus, Loader2, Package, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CalendarClock, ImageOff, ImagePlus, Loader2, Package, Pencil, Plus, Trash2, X } from '../components/icons';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { mealPlanApi, userApi } from '../api/services';

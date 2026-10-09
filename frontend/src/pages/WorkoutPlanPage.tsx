@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Dumbbell, Download, ListChecks, Save } from 'lucide-react';
+import { Dumbbell, Download, ListChecks, Save } from '../components/icons';
 import html2pdf from 'html2pdf.js';
 import axios from 'axios';
 import {

@@ -1,13 +1,17 @@
 #!/bin/zsh
 # Переключение оформления: обычное (для защиты) ↔ аккуратное (прежнее).
 #
-#   ./toggle-design.sh off   — включить «обычный» вид (текущий)
-#   ./toggle-design.sh on    — вернуть аккуратный вид
+#   ./toggle-design.sh off   — вернуть аккуратный вид
+#   ./toggle-design.sh on    — включить «обычный» вид (текущий)
+#
+# Переключает ДВА независимых слоя:
+#   1. оформление  — frontend/src/styles/plain-theme.css
+#   2. иконки      — флаг PLAIN_ICONS в frontend/src/components/icons.tsx
 #
 # После переключения нужно пересобрать фронтенд: ./rebuild.sh web
 
 FILE="frontend/src/main.tsx"
-MARK="plain-theme"
+ICONS="frontend/src/components/icons.tsx"
 
 if [ ! -f "$FILE" ]; then
   echo "Не найден $FILE — запустите скрипт из корня проекта."
@@ -16,22 +20,26 @@ fi
 
 case "$1" in
   off)
-    # Закомментировать импорт — вернуть прежний вид
     sed -i '' "s|^import './styles/plain-theme';|// import './styles/plain-theme';|" "$FILE"
-    echo "Оформление: АККУРАТНОЕ (прежнее)."
+    sed -i '' 's/^const PLAIN_ICONS = true;/const PLAIN_ICONS = false;/' "$ICONS"
+    echo "Вид: АККУРАТНЫЙ (прежний) — SVG-иконки, шрифт IBM Plex, скругления 4px."
     ;;
   on)
-    # Раскомментировать импорт — включить обычный вид
     sed -i '' "s|^// import './styles/plain-theme';|import './styles/plain-theme';|" "$FILE"
-    echo "Оформление: ОБЫЧНОЕ."
+    sed -i '' 's/^const PLAIN_ICONS = false;/const PLAIN_ICONS = true;/' "$ICONS"
+    echo "Вид: ОБЫЧНЫЙ — текстовые символы вместо иконок, Arial, прямые углы."
     ;;
   *)
     echo "Использование: ./toggle-design.sh on|off"
     echo
-    if grep -q "^import './styles/plain-theme';" "$FILE"; then
-      echo "Текущее состояние: ОБЫЧНОЕ"
+    th=$(grep -c "^import './styles/plain-theme';" "$FILE")
+    ic=$(grep -c "^const PLAIN_ICONS = true;" "$ICONS")
+    if [ "$th" -gt 0 ] && [ "$ic" -gt 0 ]; then
+      echo "Текущее состояние: ОБЫЧНОЕ (оформление + символы)"
+    elif [ "$th" -eq 0 ] && [ "$ic" -eq 0 ]; then
+      echo "Текущее состояние: АККУРАТНОЕ (прежнее)"
     else
-      echo "Текущее состояние: АККУРАТНОЕ"
+      echo "ВНИМАНИЕ: слои рассинхронизированы — запустите 'on' или 'off'"
     fi
     exit 0
     ;;

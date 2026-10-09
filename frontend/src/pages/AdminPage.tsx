@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { adminApi } from '../api/services';
-import { BarChart3, Check, Pencil, Plus, Salad, ShieldAlert, Trash2, Users2, UtensilsCrossed, Wallet, X, XCircle } from 'lucide-react';
+import { BarChart3, Check, Pencil, Plus, Salad, ShieldAlert, Trash2, Users2, UtensilsCrossed, Wallet, X, XCircle } from '../components/icons';
 import { formatApiError } from '../api/errors';
 import { DishThumb } from '../components/DishThumb';
 import { CalorieValue, MacroRow } from '../components/MacroRow';

@@ -10,7 +10,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { AlertTriangle, Brain, ChefHat, ClipboardList, Download, Lock, Save, ShoppingBasket, Check } from 'lucide-react';
+import { AlertTriangle, Brain, ChefHat, ClipboardList, Download, Lock, Save, ShoppingBasket, Check } from '../components/icons';
 import html2pdf from 'html2pdf.js';
 import { isAxiosError } from 'axios';
 import {

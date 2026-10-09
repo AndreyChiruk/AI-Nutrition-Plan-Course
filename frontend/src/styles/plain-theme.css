@@ -172,3 +172,24 @@ h3 { font-size: 1rem !important; }
 .logo-icon svg {
   display: inline-block !important;
 }
+
+/* ── 7. Текстовые символы вместо SVG-иконок ───────────────────
+   В обычном режиме иконки подменяются символами (см. components/icons.tsx).
+   Оформляем их как служебные знаки: без сглаживания и с обычным шрифтом. */
+.icon-glyph {
+  display: inline-block;
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-weight: normal;
+  color: inherit;
+  opacity: 0.85;
+  vertical-align: baseline;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* Крестики и галочки в кнопках не должны менять высоту строки. */
+button .icon-glyph,
+.btn-primary .icon-glyph,
+.btn-secondary .icon-glyph {
+  margin-right: 4px;
+}

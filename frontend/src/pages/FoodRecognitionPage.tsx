@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { useRef, useState } from 'react';
-import { AlertTriangle, Camera, Save, UtensilsCrossed } from 'lucide-react';
+import { AlertTriangle, Camera, Save, UtensilsCrossed } from '../components/icons';
 import { foodRecognitionApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import type { FoodPreviewResponse } from '../types';

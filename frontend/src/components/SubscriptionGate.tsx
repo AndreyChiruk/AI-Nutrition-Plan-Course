@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Lock } from 'lucide-react';
+import { Lock } from '../components/icons';
 import { useSubscription } from '../hooks/useSubscription';
 
 /**

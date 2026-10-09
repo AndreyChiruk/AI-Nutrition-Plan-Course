@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertCircle, Check, CreditCard, Loader2, Settings } from 'lucide-react';
+import { AlertCircle, Check, CreditCard, Loader2, Settings } from '../components/icons';
 import { useSubscription } from '../hooks/useSubscription';
 
 /**

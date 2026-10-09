@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Activity, Apple, Dumbbell, Target, Utensils } from 'lucide-react';
+import { Activity, Apple, Dumbbell, Target, Utensils } from '../components/icons';
 import {
   CartesianGrid,
   Legend,
