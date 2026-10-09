@@ -1665,7 +1665,6 @@ export const MealPlanPage = () => {
       <div className="profile-premium plan-surface">
       <section className="card section-card">
         <div className="section-head">
-          <ChefHat size={18} />
           <h3>План питания</h3>
         </div>
         {openPlanMeta && openPlanMeta.status !== 'active' ? (

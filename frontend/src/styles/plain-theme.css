@@ -1,0 +1,174 @@
+/* ============================================================
+   «Обычный» вариант оформления — переопределения поверх основной темы.
+
+   Подключается ОДНОЙ строкой (см. src/styles/plain-theme.ts).
+   Чтобы вернуть прежний вид — закомментировать импорт и пересобрать
+   web: ./rebuild.sh web
+
+   Задача этого файла — сделать интерфейс проще и «тише»: крупнее
+   шрифт с меньшим трекингом, почти прямые углы, без иконок и
+   декоративных мелочей. Всё это только переопределения: базовые
+   стили не меняются, поэтому откат безопасен.
+   ============================================================ */
+
+/* ── 1. Шрифт: системный вместо IBM Plex ───────────────────────
+   IBM Plex выдаёт аккуратную типографику, которую обычно получают
+   подбором. Системный шрифт выглядит как «по умолчанию» — так и
+   должно быть в студенческой работе. */
+:root {
+  --font-sans: Arial, 'Helvetica Neue', Helvetica, sans-serif !important;
+  --font-serif: Georgia, 'Times New Roman', Times, serif !important;
+  --font-mono: 'Courier New', Courier, monospace !important;
+
+  /* ── 2. Углы: почти прямые ──────────────────────────────────
+     Было 3-4px и «таблетки». Ставим 2px, у полей — 1px. */
+  --radius-sm: 2px !important;
+  --radius-md: 2px !important;
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important;
+}
+
+/* Заголовки без изысков: обычный Arial, жирный, без трекинга. */
+h1, h2, h3, h4, h5, h6 {
+  font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif !important;
+  font-weight: bold !important;
+  letter-spacing: normal !important;
+}
+
+/* ── 3. Радиусы: везде 2px, у полей 1px ─────────────────────── */
+.card,
+button,
+.section-card,
+.section-tile,
+.dish-sample,
+.step-card,
+.metric-strip,
+.dashboard-metrics,
+.pref-suggest,
+.pref-chip,
+.meal-row,
+.meal-cards,
+.fridge-item,
+.product-image,
+.subscription-gate,
+.restriction-warning,
+.dish-thumb-fill,
+.catalog-dish-thumb,
+.dish-thumb-fallback {
+  border-radius: 2px !important;
+}
+
+input,
+select,
+textarea,
+.input-icon {
+  border-radius: 1px !important;
+}
+
+/* Таблетки-метки тоже делаем угловатыми. */
+.badge,
+.silhouette-dot,
+.subscription-badge,
+.zone-chip,
+.avatar,
+.pref-suggest-item,
+.nav-item,
+.login-art-dots button {
+  border-radius: 2px !important;
+}
+
+/* Круглые точки легенды оставляем круглыми — иначе они не читаются. */
+.silhouette-dot,
+.body-zone-dot {
+  border-radius: 50% !important;
+}
+
+/* ── 4. Тени и переходы: убираем «гладкость» ──────────────────
+   Плавные анимации и мягкие тени — примета аккуратной вёрстки.
+   Оставляем минимум. */
+* {
+  transition: none !important;
+  animation: none !important;
+}
+
+.card,
+.section-tile,
+.dish-sample,
+.step-card,
+.metric-strip,
+.dashboard-metrics {
+  box-shadow: none !important;
+}
+
+/* ── 5. Отступы: чуть плотнее и неровнее ────────────────────── */
+.dashboard-block-title,
+.section-head h3 {
+  font-size: 1rem !important;
+}
+
+.dashboard {
+  gap: 20px !important;
+}
+
+.section-grid,
+.steps-grid,
+.dish-sample-grid {
+  gap: 6px !important;
+}
+
+h1 { font-size: 1.6rem !important; }
+h2 { font-size: 1.25rem !important; }
+h3 { font-size: 1rem !important; }
+
+.lead {
+  font-size: 0.95rem !important;
+  line-height: 1.45 !important;
+}
+
+/* ── 6. Иконки: скрываем декоративные ─────────────────────────
+   Иконки в кнопках, заголовках и плитках убираем. Стрелки и
+   служебные значки внутри полей ввода оставляем — без них
+   непонятно назначение поля. */
+.btn-primary svg,
+.btn-secondary svg,
+.btn-link-outline svg,
+.btn-logout svg,
+.section-head > svg,
+.section-head h3 svg,
+.brand svg,
+.step-card svg,
+.dish-sample-icon,
+.section-tile-head svg,
+.section-tile-more svg,
+.fridge-add-head svg,
+.dashboard-block svg,
+.card h3 > svg {
+  display: none !important;
+}
+
+/* Освободившееся место убираем, иначе останутся пустые отступы. */
+.section-head,
+.section-tile-head,
+.fridge-add-head,
+.dashboard-block-title {
+  gap: 0 !important;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-link-outline,
+.btn-logout {
+  gap: 0 !important;
+}
+
+/* Логотип оставляем: без него шапка выглядит пустой. */
+.logo-mark svg,
+.logo-icon svg {
+  display: inline-block !important;
+}

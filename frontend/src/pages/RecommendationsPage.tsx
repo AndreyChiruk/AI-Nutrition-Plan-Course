@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Droplet, Moon, Apple } from 'lucide-react';
-import { Brain, ListChecks, Sparkles } from 'lucide-react';
+import { Apple, Droplet, Moon } from 'lucide-react';
+import { Brain, ListChecks } from 'lucide-react';
 import { recommendationApi, userApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import { computeAgeFromBirthDate } from '../utils/age';
@@ -116,7 +116,6 @@ export const RecommendationsPage = () => {
     <div className="profile-premium">
       <section className="card section-card">
         <div className="section-head">
-          <Sparkles size={18} />
           <h3>Рекомендации</h3>
         </div>
 

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { MessageSquare } from 'lucide-react';
 import { chatApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import type { ChatMessage } from '../types';
@@ -50,7 +49,6 @@ export const ChatPage = () => {
     <div className="profile-premium">
       <section className="card section-card stack">
         <div className="section-head">
-          <MessageSquare size={18} />
           <h3>AI-чат ассистент</h3>
         </div>
         <p className="muted">

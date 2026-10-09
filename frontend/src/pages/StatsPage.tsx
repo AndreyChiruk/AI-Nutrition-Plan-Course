@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Activity, Apple, Dumbbell, Scale, Target, Utensils } from 'lucide-react';
+import { Activity, Apple, Dumbbell, Target, Utensils } from 'lucide-react';
 import {
   CartesianGrid,
   Legend,
@@ -100,7 +100,6 @@ export const StatsPage = () => {
       <section className="grid two-cols-chart">
         <div className="card section-card chart-card">
           <div className="section-head">
-            <Scale size={18} />
             <h3>Вес, кг</h3>
           </div>
           {bodyChartData.length === 0 ? (
@@ -140,7 +139,6 @@ export const StatsPage = () => {
 
         <div className="card section-card chart-card">
           <div className="section-head">
-            <Activity size={18} />
             <h3>ИМТ</h3>
           </div>
           {bodyChartData.length === 0 ? (

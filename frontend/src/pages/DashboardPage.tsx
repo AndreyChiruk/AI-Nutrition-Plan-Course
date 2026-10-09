@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import {
   Activity,
   Apple,
-  ArrowRight,
   Dumbbell,
   LineChart,
   Refrigerator,
@@ -143,9 +142,6 @@ export const DashboardPage = () => {
               <span className="section-tile-title">{title}</span>
             </span>
             <span className="section-tile-text">{text}</span>
-            <span className="section-tile-more">
-              Перейти <ArrowRight size={13} aria-hidden />
-            </span>
           </Link>
         ))}
       </section>

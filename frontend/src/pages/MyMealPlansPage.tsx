@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Copy, Trash2, FolderOpen } from 'lucide-react';
+import { AlertTriangle, Copy, Trash2 } from 'lucide-react';
 import { mealPlanApi, type MealPlanSummary } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import { formatApiError } from '../api/errors';
@@ -100,7 +100,6 @@ export const MyMealPlansPage = () => {
     <div className="profile-premium">
       <section className="card section-card">
         <div className="section-head">
-          <FolderOpen size={18} />
           <h3>Мои планы питания</h3>
         </div>
         <p className="muted small">

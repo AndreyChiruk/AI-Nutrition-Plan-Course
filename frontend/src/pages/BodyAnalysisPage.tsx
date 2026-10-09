@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Camera, Sparkles, UploadCloud, Activity } from 'lucide-react';
+import { Camera } from 'lucide-react';
 import { BodySilhouette } from '../components/BodySilhouette';
 import { bodyApi, recommendationApi, userApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
@@ -221,7 +221,6 @@ export const BodyAnalysisPage = () => {
         <aside className="left-col">
           <section className="card section-card">
             <div className="section-head">
-              <UploadCloud size={18} />
               <h3>Фото фигуры</h3>
             </div>
             <div
@@ -265,7 +264,6 @@ export const BodyAnalysisPage = () => {
 
           <section className="card section-card">
             <div className="section-head">
-              <Sparkles size={18} />
               <h3>Показатели</h3>
             </div>
             {/* Компактные метрики: значения моноширинным шрифтом,
@@ -302,7 +300,6 @@ export const BodyAnalysisPage = () => {
           {latestBodyAiNotes ? (
             <section className="card section-card">
               <div className="section-head">
-                <Sparkles size={18} />
                 <h3>Краткий разбор текущего телосложения</h3>
               </div>
               <p className="muted small" style={{ marginBottom: 8 }}>
@@ -318,7 +315,6 @@ export const BodyAnalysisPage = () => {
         <section className="right-col">
           <section className="card section-card">
             <div className="section-head">
-              <Activity size={18} />
               <h3>Карта тела</h3>
             </div>
             <p className="muted small">
@@ -340,7 +336,6 @@ export const BodyAnalysisPage = () => {
 
           <section className="card section-card">
             <div className="section-head">
-              <Sparkles size={18} />
               <h3>Прогноз фигуры на срок</h3>
             </div>
             <p className="muted small">
@@ -413,7 +408,6 @@ export const BodyAnalysisPage = () => {
 
           <section className="card section-card">
             <div className="section-head">
-              <Sparkles size={18} />
               <h3>Локальные рекомендации</h3>
             </div>
             <ul className="recommend-list">

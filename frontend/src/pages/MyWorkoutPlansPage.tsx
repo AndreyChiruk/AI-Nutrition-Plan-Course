@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle2, Copy, FolderOpen, Trash2 } from 'lucide-react';
+import { CheckCircle2, Copy, Trash2 } from 'lucide-react';
 import { workoutPlanApi, type WorkoutPlanListItem } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import { formatApiError } from '../api/errors';
@@ -73,7 +73,6 @@ export const MyWorkoutPlansPage = () => {
     <div className="profile-premium">
       <section className="card section-card">
         <div className="section-head">
-          <FolderOpen size={18} />
           <h3>Мои планы тренировок</h3>
         </div>
         <p className="muted small">

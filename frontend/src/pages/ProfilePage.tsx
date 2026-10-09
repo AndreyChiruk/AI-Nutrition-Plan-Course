@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import type { FormEvent } from 'react';
-import { Camera, CircleUserRound, Dumbbell, LogOut, Mail, Save, Scale, ShieldAlert, Target, TrendingDown, UserPen } from 'lucide-react';
+import { Camera, Dumbbell, LogOut, Save, Scale, TrendingDown } from 'lucide-react';
 import { userApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import { computeAgeFromBirthDate } from '../utils/age';
@@ -281,7 +281,6 @@ export const ProfilePage = () => {
         <aside className="left-col">
           <section className="card section-card profile-avatar-card">
             <div className="section-head">
-              <CircleUserRound size={18} />
               <h3>Профиль</h3>
             </div>
             <div className="avatar-wrap">
@@ -304,7 +303,6 @@ export const ProfilePage = () => {
 
           <section className="card section-card">
             <div className="section-head">
-              <Dumbbell size={18} />
               <h3>Краткая статистика</h3>
             </div>
             <div className="stats-grid">
@@ -333,7 +331,6 @@ export const ProfilePage = () => {
         <section className="right-col">
           <section className="card section-card">
             <div className="section-head">
-              <UserPen size={18} />
               <h3>Личная информация</h3>
             </div>
             <div className="form-grid">
@@ -396,7 +393,6 @@ export const ProfilePage = () => {
 
           <section className="card section-card">
             <div className="section-head">
-              <Target size={18} />
               <h3>Цель и план питания</h3>
             </div>
             <div className="goal-cards">
@@ -457,7 +453,6 @@ export const ProfilePage = () => {
 
           <section className="card section-card">
             <div className="section-head">
-              <ShieldAlert size={18} />
               <h3>Аллергии и ограничения</h3>
             </div>
             <div className="profile-restrictions-summary" aria-live="polite">
@@ -536,7 +531,6 @@ export const ProfilePage = () => {
 
           <section className="card section-card">
             <div className="section-head">
-              <Target size={18} />
               <h3>Продукты пользователя</h3>
             </div>
             <p className="muted small">
@@ -552,7 +546,6 @@ export const ProfilePage = () => {
 
           <section className="card section-card">
             <div className="section-head">
-              <Mail size={18} />
               <h3>Действия</h3>
             </div>
             {validationError ? <p className="error">{validationError}</p> : null}

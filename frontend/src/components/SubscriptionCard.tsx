@@ -72,7 +72,6 @@ export function SubscriptionCard() {
     return (
       <section className="card section-card">
         <div className="section-head">
-          <CreditCard size={18} />
           <h3>Подписка</h3>
         </div>
         <p className="muted small">
@@ -87,7 +86,6 @@ export function SubscriptionCard() {
   return (
     <section className="card section-card">
       <div className="section-head">
-        <CreditCard size={18} />
         <h3>Подписка</h3>
         <span className={`subscription-badge is-${tone}`}>{STATUS_LABEL[status] ?? status}</span>
       </div>
