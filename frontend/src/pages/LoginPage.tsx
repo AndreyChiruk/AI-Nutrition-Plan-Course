@@ -6,7 +6,6 @@ import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import type { EmailCodePurpose } from '../types';
-import { Logo } from '../components/Logo';
 
 /**
  * Тексты для левой панели входа.
@@ -22,22 +21,40 @@ import { Logo } from '../components/Logo';
  */
 const LOGIN_ART_SLIDES = [
   {
+    url: 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=1200&q=75',
     title: 'План питания',
     caption: 'Расчёт КБЖУ по составу блюд, а не по приблизительным оценкам',
   },
   {
+    url: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1200&q=75',
     title: 'Анализ тела',
     caption: 'Замеры по зонам с подсказками и прогноз изменения фигуры',
   },
   {
+    url: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=1200&q=75',
     title: 'Свой холодильник',
     caption: 'Продукты группируются по категориям, видно что докупить',
   },
   {
+    url: 'https://images.unsplash.com/photo-1466637574441-749b8f19452f?auto=format&fit=crop&w=1200&q=75',
     title: 'Готовые рецепты',
     caption: 'Свыше семисот блюд с полным составом и аллергенами',
   },
 ] as const;
+
+/**
+ * Фон слайда: фотография с затемняющей подложкой.
+ *
+ * Затемнение нужно, чтобы белый текст и номер раздела читались
+ * на любом снимке. В тёмной теме оно сильнее.
+ */
+function slideBackground(theme: 'dark' | 'light', url: string): string {
+  const overlay =
+    theme === 'dark'
+      ? 'linear-gradient(rgba(28, 26, 24, 0.45), rgba(28, 26, 24, 0.88))'
+      : 'linear-gradient(rgba(28, 26, 24, 0.15), rgba(28, 26, 24, 0.68))';
+  return `${overlay}, url(${url})`;
+}
 
 const SLIDE_INTERVAL_MS = 8500;
 
@@ -260,8 +277,14 @@ export const LoginPage = () => {
         </button>
       </div>
       <div className="login-art" aria-hidden="true">
-        {/* Типографическая панель вместо фотографий:
-            крупный номер раздела, заголовок Plex Serif и короткий тезис. */}
+        {/* Фотографии-слайды: сменяются автоматически, точки переключают вручную. */}
+        {LOGIN_ART_SLIDES.map((slide, i) => (
+          <div
+            key={slide.url}
+            className={`login-art-slide ${imageIndex === i ? 'is-visible' : ''}`}
+            style={{ backgroundImage: slideBackground(theme, slide.url) }}
+          />
+        ))}
         <div className="login-art-body">
           <span className="login-art-index mono">
             {String(imageIndex + 1).padStart(2, '0')}
@@ -296,10 +319,6 @@ export const LoginPage = () => {
           <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>
             Регистрация
           </button>
-        </div>
-
-        <div className="login-logo">
-          <Logo variant="icon" size={44} />
         </div>
         <h2>{mode === 'login' ? 'Добро пожаловать!' : 'Создать аккаунт'}</h2>
         <p className="muted">Начни свой путь к здоровому питанию</p>

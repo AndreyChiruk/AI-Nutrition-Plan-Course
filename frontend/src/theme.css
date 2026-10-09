@@ -1629,8 +1629,22 @@ html[data-theme='dark'] .chat-item.user {
   contain: layout style paint;
 }
 
-/* Левая панель входа: типографика вместо фотографий.
-   Крупный номер раздела, заголовок Plex Serif и короткий тезис. */
+/* Слайды-фотографии: лежат друг под другом и проявляются по очереди. */
+.login-art-slide {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.login-art-slide.is-visible {
+  opacity: 1;
+}
+
+/* Левая панель входа: поверх фото — номер раздела,
+   заголовок Plex Serif и короткий тезис. */
 .login-art-body {
   position: absolute;
   inset: 0;
@@ -1646,7 +1660,7 @@ html[data-theme='dark'] .chat-item.user {
   font-size: 0.82rem;
   font-weight: 500;
   letter-spacing: 0.08em;
-  opacity: 0.55;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .login-art-index-sep {
@@ -1661,7 +1675,9 @@ html[data-theme='dark'] .chat-item.user {
   font-weight: 600;
   letter-spacing: -0.025em;
   line-height: 1.12;
-  color: var(--text);
+  /* Поверх фотографии текст всегда светлый: тёмный в светлой теме
+     сливался бы со снимком. */
+  color: #FFFFFF;
   animation: loginCaptionIn 0.5s ease-out both;
 }
 
@@ -1671,7 +1687,7 @@ html[data-theme='dark'] .chat-item.user {
   font-size: 0.95rem;
   font-weight: 400;
   line-height: 1.45;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.9);
   animation: loginCaptionIn 0.6s ease-out both;
 }
 
@@ -1778,11 +1794,12 @@ html[data-theme='dark'] .constraint-badge-missing {
 }
 
 html[data-theme='light'] .login-art-dots button {
-  background: rgba(42, 39, 36, 0.15);
+  /* Поверх фото — светлые точки: тёмные на снимке не видны. */
+  background: rgba(255, 255, 255, 0.42);
 }
 
 html[data-theme='light'] .login-art-dots button:hover {
-  background: rgba(42, 39, 36, 0.28);
+  background: rgba(255, 255, 255, 0.68);
 }
 
 @media (prefers-reduced-motion: reduce) {
