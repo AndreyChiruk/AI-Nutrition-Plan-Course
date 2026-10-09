@@ -314,3 +314,30 @@ button,
 .dish-sample {
   transition-property: background, color, border-color !important;
 }
+
+/* ── 14. Поле ввода в чате ────────────────────────────────────
+   Поле было в одну строку с кнопкой и низкое — длинный вопрос
+   в нём не виден. Делаем выше и на всю ширину, кнопку переносим
+   под поле. */
+.chat-form {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+}
+
+.chat-form textarea {
+  width: 100% !important;
+  min-height: 96px !important;      /* было поле в одну строку ~36px */
+  max-height: 320px;
+  padding: 10px 12px !important;
+  font-size: 0.95rem !important;
+  line-height: 1.45 !important;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.chat-form button[type='submit'] {
+  align-self: flex-end !important;
+  min-width: 140px;
+}

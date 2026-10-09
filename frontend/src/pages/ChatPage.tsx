@@ -71,12 +71,21 @@ export const ChatPage = () => {
           )}
         </div>
 
-        <form onSubmit={onSubmit} className="stack-row">
-          <input
+        <form onSubmit={onSubmit} className="chat-form">
+          <textarea
             aria-label="Сообщение в чат"
             placeholder="Введите вопрос по питанию"
             value={message}
+            rows={4}
             onChange={(event) => setMessage(event.target.value)}
+            onKeyDown={(event) => {
+              // Enter отправляет, Shift+Enter переносит строку —
+              // привычное поведение для чата.
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
           />
           <button type="submit" disabled={sending}>
             {sending ? 'Отправка...' : 'Отправить'}
