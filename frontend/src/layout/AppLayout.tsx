@@ -56,12 +56,14 @@ export const AppLayout = () => {
         <div className="topbar-left">
           <button
             type="button"
-            className="nav-burger ghost-icon"
+            className="nav-burger btn-link-outline"
             aria-expanded={navOpen}
             aria-controls="app-sidebar"
+            aria-label={navOpen ? 'Закрыть меню' : 'Открыть меню'}
             onClick={() => setNavOpen((v) => !v)}
           >
-            {navOpen ? <X size={22} /> : <Menu size={22} />}
+            {navOpen ? <X size={20} /> : <Menu size={20} />}
+            {navOpen ? 'Закрыть' : 'Меню'}
           </button>
           <div className="brand">
             <Logo variant="full" size={26} />

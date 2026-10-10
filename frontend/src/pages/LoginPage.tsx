@@ -404,8 +404,14 @@ export const LoginPage = () => {
                 required
                 minLength={6}
               />
-              <button type="button" className="ghost-icon" onClick={() => setShowPassword((prev) => !prev)}>
+              <button
+                type="button"
+                className="btn-link-outline password-toggle"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+              >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                {showPassword ? 'Скрыть' : 'Показать'}
               </button>
             </label>
           ) : null}
@@ -463,8 +469,14 @@ export const LoginPage = () => {
                   placeholder="Пароль"
                   type={showPassword ? 'text' : 'password'}
                 />
-                <button type="button" className="ghost-icon" onClick={() => setShowPassword((prev) => !prev)}>
+                <button
+                  type="button"
+                  className="btn-link-outline password-toggle"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPassword ? 'Скрыть' : 'Показать'}
                 </button>
               </label>
               <label className="input-icon">
@@ -521,14 +533,14 @@ export const LoginPage = () => {
               <h3 id="reset-title">Восстановление пароля</h3>
               <button
                 type="button"
-                className="ghost-icon"
-                aria-label="Закрыть"
+                className="btn-link-outline"
+                aria-label="Закрыть окно восстановления пароля"
                 onClick={() => {
                   setResetModalOpen(false);
                   setResetError('');
                 }}
               >
-                <X size={20} />
+                <X size={20} /> Закрыть
               </button>
             </div>
             <p className="muted small">
