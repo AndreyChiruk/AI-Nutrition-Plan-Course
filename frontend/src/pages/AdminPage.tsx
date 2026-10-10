@@ -388,6 +388,10 @@ export const AdminPage = () => {
         fetchedAt: billing.fetchedAt as string | undefined,
         apiKeyConfigured: billing.apiKeyConfigured as boolean | undefined,
         costs7d: billing.costs7d as BillingCostsState['costs7d'],
+        // Данные OpenRouter нужно перенести в состояние: без этой строки
+        // панель всегда показывала старый блок «organization costs»,
+        // хотя сервер уже отдавал фактические расходы.
+        openRouter: billing.openRouter as BillingCostsState['openRouter'],
       });
       setBillingRefreshError('');
     } catch {
