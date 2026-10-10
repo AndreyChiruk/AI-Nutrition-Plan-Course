@@ -763,7 +763,9 @@ export const AdminPage = () => {
 
   return (
     <div className="profile-premium">
-      <div className="profile-grid">
+      {/* В админке блоки идут одной колонкой: таблицы и панели шире,
+          в две колонки содержимое сжималось. */}
+      <div className="profile-grid profile-grid--single">
         <aside className="left-col">
           <div className="card section-card stack">
             <button type="button" onClick={() => setSection('dashboard')}>
