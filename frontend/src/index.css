@@ -2754,7 +2754,7 @@ html[data-theme='light'] .h1-home {
 }
 
 html[data-theme='dark'] .h1-home {
-  color: #F5F0E8 !important;
+  color: var(--charcoal) !important;
 }
 
 .dashboard-intro .lead {

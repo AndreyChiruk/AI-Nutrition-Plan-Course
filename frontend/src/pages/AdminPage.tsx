@@ -84,6 +84,16 @@ type BillingCostsState = {
     bucketCount?: number;
     message?: string;
   };
+  /** Фактические расходы в OpenRouter: списания по ключу. */
+  openRouter?: {
+    totalUsageUsd: number;
+    totalCreditsUsd: number | null;
+    remainingUsd: number | null;
+    keyLimitUsd: number | null;
+    keyLimitRemainingUsd: number | null;
+    keyLabel: string | null;
+    error?: string;
+  } | null;
 };
 
 function fmtUsd(n?: number) {
@@ -810,14 +820,6 @@ export const AdminPage = () => {
                 </div>
                 {!billingCosts ? (
                   <p className="muted small">Не удалось загрузить данные о расходах.</p>
-                ) : !billingCosts.apiKeyConfigured ? (
-                  <p className="muted small">
-                    Расходы видны в личном кабинете{' '}
-                    <a href="https://openrouter.ai/activity" target="_blank" rel="noreferrer">
-                      openrouter.ai
-                    </a>
-                    . Здесь показывается только локальный учёт токенов.
-                  </p>
                 ) : (
                   <>
                     <p className="muted small admin-openai-updated">
@@ -832,17 +834,83 @@ export const AdminPage = () => {
                         {billingRefreshError}
                       </p>
                     ) : null}
-                    <div className="admin-openai-grid admin-openai-grid-single">
-                      <div className="admin-openai-item">
-                        <div className="openai-label">Затраты ~7 дней (organization costs)</div>
-                        <p className="openai-value">{fmtUsd(billingCosts.costs7d?.totalUsdApprox)}</p>
-                        <p className="openai-hint">
-                          {billingCosts.costs7d?.ok === false
-                            ? billingCosts.costs7d?.message
-                            : `Бакетов дней: ${billingCosts.costs7d?.bucketCount ?? '—'}`}
+
+                    {billingCosts.openRouter ? (
+                      billingCosts.openRouter.error ? (
+                        <p className="error small admin-openai-alert" role="alert">
+                          {billingCosts.openRouter.error}. Проверьте ключ и подключение к сети.
                         </p>
+                      ) : (
+                        <>
+                          {/* Основной показатель: фактические списания OpenRouter. */}
+                          <div className="admin-openai-grid">
+                            <div className="admin-openai-item">
+                              <div className="openai-label">Потрачено всего</div>
+                              <p className="openai-value">
+                                {fmtUsd(billingCosts.openRouter.totalUsageUsd)}
+                              </p>
+                              <p className="openai-hint">Списания по ключу OpenRouter</p>
+                            </div>
+                            <div className="admin-openai-item">
+                              <div className="openai-label">Остаток средств</div>
+                              <p className="openai-value">
+                                {fmtUsd(
+                                  billingCosts.openRouter.remainingUsd ??
+                                    billingCosts.openRouter.keyLimitRemainingUsd ??
+                                    undefined,
+                                )}
+                              </p>
+                              <p className="openai-hint">
+                                {billingCosts.openRouter.totalCreditsUsd != null
+                                  ? `Пополнено ${fmtUsd(billingCosts.openRouter.totalCreditsUsd)}`
+                                  : 'Пополнения не заданы'}
+                              </p>
+                            </div>
+                            <div className="admin-openai-item">
+                              <div className="openai-label">Лимит ключа</div>
+                              <p className="openai-value">
+                                {fmtUsd(billingCosts.openRouter.keyLimitUsd ?? undefined)}
+                              </p>
+                              <p className="openai-hint">
+                                {billingCosts.openRouter.keyLabel
+                                  ? `Ключ ${billingCosts.openRouter.keyLabel}`
+                                  : 'Ключ без лимита'}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="muted small" style={{ marginTop: 10 }}>
+                            Подробная история операций —{' '}
+                            <a
+                              href="https://openrouter.ai/activity"
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              openrouter.ai/activity
+                            </a>
+                            .
+                          </p>
+                        </>
+                      )
+                    ) : !billingCosts.apiKeyConfigured ? (
+                      <p className="muted small">
+                        Ключ AI не настроен. Расходы появятся после добавления
+                        ключа в настройках сервера.
+                      </p>
+                    ) : (
+                      <div className="admin-openai-grid admin-openai-grid-single">
+                        <div className="admin-openai-item">
+                          <div className="openai-label">Затраты ~7 дней (organization costs)</div>
+                          <p className="openai-value">
+                            {fmtUsd(billingCosts.costs7d?.totalUsdApprox)}
+                          </p>
+                          <p className="openai-hint">
+                            {billingCosts.costs7d?.ok === false
+                              ? billingCosts.costs7d?.message
+                              : `Бакетов дней: ${billingCosts.costs7d?.bucketCount ?? '—'}`}
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </>
                 )}
               </div>

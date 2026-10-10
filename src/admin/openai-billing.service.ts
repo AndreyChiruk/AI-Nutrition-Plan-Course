@@ -17,6 +17,31 @@ export type OpenAiBillingSnapshot = {
    * работает всегда и разбита по операциям.
    */
   localUsage?: ReturnType<OpenAiUsageService['summary']>;
+  /**
+   * Расходы в OpenRouter: реальные списания по ключу.
+   *
+   * Данные берутся из `/api/v1/credits` (общий расход и пополнения)
+   * и `/api/v1/key` (лимит ключа). Это фактическая сумма, списанная
+   * провайдером, а не оценка по токенам.
+   */
+  openRouter?: OpenRouterBilling | null;
+};
+
+/** Состояние средств в OpenRouter. */
+export type OpenRouterBilling = {
+  /** Сколько всего израсходовано, USD. */
+  totalUsageUsd: number;
+  /** Всего пополнено, USD. */
+  totalCreditsUsd: number | null;
+  /** Остаток на счете, USD. */
+  remainingUsd: number | null;
+  /** Лимит ключа, если задан. */
+  keyLimitUsd: number | null;
+  /** Остаток лимита ключа. */
+  keyLimitRemainingUsd: number | null;
+  /** Метка ключа — по ней видно, какой именно ключ используется. */
+  keyLabel: string | null;
+  error?: string;
 };
 
 type BillingSection = {
@@ -47,15 +72,97 @@ export class OpenAiBillingService {
     return h;
   }
 
+  /**
+   * Запрашивает расходы в OpenRouter.
+   *
+   * Ошибка сети или неверный ключ не должны ломать панель: в этом
+   * случае возвращаем объект с текстом ошибки, а интерфейс показывает
+   * его вместо сумм.
+   */
+  private async fetchOpenRouterBilling(apiKey: string): Promise<OpenRouterBilling> {
+    const headers = { Authorization: `Bearer ${apiKey}` };
+    const timeout = AbortSignal.timeout(15_000);
+
+    try {
+      const [creditsRes, keyRes] = await Promise.all([
+        fetch('https://openrouter.ai/api/v1/credits', { headers, signal: timeout }),
+        fetch('https://openrouter.ai/api/v1/key', { headers, signal: timeout }),
+      ]);
+
+      if (!creditsRes.ok) {
+        return {
+          totalUsageUsd: 0,
+          totalCreditsUsd: null,
+          remainingUsd: null,
+          keyLimitUsd: null,
+          keyLimitRemainingUsd: null,
+          keyLabel: null,
+          error: `OpenRouter вернул ${creditsRes.status}`,
+        };
+      }
+
+      const credits = (await creditsRes.json()) as {
+        data?: { total_credits?: number; total_usage?: number };
+      };
+      const key = keyRes.ok
+        ? ((await keyRes.json()) as {
+            data?: {
+              label?: string;
+              usage?: number;
+              limit?: number | null;
+              limit_remaining?: number | null;
+            };
+          })
+        : {};
+
+      const totalUsage = Number(credits.data?.total_usage ?? 0);
+      const totalCredits =
+        credits.data?.total_credits != null ? Number(credits.data.total_credits) : null;
+      const keyData = key.data ?? {};
+
+      return {
+        totalUsageUsd: totalUsage,
+        totalCreditsUsd: totalCredits,
+        // Остаток считаем от пополнений; если их не было — null.
+        remainingUsd: totalCredits != null ? Math.max(0, totalCredits - totalUsage) : null,
+        keyLimitUsd: keyData.limit != null ? Number(keyData.limit) : null,
+        keyLimitRemainingUsd:
+          keyData.limit_remaining != null ? Number(keyData.limit_remaining) : null,
+        keyLabel: keyData.label ?? null,
+      };
+    } catch (e) {
+      this.logger.warn(`Не удалось получить расходы OpenRouter: ${String(e)}`);
+      return {
+        totalUsageUsd: 0,
+        totalCreditsUsd: null,
+        remainingUsd: null,
+        keyLimitUsd: null,
+        keyLimitRemainingUsd: null,
+        keyLabel: null,
+        error: 'Сервис OpenRouter недоступен',
+      };
+    }
+  }
+
   async getSnapshot(): Promise<OpenAiBillingSnapshot> {
     const fetchedAt = new Date().toISOString();
-    // Внешний биллинг доступен только при прямом ключе OpenAI.
-    // При работе через OpenRouter расходы смотрят в личном кабинете
-    // openrouter.ai, поэтому здесь остаётся локальный учёт токенов.
     const openAiKey = process.env.OPENAI_API_KEY?.trim();
     const usageAdminKey = process.env.OPENAI_USAGE_ADMIN_KEY?.trim();
-    const viaOpenRouter = Boolean(process.env.OPENROUTER_API_KEY?.trim()) && !usageAdminKey;
-    if (viaOpenRouter || (!openAiKey && !usageAdminKey)) {
+
+    // Основной режим — OpenRouter. Расходы запрашиваются у него напрямую:
+    // раньше панель лишь предлагала посмотреть их в личном кабинете.
+    const openRouterKey = process.env.OPENROUTER_API_KEY?.trim();
+    if (openRouterKey) {
+      return {
+        fetchedAt,
+        apiKeyConfigured: true,
+        openRouter: await this.fetchOpenRouterBilling(openRouterKey),
+        localUsage: this.usage.summary(),
+      };
+    }
+
+    // Прямой ключ OpenAI — прежний путь через биллинг организации.
+    if (!openAiKey && !usageAdminKey) {
       return {
         fetchedAt,
         apiKeyConfigured: false,
