@@ -127,7 +127,7 @@ export const DashboardPage = () => {
     <div className="dashboard">
       <header className="dashboard-intro">
         <p className="eyebrow">Главная</p>
-        <h1>{name ? `Здравствуйте, ${name}` : 'Личный помощник по питанию'}</h1>
+        <h1 className='h1-home'>{name ? `Здравствуйте, ${name}` : 'Личный помощник по питанию'}</h1>
         <p className="lead">
           Планирование рациона, учёт продуктов и анализ прогресса — в одном месте.
           Расчёты строятся на составе блюд, а не на приблизительных оценках.

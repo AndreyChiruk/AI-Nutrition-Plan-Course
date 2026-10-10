@@ -167,6 +167,7 @@ describe('AuthService модульные тесты', () => {
         id: 9,
         email: 'u@mail.com',
         role: 'user',
+        name: 'Андрей',
         isBlocked: false,
         password: hash('secret'),
         update: async () => ({}),
@@ -188,7 +189,14 @@ describe('AuthService модульные тесты', () => {
 
     assert.equal(result.accessToken, 'access-9');
     assert.equal(result.refreshToken, 'refresh-9');
-    assert.deepEqual(result.user, { id: 9, email: 'u@mail.com', role: 'user' });
+    // name отдаётся для приветствия на главной: без него заголовок
+    // всегда показывал общий текст вместо имени пользователя.
+    assert.deepEqual(result.user, {
+      id: 9,
+      email: 'u@mail.com',
+      role: 'user',
+      name: 'Андрей',
+    });
   });
 
   it('refresh: выбрасывает исключение, когда пользователь не найден', async () => {

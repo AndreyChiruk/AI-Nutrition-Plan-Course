@@ -2738,10 +2738,23 @@ html[data-theme='dark'] .catalog-dish-thumb {
 
 .dashboard-intro { display: flex; flex-direction: column; gap: 6px; }
 
-.dashboard-intro h1 {
+.dashboard-intro h1,
+.h1-home {
   margin: 0;
   font-size: 2.1rem;
   line-height: 1.15;
+}
+
+/* Приветствие на главной.
+   Класс h1-home задаёт цвет явно для каждой темы с !important:
+   иначе заголовок наследовал цвет родителя и в тёмной теме
+   мог оказаться тёмным на тёмном фоне. */
+html[data-theme='light'] .h1-home {
+  color: var(--charcoal) !important;
+}
+
+html[data-theme='dark'] .h1-home {
+  color: #F5F0E8 !important;
 }
 
 .dashboard-intro .lead {
@@ -2777,7 +2790,7 @@ html[data-theme='dark'] .catalog-dish-thumb {
 /* Плитка раздела на главной: светлая тема — бумажный фон,
    тёмная — приподнятая поверхность #1F1D1A. */
 html[data-theme='light'] .section-tile { background: var(--paper); }
-html[data-theme='dark'] .section-tile { background: #1F1D1A; }
+html[data-theme='dark'] .section-tile { background: #1F1D1A; border-color: #2e2a25;}
 
 .section-tile-head {
   display: flex;
@@ -3347,12 +3360,14 @@ html[data-theme='dark'] .steps-grid {
 
 html[data-theme='dark'] .step-title,
 html[data-theme='dark'] .dish-sample-name,
-html[data-theme='dark'] .dashboard-block-title {
+html[data-theme='dark'] .dashboard-block-title,
+html[data-theme='dark'] .section-tile-title {
   color: #F5F0E8;
 }
 
 html[data-theme='dark'] .step-text,
-html[data-theme='dark'] .dish-sample-meta {
+html[data-theme='dark'] .dish-sample-meta,
+html[data-theme='dark'] .section-tile-text {
   color: #A89F91;
 }
 
