@@ -452,7 +452,7 @@ export function FridgePage() {
                             Ок
                           </button>
                           <button type="button" className="btn-secondary" onClick={() => setEditingId(null)}>
-                            <X size={14} />
+                            <X size={14} /> Отмена
                           </button>
                         </div>
                       ) : (

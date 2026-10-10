@@ -1607,7 +1607,7 @@ export const AdminPage = () => {
                             <Pencil size={16} /> Изм.
                           </button>
                           <button type="button" className="btn-danger" onClick={() => onDeleteUser(u.id)}>
-                            <Trash2 size={16} />
+                            <Trash2 size={16} /> Удалить
                           </button>
                           {u.isBlocked ? (
                             <button type="button" className="btn-secondary" onClick={() => onUnblock(u.id)}>
