@@ -1039,10 +1039,10 @@ export const AdminPage = () => {
                             <td className="muted small">{r.updatedAt ? new Date(r.updatedAt).toLocaleString() : '—'}</td>
                             <td className="table-actions">
                               <button type="button" className="btn-secondary" onClick={() => startEditBase(r)} title="Редактировать">
-                                <Pencil size={16} />
+                                <Pencil size={16} /> Изменить
                               </button>
                               <button type="button" className="btn-danger" onClick={() => deleteBase(r.id)} title="Удалить">
-                                <Trash2 size={16} />
+                                <Trash2 size={16} /> Удалить
                               </button>
                             </td>
                           </>
@@ -1248,10 +1248,10 @@ export const AdminPage = () => {
                                 onClick={() => startEditProduct(p)}
                                 title="Редактировать"
                               >
-                                <Pencil size={16} />
+                                <Pencil size={16} /> Изменить
                               </button>
                               <button type="button" className="btn-danger" onClick={() => deleteProduct(p.id)} title="Удалить">
-                                <Trash2 size={16} />
+                                <Trash2 size={16} /> Удалить
                               </button>
                             </td>
                           </>
