@@ -2774,6 +2774,11 @@ html[data-theme='dark'] .catalog-dish-thumb {
 
 .section-tile:hover { background: var(--accent-soft); }
 
+/* Плитка раздела на главной: светлая тема — бумажный фон,
+   тёмная — приподнятая поверхность #1F1D1A. */
+html[data-theme='light'] .section-tile { background: var(--paper); }
+html[data-theme='dark'] .section-tile { background: #1F1D1A; }
+
 .section-tile-head {
   display: flex;
   align-items: center;
@@ -3329,7 +3334,8 @@ html[data-theme='dark'] .catalog-dish-chip .macro-cell-kcal {
 /* Тёмная тема. */
 html[data-theme='dark'] .step-card,
 html[data-theme='dark'] .dish-sample,
-html[data-theme='dark'] .dashboard-metrics {
+html[data-theme='dark'] .dashboard-metrics,
+html[data-theme='dark'] .section-tile {
   background: #1F1D1A;
   border-color: #2E2A25;
 }

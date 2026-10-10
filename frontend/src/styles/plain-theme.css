@@ -301,16 +301,16 @@ h3 { font-size: 1rem !important; }
 }
 
 .theme-toggle:hover {
-  background: rgba(42, 39, 36, 0.06) !important;
+  /* background: rgba(42, 39, 36, 0.06) !important; */
 }
 
 html[data-theme='dark'] .theme-toggle {
   border-color: #3A3630 !important;
 }
 
-html[data-theme='dark'] .theme-toggle:hover {
+/* html[data-theme='dark'] .theme-toggle:hover {
   background: rgba(245, 240, 232, 0.08) !important;
-}
+} */
 
 /* ── 13. Тени ─────────────────────────────────────────────────
    Убираем box-shadow везде: мягкие тени — признак «отрисованного»

@@ -384,9 +384,9 @@ html[data-theme='dark'] .goal-progress-card {
   box-shadow: var(--shadow-sm) !important;
 }
 
-html[data-theme='dark'] .topbar .actions button:not(.ghost-icon) {
+/* html[data-theme='dark'] .topbar .actions button:not(.ghost-icon) {
   box-shadow: 0 2px 14px rgba(76, 175, 80, 0.32) !important;
-}
+} */
 
 html[data-theme='dark'] .auth-tabs button {
   background: var(--bg-elevated-2) !important;
