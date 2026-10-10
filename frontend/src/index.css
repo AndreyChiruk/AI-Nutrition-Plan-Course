@@ -458,15 +458,8 @@ pre {
 
 .profile-grid {
   display: grid;
-  /* Одна колонка: блоки идут друг под другом, а не в две колонки.
-     Прежняя сетка 40%/60% на узких экранах сжимала содержимое. */
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(320px, 40%) minmax(420px, 60%);
   gap: 20px;
-}
-
-/* Нижний блок (правая колонка) отделяем отступом сверху. */
-.right-col {
-  margin-top: 20px;
 }
 
 .left-col,
