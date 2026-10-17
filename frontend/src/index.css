@@ -154,12 +154,43 @@ select {
   color: var(--sand);
 }
 
+/*
+ * Базовая кнопка получает акцентную заливку.
+ *
+ * Цвет текста задаётся по темам: `--terracotta` в тёмной теме светлее
+ * (#D2764A), поэтому белый текст давал контраст ниже 4.5:1. Светлый
+ * фон требует тёмного текста.
+ */
 button {
   cursor: pointer;
   background: var(--terracotta);
-  color: #fff;
+  color: #FFFFFF;
   border: none;
   font-weight: 600;
+}
+
+html[data-theme='dark'] button {
+  color: #1C1A18;
+}
+
+/*
+ * Кнопки с собственным фоном не должны наследовать акцентный цвет
+ * текста: иначе на прозрачном или светлом фоне текст станет нечитаемым.
+ */
+html[data-theme='dark'] button.btn-secondary,
+html[data-theme='dark'] button.btn-link-outline,
+html[data-theme='dark'] button.theme-toggle,
+html[data-theme='dark'] button.btn-logout,
+html[data-theme='dark'] button.ghost-icon {
+  color: var(--text);
+}
+
+/*
+ * У опасной кнопки фон красный в обеих темах, поэтому текст белый:
+ * тёмный давал на #DC2626 контраст 3.59:1 (норма — от 4.5:1).
+ */
+html[data-theme='dark'] button.btn-danger {
+  color: #FFFFFF;
 }
 
 pre {
@@ -538,8 +569,12 @@ pre {
   gap: 6px;
   padding: 8px;
   border-radius: var(--radius-md);
-  color: var(--line);
-  background: rgba(42, 39, 36, 0.78);
+  /* Фон подложки всегда тёмный, поэтому текст — светлый в любой теме.
+     Раньше стоял `--line`: в тёмной теме он тёмный и давал контраст 1.1:1. */
+  color: #F5F0E8;
+  /* Подложка должна быть непрозрачной: при 78% светлое фото
+     просвечивало и контраст текста падал до 1.13:1. */
+  background: rgba(42, 39, 36, 0.92);
   opacity: 0;
   transition: opacity 0.2s ease;
 }
@@ -582,7 +617,9 @@ pre {
 
 .progress-label {
   margin-bottom: 6px;
-  color: var(--line);
+  /* `--line` — токен границ, для текста он слишком бледный.
+     Берём цвет вторичного текста темы. */
+  color: var(--charcoal-soft);
 }
 
 .progress-track {
@@ -817,6 +854,33 @@ p.small {
 .bmi-obese {
   color: var(--danger);
   border-color: var(--danger) !important;
+}
+
+/*
+ * Оттенки ИМТ в тёмной теме.
+ *
+ * Базовые цвета рассчитаны на светлый фон: на карточке #26231F
+ * они давали контраст 2.08–3.19:1 (норма — от 4.5:1). Ниже — более
+ * светлые варианты тех же оттенков: 4.79–6.45:1.
+ */
+html[data-theme='dark'] .bmi-under {
+  color: #A69E93;
+  border-color: #A69E93 !important;
+}
+
+html[data-theme='dark'] .bmi-normal {
+  color: #9AAE70;
+  border-color: #9AAE70 !important;
+}
+
+html[data-theme='dark'] .bmi-over {
+  color: #D2764A;
+  border-color: #D2764A !important;
+}
+
+html[data-theme='dark'] .bmi-obese {
+  color: #E57373;
+  border-color: #E57373 !important;
 }
 
 .cal-dev-over {
@@ -1181,14 +1245,39 @@ button:hover {
   background: var(--primary);
 }
 
+/*
+ * Текст на основной кнопке.
+ *
+ * `--primary` меняет светлоту по темам: в светлой это тёмная терракота
+ * (#B4552D), в тёмной — светлая (#D2764A). Светлый текст на светлой
+ * заливке давал контраст 3.11:1 — ниже нормы WCAG AA (4.5:1).
+ * Поэтому цвет текста тоже зависит от темы.
+ */
+html[data-theme='light'] .btn-primary,
+html[data-theme='light'] .btn-accent {
+  color: #FFFFFF;
+}
+
+html[data-theme='dark'] .btn-primary,
+html[data-theme='dark'] .btn-accent {
+  color: #1C1A18;
+}
+
+html[data-theme='dark'] .btn-primary:hover,
+html[data-theme='dark'] .btn-accent:hover {
+  color: #1C1A18;
+}
+
 .btn-primary:hover {
   background: var(--primary-hover);
 }
 
 .btn-danger {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: #fff;
+  /* `--danger` (#EF4444) с белым текстом давал 3.76:1 — ниже нормы.
+     Берём более тёмный оттенок того же красного: 4.83:1. */
+  background: #DC2626;
+  border-color: #DC2626;
+  color: #FFFFFF;
 }
 
 .muted {
@@ -1590,7 +1679,9 @@ pre,
   padding: 12px;
   border-radius: var(--radius-md);
   border: 1px solid rgba(222, 215, 203, 0.22);
-  background: rgba(2, 6, 23, 0.25);
+  /* Нейтральная подложка: тёмно-синий оттенок был рассчитан на тёмную
+     тему и затемнял карточку в светлой — контраст подписей падал до 3.05:1. */
+  background: var(--bg-elevated);
 }
 
 .admin-openai-item .openai-label {
@@ -3287,6 +3378,14 @@ html[data-theme='dark'] .catalog-dish-chip .macro-cell-kcal {
   font-weight: 600;
   color: var(--terracotta-dark);
   letter-spacing: 0.04em;
+}
+
+/*
+ * В тёмной теме `--terracotta-dark` (#8C3F1F) на карточке #1F1D1A даёт
+ * контраст 2.28:1 — номер шага почти не читается. Берём светлый оттенок.
+ */
+html[data-theme='dark'] .step-number {
+  color: #D2764A;
 }
 
 .step-title {

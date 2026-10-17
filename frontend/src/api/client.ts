@@ -1,6 +1,15 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
+/**
+ * Базовый адрес API.
+ *
+ * В продакшене фронтенд отдаёт Nginx и проксирует `/api` на backend,
+ * поэтому достаточно относительного пути: он работает и по HTTPS,
+ * и при смене домена. Явный адрес задаётся через `VITE_API_BASE_URL` —
+ * он нужен только при запуске фронтенда отдельно от Nginx, и тогда
+ * префикс `/api` обязателен.
+ */
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,

@@ -113,13 +113,27 @@ html[data-theme='dark'] .topbar {
   font-size: 0.85rem;
 }
 
-.topbar .actions button {
+/*
+ * Кнопки в шапке по умолчанию — заливные, в цвете акцента.
+ *
+ * Служебные кнопки (смена темы, выход) исключаем: они лежат на том же
+ * акцентном фоне, что и основной текст, из-за чего контраст падал
+ * до 1.97:1. Им задан прозрачный фон и цвет текста темы.
+ */
+.topbar .actions button:not(.theme-toggle):not(.btn-logout) {
   background: var(--primary) !important;
   border-radius: var(--radius-pill) !important;
   padding: 0.5rem 1rem !important;
   font-weight: 600;
   box-shadow: var(--shadow-sm);
   transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s;
+}
+
+.topbar .actions .theme-toggle,
+.topbar .actions .btn-logout {
+  background: transparent !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
 }
 
 .topbar .actions button:hover {
@@ -245,9 +259,13 @@ html[data-theme='dark'] .hero-clipboard {
   stroke: var(--olive);
 }
 
+/*
+ * Красный (#EF4444) с белым текстом давал 3.76:1 — ниже нормы WCAG AA.
+ * Берём более тёмный оттенок того же цвета: 4.83:1.
+ */
 .btn-danger {
-  background: #ef4444 !important;
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
+  background: #DC2626 !important;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3) !important;
 }
 
 .btn-danger:hover {
@@ -1498,6 +1516,20 @@ html[data-theme='dark'] .meal-plan-restrictions-body p {
 
 html[data-theme='dark'] {
   --wo-empty: rgba(251, 249, 245, 0.04);
+
+  /*
+   * Токены поверхностей для тёмной темы.
+   *
+   * `--sand` и `--paper` объявлены только для светлой темы, поэтому
+   * фон `body` оставался светлым (#F5F1EA), а текст переключался на
+   * светлый — контраст падал до 1.01:1 (белый на белом).
+   * Значения совпадают с палитрой тёмной темы проекта.
+   */
+  --sand: #1C1A18;
+  --paper: #26231F;
+  --charcoal: #EDE8E1;
+  --charcoal-soft: #A69E93;
+  --line: #2E2A25;
 }
 
 html[data-theme='light'] button.cell-card:not(.meal-slot-done):not(.meal-slot-skipped) {
