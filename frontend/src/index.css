@@ -237,7 +237,9 @@ pre {
 }
 
 .muted {
-  color: var(--line);
+  /* `--line` — токен границ; для текста он слишком бледный.
+     Вторичный текст берёт свой токен темы. */
+  color: var(--charcoal-soft);
 }
 
 .login-page {
@@ -1752,7 +1754,8 @@ pre,
   flex-direction: column;
   gap: 4px;
   font-size: 0.88rem;
-  color: var(--line);
+  /* Подписи полей — текст, а не границы. */
+  color: var(--charcoal-soft);
 }
 
 .moderation-list {
@@ -1769,8 +1772,11 @@ pre,
   gap: 12px;
   padding: 12px;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(222, 215, 203, 0.25);
-  background: rgba(42, 39, 36, 0.35);
+  /* Токены темы вместо тёмного полупрозрачного слоя: он давал
+     грязно-серый фон в светлой теме, и подписи с ним сливались. */
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
 }
 
 .moderation-card-preview {
@@ -1806,7 +1812,9 @@ pre,
 .meal-items-preview {
   margin: 6px 0 0;
   padding-left: 18px;
-  color: var(--line);
+  /* Список блюд: цвет текста, а не границ. С `--line`
+     названия сливались с фоном (1.1:1). */
+  color: var(--text);
   font-size: 0.88rem;
 }
 
