@@ -13,7 +13,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { formatApiError } from '../api/errors';
 
-const DURATIONS = [14, 30, 90, 180] as const;
+// Максимум 30 дней — согласовано с планом питания (MAX_PLAN_DAYS на бэкенде).
+const DURATIONS = [14, 30] as const;
 const SESSIONS = ['session1', 'session2', 'session3', 'session4'] as const;
 const SESSION_LABELS: Record<(typeof SESSIONS)[number], string> = {
   session1: 'Блок 1 (утро / активация)',

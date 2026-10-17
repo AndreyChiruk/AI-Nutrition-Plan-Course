@@ -6,6 +6,7 @@ import { User } from '../models/User';
 import { WorkoutPlan } from '../models/WorkoutPlan';
 import { WorkoutPlanDay } from '../models/WorkoutPlanDay';
 import { recoverDeep } from '../common/text-recovery.util';
+import { MAX_PLAN_DAYS } from '../meal-plan/meal-plan.service';
 
 export type WorkoutSessionSnapshot = {
   blockId?: string;
@@ -119,6 +120,7 @@ export class WorkoutPlanService {
   }
 
   async generatePlan(userId: string, durationDays: number) {
+    this.assertDuration(durationDays);
     const user = await this.userModel.findByPk(this.uid(userId));
     if (!user) throw new NotFoundException('User not found');
 
@@ -148,11 +150,26 @@ export class WorkoutPlanService {
     return this.saveUserPlan(userId, { durationDays, days, name: label });
   }
 
+  /**
+   * Тот же предел, что и у плана питания.
+   *
+   * Раньше длительность приходила из тела запроса без проверки вообще:
+   * `durationDays: 100000` создавал план с сотней тысяч строк дней,
+   * а отрицательное значение ломало endDate. Проверка стоит до
+   * `cancelActive`, чтобы отклонённый запрос не снял текущий план.
+   */
+  private assertDuration(durationDays: number) {
+    if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > MAX_PLAN_DAYS) {
+      throw new BadRequestException(`Длительность плана должна быть от 1 до ${MAX_PLAN_DAYS} дней`);
+    }
+  }
+
   async saveUserPlan(
     userId: string,
     dto: { durationDays: number; days: SaveWorkoutDayDto[]; name?: string },
   ) {
     const user = await this.userModel.findByPk(this.uid(userId));
+    this.assertDuration(dto.durationDays);
     if (!user) throw new NotFoundException('User not found');
 
     await this.cancelActive(userId);

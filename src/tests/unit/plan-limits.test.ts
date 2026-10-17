@@ -131,3 +131,31 @@ describe('план питания: ёмкость каталога', () => {
     assert.isNull(capacityWarning({ breakfast: 0 }, 7));
   });
 });
+
+describe('план тренировок: длительность', () => {
+  /** Повторяет assertDuration в workout-plan.service. */
+  function workoutDurationError(n: unknown): string | null {
+    const d = Number(n);
+    if (!Number.isInteger(d) || d < 1 || d > 30) return 'от 1 до 30 дней';
+    return null;
+  }
+
+  it('принимает оба варианта из интерфейса', () => {
+    for (const d of [14, 30]) {
+      assert.isNull(workoutDurationError(d), `${d} дней должен проходить`);
+    }
+  });
+
+  it('использует тот же предел 30 дней, что и план питания', () => {
+    assert.isNull(workoutDurationError(30));
+    assert.isNotNull(workoutDurationError(31), '31 день — уже больше предела');
+    assert.isNotNull(workoutDurationError(90), 'раньше 90 проходило');
+    assert.isNotNull(workoutDurationError(180), 'раньше 180 проходило');
+  });
+
+  it('отклоняет нуль, отрицательные и мусор (раньше не проверялось вообще)', () => {
+    for (const d of [0, -1, -180, 100000, 7.5, 'abc', undefined, null]) {
+      assert.isNotNull(workoutDurationError(d), `${String(d)} должен быть отклонён`);
+    }
+  });
+});
