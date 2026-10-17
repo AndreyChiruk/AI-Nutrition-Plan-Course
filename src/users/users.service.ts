@@ -119,6 +119,49 @@ export class UsersService {
       }
       patch.name = raw.length > 0 ? raw : null;
     }
+
+    /*
+     * Ограничения на списки вкусовых предпочтений.
+     *
+     * Алгоритм подбора плана учитывает каждый пункт: нежелательное
+     * исключается из пула, любимое требует хотя бы одного блюда в день.
+     * Без ограничений пользователь мог задать сотни значений — пул
+     * сужался до нескольких блюд, а требование по любимым словам
+     * становилось невыполнимым, и в план попадали повторы.
+     *
+     * Лимиты подобраны по размеру каталога и здравому смыслу.
+     */
+    const LIST_LIMITS = {
+      foodLikes: 20,
+      foodDislikes: 30,
+    } as const;
+
+    for (const [key, limit] of Object.entries(LIST_LIMITS)) {
+      if (!(key in patch)) continue;
+      const list = patch[key];
+      if (list == null) continue;
+      if (!Array.isArray(list)) {
+        throw new BadRequestException(`Поле «${key}» должно быть списком`);
+      }
+      if (list.length > limit) {
+        throw new BadRequestException(
+          `Слишком много значений в поле «${key}»: ${list.length}, допустимо не более ${limit}`,
+        );
+      }
+      // Убираем пустые строки и дубликаты: они не влияют на подбор,
+      // но раздувают список и мешают дойти до лимита осмысленным значениям.
+      const cleaned: string[] = [];
+      const seen = new Set<string>();
+      for (const raw of list) {
+        const value = String(raw ?? '').trim();
+        if (!value) continue;
+        const k = value.toLowerCase();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        cleaned.push(value.slice(0, 60));
+      }
+      patch[key] = cleaned;
+    }
     const nextWeight = Number(patch.weight ?? user.weight);
     const nextHeight = Number(patch.height ?? user.height);
     const requestedGoal = (patch.goal ?? user.goal) as 'lose' | 'maintain' | 'gain';

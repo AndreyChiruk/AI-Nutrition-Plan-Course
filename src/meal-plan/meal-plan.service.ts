@@ -500,7 +500,48 @@ export class MealPlanService {
     // алкоголя брала ближайшее по калорийности блюдо из пула и повторяла его.
     // Здесь убираем оставшиеся дубликаты внутри каждого слота.
     out = this.deduplicateAcrossDays(out, pools, pref);
+
+    // Если блюд в пуле меньше, чем дней, полностью избежать повторов
+    // невозможно — дедупликация лишь распределяет их равномерно.
+    // Сообщаем об этом честно: иначе пользователь видит одинаковые
+    // блюда и считает это ошибкой подбора.
+    const capacity = this.planCapacityWarning(out, pools);
+    this.lastCapacityWarning = capacity;
+
     return out;
+  }
+
+  /** Предупреждение о нехватке блюд; заполняется при финализации плана. */
+  private lastCapacityWarning: string | null = null;
+
+  /**
+   * Проверяет, хватает ли блюд в пуле на все дни плана.
+   *
+   * Для 180-дневного плана нужно 180 завтраков, а веганских завтраков
+   * в каталоге всего около десяти — повторы неизбежны, и пользователь
+   * должен понимать, что это ограничение каталога, а не ошибка.
+   */
+  private planCapacityWarning(
+    days: SaveMealPlanDayDto[],
+    pools: { breakfast: Product[]; lunch: Product[]; dinner: Product[]; snack: Product[] },
+  ): string | null {
+    const SLOT_LABEL: Record<string, string> = {
+      breakfast: 'завтраков',
+      lunch: 'обедов',
+      dinner: 'ужинов',
+      snack: 'перекусов',
+    };
+    const need = days.length;
+    const short: string[] = [];
+    for (const slot of ['breakfast', 'lunch', 'dinner', 'snack'] as const) {
+      const available = (pools[slot] ?? []).length;
+      if (available > 0 && available < need) {
+        short.push(`${SLOT_LABEL[slot]}: ${available} на ${need} дней`);
+      }
+    }
+    if (short.length === 0) return null;
+    return `В каталоге меньше подходящих блюд, чем дней плана (${short.join(', ')}) — повторы неизбежны. ` +
+      'Уменьшите срок или ослабьте ограничения, чтобы получить больше разнообразия.';
   }
 
   /**
@@ -1145,6 +1186,12 @@ export class MealPlanService {
         `В плане ${placeholders} приём(а) пищи заполнены усреднёнными данными (300 ккал) ` +
           'из-за нехватки подходящих блюд в каталоге под ваши аллергии и диету.',
       );
+    }
+
+    // Предупреждение о нехватке блюд для длинных планов: без него
+    // пользователь видит повторы и считает их ошибкой подбора.
+    if (this.lastCapacityWarning) {
+      warnings.push(this.lastCapacityWarning);
     }
 
     return { days: adjusted, warnings };
