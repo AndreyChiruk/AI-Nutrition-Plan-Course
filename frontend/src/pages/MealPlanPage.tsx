@@ -71,15 +71,15 @@ type UserProduct = {
   expiresAt?: string | null;
 };
 
-const DURATIONS = [1, 7, 14, 30, 90, 180] as const;
+// Максимум 30 дней — согласовано с MAX_PLAN_DAYS на бэкенде.
+const DURATIONS = [1, 7, 14, 30] as const;
 
 function durationChipLabel(days: number): string {
   if (days === 1) return '1 день';
   if (days === 7) return '1 нед.';
   if (days === 14) return '2 нед.';
   if (days === 30) return '1 мес.';
-  if (days === 90) return '3 мес.';
-  return '6 мес.';
+  return '1 мес.';
 }
 
 const MAIN_SLOTS: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack', 'snack2'];

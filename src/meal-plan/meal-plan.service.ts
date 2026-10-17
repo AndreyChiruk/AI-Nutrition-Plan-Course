@@ -10,6 +10,17 @@ import { Product } from '../models/Product';
 import { User } from '../models/User';
 import { OpenAiService } from '../openai/openai.service';
 import type { ConstructorRefinementChange } from '../openai/openai.validators';
+
+/**
+ * Максимальная длительность плана питания.
+ *
+ * Больше 30 дней генерировать не имеет смысла: каталог проверенных блюд
+ * (только `is_from_api = true`) не вмещает столько уникальных позиций на
+ * узких диетах, поэтому в длинном плане одно и то же блюдо начинает
+ * повторяться десятки раз. Ограничение действует и для автоплана, и для
+ * AI-плана, и для конструктора.
+ */
+export const MAX_PLAN_DAYS = 30;
 import {
   CALORIE_BANDS,
   dayCaloriesFromBand,
@@ -2097,8 +2108,8 @@ export class MealPlanService {
     // Валидация входа: без неё `days` мог быть не-массивом, а durationDays —
     // undefined, что давало Invalid Date и 500 вместо понятной ошибки.
     const durationDays = Number(dto.durationDays);
-    if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 365) {
-      throw new BadRequestException('Длительность плана должна быть от 1 до 365 дней');
+    if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > MAX_PLAN_DAYS) {
+      throw new BadRequestException(`Длительность плана должна быть от 1 до ${MAX_PLAN_DAYS} дней`);
     }
     if (!Array.isArray(dto.days) || dto.days.length === 0) {
       throw new BadRequestException('План должен содержать хотя бы один день');

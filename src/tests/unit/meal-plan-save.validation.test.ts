@@ -17,7 +17,7 @@ function validateSaveInput(dto: {
   days?: unknown;
 }): { ok: true } | { ok: false; reason: string } {
   const durationDays = Number(dto.durationDays);
-  if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 365) {
+  if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 30) {
     return { ok: false, reason: 'duration' };
   }
   if (!Array.isArray(dto.days) || dto.days.length === 0) {

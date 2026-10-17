@@ -33,21 +33,21 @@ function validateList(value: unknown, limit: number): { ok: boolean; cleaned?: s
 /** Проверяет длительность плана. */
 function validateDuration(n: unknown): { ok: boolean; error?: string } {
   const d = Number(n);
-  if (!Number.isInteger(d) || d < 1 || d > 365) {
-    return { ok: false, error: 'от 1 до 365 дней' };
+  if (!Number.isInteger(d) || d < 1 || d > 30) {
+    return { ok: false, error: 'от 1 до 30 дней' };
   }
   return { ok: true };
 }
 
 describe('план питания: длительность', () => {
   it('допускает все варианты из интерфейса', () => {
-    for (const d of [1, 7, 14, 30, 90, 180]) {
+    for (const d of [1, 7, 14, 30]) {
       assert.isTrue(validateDuration(d).ok, `${d} дней должен проходить`);
     }
   });
 
   it('отклоняет нуль, отрицательные и слишком большие сроки', () => {
-    for (const d of [0, -1, 366, 1000]) {
+    for (const d of [0, -1, 31, 90, 180, 366, 1000]) {
       assert.isFalse(validateDuration(d).ok, `${d} должен быть отклонён`);
     }
   });
