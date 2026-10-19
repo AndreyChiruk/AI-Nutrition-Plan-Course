@@ -70,9 +70,16 @@ export function BirthDatePicker({ value, onChange, minAge, maxAge }: BirthDatePi
   const { y, m, d } = useMemo(() => parseYmd(value), [value]);
 
   // Список годов строится от текущего года: сверху — самый молодой возраст.
+  /*
+   * Список годов: от будущего года вниз до самого старого возраста.
+   *
+   * Верхняя граница — не «текущий год минус minAge», а следующий год:
+   * иначе список обрывался на 2016 и выбранного года могло не оказаться
+   * в списке. Проверка возраста всё равно выполняется при сохранении.
+   */
   const years = useMemo(() => {
     const now = new Date().getFullYear();
-    const newest = now - minAge;
+    const newest = now + 1;
     const oldest = now - maxAge;
     const out: number[] = [];
     for (let year = newest; year >= oldest; year -= 1) out.push(year);

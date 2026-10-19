@@ -58,17 +58,36 @@ export function SubscriptionCard() {
   const priceLabel = priceByn ? `${priceByn.usd.toFixed(2)} $` : FALLBACK_PRICE_LABEL;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
-  const runAction = async (action: () => Promise<string | null>) => {
+  /**
+   * Запускает действие и показывает результат.
+   *
+   * Раньше `busy` снимался только при ошибке: считалось, что успех всегда
+   * уводит на Stripe редиректом. Но у «Обновить статус» редиректа нет —
+   * кнопка оставалась заблокированной навсегда и казалась зависшей,
+   * хотя запрос уже завершился.
+   */
+  const runAction = async (
+    action: () => Promise<string | null>,
+    successText?: string,
+    redirects = true,
+  ) => {
     setBusy(true);
     setError('');
+    setNotice('');
     const message = await action();
-    // При успехе происходит переход на Stripe, поэтому busy снимаем
-    // только при ошибке — иначе кнопка «мигнёт» перед редиректом.
     if (message) {
       setError(message);
       setBusy(false);
+      return;
     }
+    if (redirects) {
+      // Уходим на Stripe: busy не снимаем, иначе кнопка мигнёт.
+      return;
+    }
+    setNotice(successText ?? 'Готово.');
+    setBusy(false);
   };
 
   if (loading) {
@@ -113,19 +132,23 @@ export function SubscriptionCard() {
             <button
               type="button"
               className="btn-secondary"
+              title="Отмена и смена карты в личном кабинете Stripe"
               disabled={busy}
-              onClick={() => void runAction(openPortal)}
+              onClick={() => void runAction(openPortal, undefined, false)}
             >
-              <Settings size={15} aria-hidden />
-              Управлять подпиской
+              {busy ? <Loader2 size={15} className="pref-spinner" /> : <Settings size={15} aria-hidden />}
+              {busy ? 'Открываем…' : 'Управлять подпиской'}
             </button>
             <button
               type="button"
               className="btn-link-outline"
               disabled={busy}
-              onClick={() => void runAction(syncFromStripe)}
+              onClick={() =>
+                void runAction(syncFromStripe, 'Статус подписки обновлён.', false)
+              }
             >
-              Обновить статус
+              {busy ? <Loader2 size={14} className="pref-spinner" /> : null}
+              {busy ? 'Проверяем…' : 'Обновить статус'}
             </button>
           </div>
         </>
@@ -174,7 +197,9 @@ export function SubscriptionCard() {
               type="button"
               className="btn-link-outline"
               disabled={busy}
-              onClick={() => void runAction(syncFromStripe)}
+              onClick={() =>
+                void runAction(syncFromStripe, 'Статус подписки обновлён.', false)
+              }
             >
               Обновить статус
             </button>
@@ -194,6 +219,14 @@ export function SubscriptionCard() {
         <p className="subscription-error" role="alert">
           <AlertCircle size={14} aria-hidden />
           {error}
+        </p>
+      ) : null}
+
+      {/* Подтверждение для действий без редиректа («Обновить статус»):
+          без него казалось, что кнопка ничего не делает. */}
+      {notice ? (
+        <p className="subscription-notice" role="status">
+          {notice}
         </p>
       ) : null}
     </section>

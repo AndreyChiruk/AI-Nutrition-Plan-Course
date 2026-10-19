@@ -3871,6 +3871,15 @@ html[data-theme='dark'] .logo-icon { color: #D2764A; }
 
 .subscription-error svg { flex-shrink: 0; margin-top: 2px; }
 
+/* Подтверждение успешного действия без редиректа. */
+.subscription-notice {
+  margin: 12px 0 0;
+  font-size: 0.84rem;
+  color: var(--olive);
+}
+
+html[data-theme='dark'] .subscription-notice { color: #A8C48A; }
+
 /* Тёмная тема. */
 html[data-theme='dark'] .subscription-price-value { color: #D2764A; }
 html[data-theme='dark'] .subscription-features li { color: #A89F91; }
