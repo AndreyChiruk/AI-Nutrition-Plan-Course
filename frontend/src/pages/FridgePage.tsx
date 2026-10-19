@@ -597,13 +597,17 @@ export function FridgePage() {
                         </button>
                       ) : null}
 
+                      {/* Подпись, а не только иконка: без неё кнопку
+                          удаления было просто не найти в списке. */}
                       <button
                         type="button"
                         className="fridge-item-btn is-danger"
-                        title="Удалить"
+                        title="Удалить продукт"
+                        aria-label={`Удалить «${item.name}»`}
                         onClick={() => void removeItem(item)}
                       >
                         <Trash2 size={14} />
+                        <span className="fridge-item-btn-text">Удалить</span>
                       </button>
                     </li>
                   );

@@ -8,8 +8,8 @@ const MEAL_PLANNER_MIGRATIONS = [
   '009_food_preferences_and_fridge.sql',
   '013_fridge_mass_units.sql',
   '015_fridge_ingredient_link.sql',
+  '031_fridge_unit_variety.sql',
 ] as const;
-
 export async function ensureMealPlannerSchema(sequelize: Sequelize | null | undefined): Promise<void> {
   if (!sequelize) return;
   for (const name of MEAL_PLANNER_MIGRATIONS) {

@@ -2388,7 +2388,44 @@ html[data-theme='dark'] .fridge-stat.is-warn .fridge-stat-value { color: #D2764A
 }
 
 .fridge-item-btn:hover { opacity: 1; background: rgba(222, 215, 203, 0.15); }
-.fridge-item-btn.is-danger:hover { color: var(--danger); background: rgba(220, 38, 38, 0.1); }
+
+/*
+ * Кнопка удаления продукта.
+ *
+ * Раньше это была полупрозрачная иконка без подписи, и найти её в
+ * списке было почти невозможно. Теперь у неё есть текст и постоянная
+ * красная рамка — она читается как действие, а не как украшение.
+ */
+.fridge-item-btn.is-danger {
+  opacity: 1;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid rgba(220, 38, 38, 0.45);
+  color: #B3261E;
+  font-size: 0.8rem;
+}
+
+.fridge-item-btn.is-danger:hover {
+  color: #fff;
+  background: #B3261E;
+  border-color: #B3261E;
+}
+
+html[data-theme='dark'] .fridge-item-btn.is-danger {
+  color: #F2A9A3;
+  border-color: rgba(242, 169, 163, 0.5);
+}
+
+html[data-theme='dark'] .fridge-item-btn.is-danger:hover {
+  color: #1C1A18;
+  background: #F2A9A3;
+  border-color: #F2A9A3;
+}
+
+/* На узком экране текст скрываем — остаётся иконка с aria-label. */
+@media (max-width: 620px) {
+  .fridge-item-btn-text { display: none; }
+}
 
 @media (max-width: 820px) {
   .fridge-add-grid { grid-template-columns: 1fr 1fr; }

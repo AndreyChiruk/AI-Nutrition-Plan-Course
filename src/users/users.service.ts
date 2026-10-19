@@ -10,7 +10,17 @@ import { calculateEnergy } from '../common/energy.util';
 import { normalizeGoalByWeight } from '../common/weight-goal.util';
 import { FridgeImageStorage } from '../fridge/fridge-image.storage';
 
-const MASS_UNIT_MAP: Record<string, 'г' | 'кг'> = {
+/**
+ * Единицы измерения для продуктов в холодильнике.
+ *
+ * Раньше здесь были только граммы и килограммы, а всё остальное
+ * молча превращалось в «г»: пользователь выбирал «мл» для молока или
+ * «шт» для яиц, но в списке видел граммы. Теперь поддерживаются три
+ * группы единиц: масса, объём и штуки.
+ */
+type FridgeUnit = 'г' | 'кг' | 'мл' | 'л' | 'шт';
+
+const MASS_UNIT_MAP: Record<string, FridgeUnit> = {
   г: 'г',
   gram: 'г',
   grams: 'г',
@@ -26,7 +36,32 @@ const MASS_UNIT_MAP: Record<string, 'г' | 'кг'> = {
   килограмм: 'кг',
   килограмма: 'кг',
   килограммов: 'кг',
+  мл: 'мл',
+  ml: 'мл',
+  millilitre: 'мл',
+  millilitres: 'мл',
+  milliliter: 'мл',
+  миллилитр: 'мл',
+  миллилитров: 'мл',
+  л: 'л',
+  l: 'л',
+  litre: 'л',
+  litres: 'л',
+  liter: 'л',
+  liters: 'л',
+  литр: 'л',
+  литра: 'л',
+  литров: 'л',
+  шт: 'шт',
+  штука: 'шт',
+  штуки: 'шт',
+  штук: 'шт',
+  pcs: 'шт',
+  pc: 'шт',
+  piece: 'шт',
+  pieces: 'шт',
 };
+
 
 @Injectable()
 export class UsersService {
@@ -477,7 +512,7 @@ export class UsersService {
     if (!user) throw new NotFoundException('User not found');
   }
 
-  private normalizeMassUnit(raw?: string): 'г' | 'кг' {
+  private normalizeMassUnit(raw?: string): FridgeUnit {
     const key = String(raw ?? '')
       .trim()
       .toLowerCase();
