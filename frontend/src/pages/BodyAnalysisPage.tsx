@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Camera } from '../components/icons';
+import { Camera, Loader2 } from '../components/icons';
 import { BodySilhouette } from '../components/BodySilhouette';
 import { bodyApi, recommendationApi, userApi } from '../api/services';
 import { formatApiError } from '../api/errors';
@@ -326,8 +326,13 @@ export const BodyAnalysisPage = () => {
               type="button"
               onClick={() => void onPhotoButtonClick()}
               disabled={busy}
+              aria-busy={busy}
             >
-              <Camera size={16} />{' '}
+              {busy ? (
+                <Loader2 size={16} className="btn-spinner" />
+              ) : (
+                <Camera size={16} />
+              )}{' '}
               {busy
                 ? 'Загрузка…'
                 : dirty

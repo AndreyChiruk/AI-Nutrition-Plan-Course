@@ -456,8 +456,14 @@ export function FridgePage() {
             title="Срок годности (необязательно)"
           />
 
-          <button type="button" className="btn-primary" disabled={saving} onClick={() => void addItem()}>
-            {saving ? <Loader2 size={16} className="pref-spinner" /> : <Plus size={16} />}
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={saving}
+            aria-busy={saving}
+            onClick={() => void addItem()}
+          >
+            {saving ? <Loader2 size={16} className="btn-spinner" /> : <Plus size={16} />}
             Добавить
           </button>
         </div>

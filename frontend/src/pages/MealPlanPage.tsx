@@ -10,7 +10,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { AlertTriangle, Brain, ChefHat, ClipboardList, Lock, ShoppingBasket } from '../components/icons';
+import { AlertTriangle, Brain, ChefHat, ClipboardList, Loader2, Lock, ShoppingBasket } from '../components/icons';
 import html2pdf from 'html2pdf.js';
 import { isAxiosError } from 'axios';
 import {
@@ -1806,6 +1806,8 @@ export const MealPlanPage = () => {
               <option value={0}>На весь план</option>
             </select>
           ) : null}
+          {/* Анализ конструктора считается синхронно по уже загруженным
+              данным, без обращения к серверу — спиннер здесь не нужен. */}
           {mode === 'constructor' ? (
             <button type="button" className="btn-secondary" onClick={() => analyzeConstructorPlan()}>
               Анализ конструктора
@@ -1819,6 +1821,7 @@ export const MealPlanPage = () => {
               title="Учитываются любимые и нежелательные продукты из профиля (подсказки для модели и фильтр каталога). ИИ заполнит пустые слоты и при необходимости скорректирует блюда с пояснениями."
               onClick={() => void runAiRefineConstructor()}
             >
+              {aiRefineLoading ? <Loader2 size={14} className="btn-spinner" /> : null}
               {aiRefineLoading ? 'ИИ думает…' : 'Доработать с ИИ'}
             </button>
           ) : null}

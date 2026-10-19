@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Apple, Droplet, Moon } from '../components/icons';
+import { Apple, Droplet, Loader2, Moon } from '../components/icons';
 import { Brain, ListChecks } from '../components/icons';
 import { recommendationApi, userApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
@@ -144,7 +144,14 @@ export const RecommendationsPage = () => {
 
         {mode === 'ai' ? (
           <div className="stack">
-            <button type="button" className="btn-primary" onClick={onGenerate} disabled={loadingAi}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={onGenerate}
+              disabled={loadingAi}
+              aria-busy={loadingAi}
+            >
+              {loadingAi ? <Loader2 size={16} className="btn-spinner" /> : null}
               {loadingAi ? 'Генерация...' : 'Сгенерировать AI-рекомендации'}
             </button>
             {aiDisplay ? (

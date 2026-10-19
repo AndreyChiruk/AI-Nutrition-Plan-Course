@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { useRef, useState } from 'react';
-import { AlertTriangle, Camera, Save, UtensilsCrossed } from '../components/icons';
+import { AlertTriangle, Camera, Loader2, Save, UtensilsCrossed } from '../components/icons';
 import { foodRecognitionApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
 import type { FoodPreviewResponse } from '../types';
@@ -115,8 +115,19 @@ export const FoodRecognitionPage = () => {
         <div className="food-recognition-preview-col">
           {photoUrl ? <img src={photoUrl} alt="Блюдо" className="food-recognition-preview" /> : null}
           <SubscriptionGate description="Распознавание блюд по фотографии использует модель зрения и доступно по подписке.">
-            <button type="button" className="btn-primary ripple" disabled={loading} onClick={analyze}>
-              <Camera size={16} /> {loading ? 'Анализ…' : 'Распознать блюдо'}
+            <button
+              type="button"
+              className="btn-primary ripple"
+              disabled={loading}
+              aria-busy={loading}
+              onClick={analyze}
+            >
+              {loading ? (
+                <Loader2 size={16} className="btn-spinner" />
+              ) : (
+                <Camera size={16} />
+              )}{' '}
+              {loading ? 'Анализ…' : 'Распознать блюдо'}
             </button>
           </SubscriptionGate>
         </div>
@@ -161,9 +172,14 @@ export const FoodRecognitionPage = () => {
                 type="button"
                 className="btn-secondary ripple"
                 disabled={saving || !photoUrl || submitted}
+                aria-busy={saving}
                 onClick={() => void saveForModeration()}
               >
-                <Save size={16} />{' '}
+                {saving ? (
+                  <Loader2 size={16} className="btn-spinner" />
+                ) : (
+                  <Save size={16} />
+                )}{' '}
                 {submitted ? 'Уже отправлено' : saving ? 'Отправка…' : 'Сохранить (на модерацию)'}
               </button>
             </div>

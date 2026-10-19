@@ -2465,6 +2465,24 @@ html[data-theme='dark'] .fridge-stat.is-warn .fridge-stat-value { color: #D2764A
 
 @keyframes pref-spin { to { transform: rotate(360deg); } }
 
+/*
+ * Спиннер внутри кнопки.
+ *
+ * `.pref-spinner` позиционируется абсолютно (он для поля поиска),
+ * поэтому в кнопке он «улетал» в угол. Здесь он в обычном потоке и
+ * вращается рядом с текстом, пока идёт долгая операция.
+ */
+.btn-spinner {
+  animation: pref-spin 1s linear infinite;
+  flex-shrink: 0;
+}
+
+/* Пока операция идёт, кнопка не должна выглядеть нажимаемой. */
+button[aria-busy='true'] {
+  cursor: progress;
+  opacity: 0.85;
+}
+
 .pref-suggest {
   position: absolute;
   /* Выше соседних блоков и топбара (у него z-index 50 на отдельных
