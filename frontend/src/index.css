@@ -28,6 +28,11 @@
   --dash-glow-1: rgba(180, 85, 45, 0.07);
   --dash-glow-2: rgba(92, 107, 63, 0.07);
 
+  /* Паттерн из еды: файл лежит в public/, размер плитки — 420×300. */
+  --dash-pattern: url('/food-pattern.svg');
+  --dash-pattern-dark: url('/food-pattern.svg');
+  --dash-pattern-size: 420px 300px;
+
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
   --font-serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -2901,15 +2906,38 @@ html[data-theme='dark'] .catalog-dish-thumb {
  * текст и контраст не меняются. Значения разные для тем — в тёмной
  * пятна делаются плотнее, иначе их не видно.
  */
+/*
+ * Фон главной: паттерн из еды.
+ *
+ * Узор повторяется, поверх него лежат два радиальных пятна и слой
+ * базового цвета — они приглушают линии, чтобы текст оставался
+ * читаемым (контраст заголовков и карточек не меняется).
+ * Размер плитки задан в самом SVG (420×300).
+ */
 .dashboard::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
+  background-image:
     radial-gradient(circle at 12% 0%, var(--dash-glow-1), transparent 45%),
-    radial-gradient(circle at 88% 8%, var(--dash-glow-2), transparent 40%);
+    radial-gradient(circle at 88% 8%, var(--dash-glow-2), transparent 40%),
+    var(--dash-pattern);
+  background-repeat: no-repeat, no-repeat, repeat;
+  background-size:
+    auto,
+    auto,
+    var(--dash-pattern-size);
+  background-position: center;
+}
+
+/* Тёмная тема: линии паттерна светлее, иначе их не видно. */
+html[data-theme='dark'] .dashboard::before {
+  background-image:
+    radial-gradient(circle at 12% 0%, var(--dash-glow-1), transparent 45%),
+    radial-gradient(circle at 88% 8%, var(--dash-glow-2), transparent 40%),
+    var(--dash-pattern-dark);
 }
 
 .dashboard-intro { display: flex; flex-direction: column; gap: 6px; }
