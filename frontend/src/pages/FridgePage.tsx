@@ -37,7 +37,31 @@ type FridgeItem = {
   imageSource?: 'user' | 'catalog' | 'placeholder';
 };
 
-const UNITS: FridgeUnit[] = ['г', 'кг', 'мл', 'л', 'шт'];
+/**
+ * Единицы для жидкостей и для еды.
+ *
+ * Раньше в списке всегда были все пять единиц сразу, и для «молока»
+ * предлагались граммы, а для «гречки» — миллилитры. Теперь набор
+ * зависит от категории продукта: масса для еды, объём для питья.
+ */
+const LIQUID_UNITS: FridgeUnit[] = ['мл', 'л'];
+const SOLID_UNITS: FridgeUnit[] = ['г', 'кг', 'шт'];
+
+/**
+ * Похоже ли, что продукт — жидкость.
+ *
+ * Ориентируемся на категорию из справочника, а если её нет (пользователь
+ * ввёл название руками) — на характерные слова в названии. Проверяем
+ * сначала «напитки», чтобы «молочный коктейль» не считался едой.
+ */
+const LIQUID_CATEGORY_RE = /напит|жидкост|вода|сок|молок|кефир|бульон|соус|масло/i;
+const LIQUID_NAME_RE = /молок|молочн|кефир|ряженк|сок|вода|чай|кофе|компот|бульон|напит|сироп|уксус|вино|пиво|сливк|йогурт/i;
+
+function unitsForProduct(name: string, category?: string | null): FridgeUnit[] {
+  const hay = `${category ?? ''} ${name}`.toLowerCase();
+  const isLiquid = LIQUID_CATEGORY_RE.test(category ?? '') || LIQUID_NAME_RE.test(hay);
+  return isLiquid ? LIQUID_UNITS : SOLID_UNITS;
+}
 
 /** Порядок категорий: сначала самые используемые при готовке. */
 const CATEGORY_ORDER = [
@@ -78,6 +102,21 @@ export function FridgePage() {
   const [draftName, setDraftName] = useState('');
   const [draftQty, setDraftQty] = useState('100');
   const [draftUnit, setDraftUnit] = useState<FridgeUnit>('г');
+  /** Категория выбранного продукта — от неё зависят единицы. */
+  const [draftCategory, setDraftCategory] = useState<string | null>(null);
+
+  /** Единицы, допустимые для текущего продукта (масса или объём). */
+  const effectiveUnits = unitsForProduct(draftName, draftCategory);
+
+  /**
+   * Держит единицу внутри допустимого списка.
+   * Без этого после смены «молоко» → «гречка» в состоянии осталось бы
+   * «мл», хотя такого варианта в списке уже нет.
+   */
+  useEffect(() => {
+    if (!effectiveUnits.includes(draftUnit)) setDraftUnit(effectiveUnits[0]);
+  }, [effectiveUnits, draftUnit]);
+
   const [draftExpiry, setDraftExpiry] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -325,7 +364,11 @@ export function FridgePage() {
               value={draftName}
               placeholder="Начните вводить: гречка, куриная грудка…"
               onChange={(e) => {
-                setDraftName(e.target.value);
+                const next = e.target.value;
+                setDraftName(next);
+                // Категория больше не соответствует новому названию:
+                // единицы пересчитываются по тексту, а не по старой категории.
+                setDraftCategory(null);
                 setSuggestOpen(true);
               }}
               onFocus={() => setSuggestOpen(true)}
@@ -341,6 +384,9 @@ export function FridgePage() {
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
                       setDraftName(s.name);
+                      // Из справочника знаем категорию — подбираем единицы под неё.
+                      setDraftCategory(s.category ?? null);
+                      setDraftUnit(unitsForProduct(s.name, s.category)[0]);
                       setSuggestOpen(false);
                     }}
                   >
@@ -365,7 +411,7 @@ export function FridgePage() {
             onChange={(e) => setDraftUnit(e.target.value as FridgeUnit)}
             aria-label="Единица измерения"
           >
-            {UNITS.map((u) => (
+            {effectiveUnits.map((u) => (
               <option key={u} value={u}>
                 {u}
               </option>
