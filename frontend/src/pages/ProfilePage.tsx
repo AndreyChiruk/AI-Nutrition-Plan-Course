@@ -8,6 +8,7 @@ import { computeAgeFromBirthDate } from '../utils/age';
 import { ALLERGEN_HINTS_RU, DIET_HINTS_RU } from '../constants/nutrition-hints';
 import { FoodPreferencePicker, type PreferenceItem } from '../components/FoodPreferencePicker';
 import { SubscriptionCard } from '../components/SubscriptionCard';
+import { BirthDatePicker } from '../components/BirthDatePicker';
 
 const PRESET_ALLERGENS = ['лактоза', 'глютен', 'арахис', 'орехи', 'морепродукты', 'яйца', 'соя', 'рыба'];
 
@@ -399,7 +400,12 @@ export const ProfilePage = () => {
               </label>
               <label>
                 Дата рождения
-                <input value={birthDate} type="date" onChange={(e) => setBirthDate(e.target.value)} required />
+                <BirthDatePicker
+                  value={birthDate}
+                  onChange={setBirthDate}
+                  minAge={AGE_MIN}
+                  maxAge={AGE_MAX}
+                />
               </label>
               <p className="muted small" style={{ gridColumn: '1 / -1' }}>
                 {displayAge !== null && displayAge >= 0 ? (

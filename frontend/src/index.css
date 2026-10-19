@@ -3738,6 +3738,19 @@ html[data-theme='dark'] .logo-icon { color: #D2764A; }
 .subscription-badge.is-warn { color: var(--danger); }
 .subscription-badge.is-none { color: var(--charcoal-soft); }
 
+/* Выбор даты рождения: три списка в один ряд; на узком экране
+   переносятся, чтобы не сжиматься до нечитаемого. */
+.birthdate-picker {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.birthdate-picker select {
+  flex: 1 1 84px;
+  min-width: 0;
+}
+
 .subscription-price {
   display: flex;
   align-items: baseline;
