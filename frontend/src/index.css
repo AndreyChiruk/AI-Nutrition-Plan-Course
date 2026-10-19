@@ -2235,6 +2235,10 @@ button.catalog-dish-chip {
 .fridge-stat-label { font-size: 0.78rem; opacity: 0.65; }
 .fridge-stat.is-warn .fridge-stat-value { color: var(--terracotta-dark); }
 
+/* В тёмной теме --terracotta-dark слишком тёмный для тёмного фона
+   (2.35:1). Берём светлый оттенок — 8.3:1. */
+html[data-theme='dark'] .fridge-stat.is-warn .fridge-stat-value { color: #D2764A; }
+
 .fridge-add-head { display: flex; align-items: center; gap: 8px; }
 
 .fridge-add-grid {
