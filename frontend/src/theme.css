@@ -1412,38 +1412,45 @@ html[data-theme='dark'] .cell-card:hover {
 }
 
 html[data-theme='dark'] .plan-table button.cell-card.meal-slot-done {
-  color: #fff !important;
-  border: none !important;
+  color: var(--status-done-fg) !important;
+  border: 1px solid var(--status-done-bg) !important;
   border-radius: var(--radius-md) !important;
   outline: none !important;
-  box-shadow:
-    0 2px 8px rgba(76, 175, 80, 0.38),
-    inset 0 1px 0 rgba(251, 249, 245, 0.12) !important;
-  background: var(--paper) !important;
+  background: var(--status-done-bg) !important;
 }
 
 html[data-theme='dark'] .plan-table button.cell-card.meal-slot-done:hover {
-  box-shadow:
-    0 4px 16px rgba(76, 175, 80, 0.48),
-    inset 0 1px 0 rgba(251, 249, 245, 0.14) !important;
+  filter: brightness(1.06);
 }
 
 html[data-theme='dark'] .plan-table button.cell-card.meal-slot-skipped {
-  color: #fff !important;
-  border: none !important;
+  color: var(--status-skipped-fg) !important;
+  border: 1px solid var(--status-skipped-bg) !important;
   border-radius: var(--radius-md) !important;
   outline: none !important;
-  box-shadow:
-    0 2px 8px rgba(239, 68, 68, 0.42),
-    inset 0 1px 0 rgba(251, 249, 245, 0.1) !important;
-  background: var(--paper) !important;
+  background: var(--status-skipped-bg) !important;
   opacity: 1 !important;
 }
 
 html[data-theme='dark'] .plan-table button.cell-card.meal-slot-skipped:hover {
-  box-shadow:
-    0 4px 16px rgba(239, 68, 68, 0.52),
-    inset 0 1px 0 rgba(251, 249, 245, 0.12) !important;
+  filter: brightness(1.06);
+}
+
+/* Выбранный чип статуса должен побеждать общие правила для
+   `.allergy-chip.selected`, иначе «Съел» и «Пропустил» выглядят
+   одинаково (тёрракотовый текст на нейтральном фоне). */
+html[data-theme='dark'] .plan-surface .meal-status-chip.selected.meal-status-chip-done,
+html[data-theme='light'] .plan-surface .meal-status-chip.selected.meal-status-chip-done {
+  background: var(--status-done-bg) !important;
+  border-color: var(--status-done-bg) !important;
+  color: var(--status-done-fg) !important;
+}
+
+html[data-theme='dark'] .plan-surface .meal-status-chip.selected.meal-status-chip-skipped,
+html[data-theme='light'] .plan-surface .meal-status-chip.selected.meal-status-chip-skipped {
+  background: var(--status-skipped-bg) !important;
+  border-color: var(--status-skipped-bg) !important;
+  color: var(--status-skipped-fg) !important;
 }
 
 html[data-theme='dark'] .cell-card.meal-slot-replaced {
@@ -1530,6 +1537,12 @@ html[data-theme='dark'] {
   --charcoal: #EDE8E1;
   --charcoal-soft: #A69E93;
   --line: #2E2A25;
+
+  /* Статусы в тёмной теме: светлый фон + тёмный текст (9.03:1 и 9.07:1). */
+  --status-done-bg: #A8C48A;
+  --status-done-fg: #1C1A18;
+  --status-skipped-bg: #F2A9A3;
+  --status-skipped-fg: #1C1A18;
 }
 
 html[data-theme='light'] button.cell-card:not(.meal-slot-done):not(.meal-slot-skipped) {

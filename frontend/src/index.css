@@ -14,6 +14,15 @@
   --danger: var(--danger);
   --danger-line: #E3C4C4;
 
+  /* Статусы приёма пищи. Фон и текст задаются парой в каждом теме:
+     раньше текст был жёстко белым, а фон — токеном, и в светлой теме
+     «Пропустил» давал белый текст на светлой подложке.
+     Контраст проверен по WCAG AA (≥4.5:1) для обоих тем. */
+  --status-done-bg: #3F6B32;
+  --status-done-fg: #ffffff;
+  --status-skipped-bg: #B3261E;
+  --status-skipped-fg: #ffffff;
+
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
   --font-serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -947,42 +956,56 @@ html[data-theme='dark'] .bmi-obese {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(222, 215, 203, 0.26);
 }
-
 .plan-table button.cell-card.meal-slot-done {
   font-weight: 600;
-  color: #fff !important;
-  border: none !important;
+  /* Фон и текст — парой. Раньше здесь был жёсткий `color: #fff`,
+     а фон задавался токеном: при смене темы белый текст попадал на
+     светлую подложку и приём пищи становился нечитаемым. */
+  color: var(--status-done-fg) !important;
+  border: 1px solid var(--status-done-bg) !important;
   border-radius: var(--radius-md) !important;
   outline: none !important;
-  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.45);
-  background: var(--olive) !important;
+  background: var(--status-done-bg) !important;
   transition:
     background 0.2s,
     transform 0.2s,
-    box-shadow 0.2s;
+    filter 0.2s;
 }
 
 .plan-table button.cell-card.meal-slot-done:hover {
-  box-shadow: 0 4px 14px rgba(76, 175, 80, 0.55);
+  filter: brightness(1.08);
 }
 
 .plan-table button.cell-card.meal-slot-skipped {
   font-weight: 600;
-  color: #fff !important;
-  border: none !important;
+  color: var(--status-skipped-fg) !important;
+  border: 1px solid var(--status-skipped-bg) !important;
   border-radius: var(--radius-md) !important;
   outline: none !important;
-  box-shadow: 0 2px 8px rgba(244, 67, 54, 0.45);
-  background: var(--danger) !important;
+  background: var(--status-skipped-bg) !important;
   transition:
     background 0.2s,
     transform 0.2s,
-    box-shadow 0.2s;
+    filter 0.2s;
   opacity: 1;
 }
 
 .plan-table button.cell-card.meal-slot-skipped:hover {
-  box-shadow: 0 4px 14px rgba(244, 67, 54, 0.55);
+  filter: brightness(1.08);
+}
+
+/* Кнопки «Съел / Пропустил» под блюдом: цвет только у выбранной,
+   у невыбранной — обычный вид чипа, чтобы не спорить с блюдом. */
+.plan-table .meal-status-chip.selected.meal-status-chip-done {
+  background: var(--status-done-bg);
+  border-color: var(--status-done-bg);
+  color: var(--status-done-fg);
+}
+
+.plan-table .meal-status-chip.selected.meal-status-chip-skipped {
+  background: var(--status-skipped-bg);
+  border-color: var(--status-skipped-bg);
+  color: var(--status-skipped-fg);
 }
 
 .cell-card.meal-slot-replaced {
@@ -1959,7 +1982,8 @@ body.pdf-exporting .pdf-export .plan-table th {
 }
 
 body.pdf-exporting .meal-plan-pdf.meal-plan-pdf-exporting .plan-table button.cell-card.meal-slot-done,
-body.pdf-exporting .meal-plan-pdf.meal-plan-pdf-exporting .plan-table button.cell-card.meal-slot-skipped {
+body.pdf-exporting .meal-plan-pdf.meal-plan-pdf-exporting .plan-table button.cell-card.meal-slot-skipped,
+body.pdf-exporting .meal-plan-pdf.meal-plan-pdf-exporting .plan-table .meal-status-chip.selected {
   background: #fff !important;
   border: 1px solid var(--line) !important;
   box-shadow: none !important;

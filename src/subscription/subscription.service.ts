@@ -12,6 +12,23 @@ import {
   appUrl,
 } from '../config/stripe';
 
+/**
+ * Вырезает из текста всё, что похоже на секрет платёжной системы.
+ *
+ * Stripe в тексте ошибки целиком возвращает переданный ключ:
+ * `Expired API Key provided: rkcs_test_51UOLI***Zz3Y`. Этот текст
+ * уходил напрямую в `message` ответа и рендерился в карточке подписки —
+ * пользователь видел кусок секретного ключа в браузере.
+ *
+ * Замаскированный ключ всё равно раскрывает его тип и длину, поэтому
+ * наружу мы не отправляем и его: достаточно того, что причина уйдёт в лог.
+ */
+export function redactSecrets(text: string): string {
+  return String(text ?? '')
+    .replace(/\b(?:rkcs|rks|sk|pk|whsec)_[A-Za-z0-9_]*/g, '[ключ скрыт]')
+    .replace(/\b(?:rk|sk|pk)_(?:test|live)_[A-Za-z0-9_]*/g, '[ключ скрыт]');
+}
+
 /** Сколько сообщений в AI-чате доступно без подписки за день. */
 export const FREE_CHAT_MESSAGES_PER_DAY = 3;
 
@@ -84,10 +101,18 @@ export class SubscriptionService {
 
     if (!stripe) throw new BadRequestException('Платежи недоступны.');
 
-    const customer = await stripe.customers.create({
-      email: user.email,
-      metadata: { userId: String(user.id) },
-    });
+    let customer: Stripe.Customer;
+    try {
+      customer = await stripe.customers.create({
+        email: user.email,
+        metadata: { userId: String(user.id) },
+      });
+    } catch (e) {
+      this.logger.error(`Не удалось создать покупателя Stripe: ${redactSecrets(String(e))}`);
+      throw new BadRequestException(
+        'Не удалось подготовить оплату. Попробуйте позже или обратитесь в поддержку.',
+      );
+    }
 
     await this.subscriptionModel.upsert({
       userId: user.id,
@@ -113,17 +138,26 @@ export class SubscriptionService {
     if (!user) throw new NotFoundException('Пользователь не найден');
 
     const customerId = await this.ensureCustomer(user);
+    let session: Stripe.Checkout.Session;
+    try {
+      session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        customer: customerId,
+        line_items: [{ price: stripePriceIdMonthly, quantity: 1 }],
+        success_url: `${appUrl}/profile?subscription=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${appUrl}/profile?subscription=canceled`,
+        subscription_data: { metadata: { userId: String(user.id) } },
+        // Номер налога не запрашиваем: для тестового режима это лишний шаг.
+        allow_promotion_codes: true,
+      });
+    } catch (e) {
+      // См. redactSecrets: текст ошибки Stripe содержит сам ключ.
+      this.logger.error(`Не удалось создать сессию оплаты: ${redactSecrets(String(e))}`);
+      throw new BadRequestException(
+        'Не удалось начать оформление подписки. Попробуйте позже или обратитесь в поддержку.',
+      );
+    }
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      customer: customerId,
-      line_items: [{ price: stripePriceIdMonthly, quantity: 1 }],
-      success_url: `${appUrl}/profile?subscription=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/profile?subscription=canceled`,
-      subscription_data: { metadata: { userId: String(user.id) } },
-      // Номер налога не запрашиваем: для тестового режима это лишний шаг.
-      allow_promotion_codes: true,
-    });
 
     if (!session.url) {
       throw new BadRequestException('Stripe не вернул ссылку на оплату.');
@@ -172,7 +206,7 @@ export class SubscriptionService {
     } catch (e) {
       // Ошибка Stripe не должна ломать страницу: отдаём текущее
       // состояние из БД и логируем причину.
-      this.logger.warn(`Не удалось синхронизировать подписку: ${String(e)}`);
+      this.logger.warn(`Не удалось синхронизировать подписку: ${redactSecrets(String(e))}`);
     }
 
     return this.snapshot(userId);
@@ -180,17 +214,30 @@ export class SubscriptionService {
 
   /** Ссылка на портал управления подпиской (отмена, смена карты). */
   async createPortalSession(userId: number | string): Promise<{ url: string }> {
-    if (!stripe) throw new BadRequestException('Платежи недоступны.');
+    const configError = stripeConfigError();
+    if (configError || !stripe) {
+      throw new BadRequestException(configError ?? 'Платежи недоступны.');
+    }
 
     const sub = await this.find(userId);
     if (!sub?.stripeCustomerId) {
       throw new BadRequestException('Подписка ещё не оформлена.');
     }
 
-    const session = await stripe.billingPortal.sessions.create({
-      customer: sub.stripeCustomerId,
-      return_url: `${appUrl}/profile`,
-    });
+    let session: Stripe.BillingPortal.Session;
+    try {
+      session = await stripe.billingPortal.sessions.create({
+        customer: sub.stripeCustomerId,
+        return_url: `${appUrl}/profile`,
+      });
+    } catch (e) {
+      // Наружу — только нейтральный текст: в ответе Stripe приходит
+      // переданный ключ (см. redactSecrets), а он не должен покидать сервер.
+      this.logger.error(`Не удалось создать портал Stripe: ${redactSecrets(String(e))}`);
+      throw new BadRequestException(
+        'Не удалось открыть управление подпиской. Попробуйте позже или обратитесь в поддержку.',
+      );
+    }
     return { url: session.url };
   }
 
@@ -301,7 +348,7 @@ export class SubscriptionService {
             periodEnd = this.periodEndOf(sub);
             status = this.normalizeStatus(sub.status);
           } catch (e) {
-            this.logger.warn(`Не удалось получить подписку ${subId}: ${String(e)}`);
+            this.logger.warn(`Не удалось получить подписку ${subId}: ${redactSecrets(String(e))}`);
           }
         }
 

@@ -12,7 +12,7 @@ import type { Request } from 'express';
 import type { RawBodyRequest } from '@nestjs/common';
 import type Stripe from 'stripe';
 import { stripe, stripeWebhookSecret } from '../config/stripe';
-import { SubscriptionService } from './subscription.service';
+import { SubscriptionService, redactSecrets } from './subscription.service';
 
 /**
  * Приём событий Stripe.
@@ -62,7 +62,8 @@ export class StripeWebhookController {
     } catch (e) {
       // Подпись не совпала — запрос мог быть подделан. Отвечаем 400,
       // чтобы Stripe не считал событие доставленным.
-      this.logger.warn(`Подпись вебхука не подтверждена: ${String(e)}`);
+      // Может содержать секрет вебхука — в лог только после маскировки.
+      this.logger.warn(`Подпись вебхука не подтверждена: ${redactSecrets(String(e))}`);
       throw new BadRequestException('Подпись вебхука не подтверждена.');
     }
 
@@ -88,7 +89,7 @@ export class StripeWebhookController {
     } catch (e) {
       // Ошибку обработки логируем, но Stripe отвечаем 200: повторная
       // доставка того же события не поможет, если дело в наших данных.
-      this.logger.error(`Не удалось обработать ${event.type}: ${String(e)}`);
+      this.logger.error(`Не удалось обработать ${event.type}: ${redactSecrets(String(e))}`);
     }
 
     return { received: true };

@@ -2137,24 +2137,39 @@ export const MealPlanPage = () => {
                                 <div className="chip-grid" style={{ marginTop: 6 }}>
                                   <button
                                     type="button"
-                                    className="allergy-chip"
-                                    onClick={() => void setMealStatusForDay(day, slot, 'done')}
+                                    className={`allergy-chip meal-status-chip meal-status-chip-done ${
+                                      day.mealStatuses[slot] === 'done' ? 'selected' : ''
+                                    }`}
+                                    aria-pressed={day.mealStatuses[slot] === 'done'}
+                                    // Повторное нажатие снимает статус — отдельная
+                                    // кнопка «Сброс» больше не нужна: три кнопки
+                                    // на каждый приём (включая «Сброс») визуально
+                                    // заслоняли само блюдо.
+                                    onClick={() =>
+                                      void setMealStatusForDay(
+                                        day,
+                                        slot,
+                                        day.mealStatuses[slot] === 'done' ? null : 'done',
+                                      )
+                                    }
                                   >
                                     Съел
                                   </button>
                                   <button
                                     type="button"
-                                    className="allergy-chip"
-                                    onClick={() => void setMealStatusForDay(day, slot, 'skipped')}
+                                    className={`allergy-chip meal-status-chip meal-status-chip-skipped ${
+                                      day.mealStatuses[slot] === 'skipped' ? 'selected' : ''
+                                    }`}
+                                    aria-pressed={day.mealStatuses[slot] === 'skipped'}
+                                    onClick={() =>
+                                      void setMealStatusForDay(
+                                        day,
+                                        slot,
+                                        day.mealStatuses[slot] === 'skipped' ? null : 'skipped',
+                                      )
+                                    }
                                   >
                                     Пропустил
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="allergy-chip"
-                                    onClick={() => void setMealStatusForDay(day, slot, null)}
-                                  >
-                                    Сброс
                                   </button>
                                 </div>
                               </>
