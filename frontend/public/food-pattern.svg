@@ -14,7 +14,7 @@
   Здесь хранится эталон, а в CSS используется его кодированная копия.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" width="420" height="300" viewBox="0 0 420 300">
-  <g fill="none" stroke="#B4552D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5">
+  <g fill="none" stroke="#B4552D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.22">
     <!-- яйцо-глазунья -->
     <g transform="translate(30 40)">
       <path d="M0 18c0-11 9-18 21-18s21 7 21 18-9 18-21 18S0 29 0 18Z"/>
