@@ -1543,6 +1543,10 @@ html[data-theme='dark'] {
   --status-done-fg: #1C1A18;
   --status-skipped-bg: #F2A9A3;
   --status-skipped-fg: #1C1A18;
+
+  /* В тёмной теме пятна плотнее — иначе их не видно на тёмном фоне. */
+  --dash-glow-1: rgba(210, 118, 74, 0.13);
+  --dash-glow-2: rgba(138, 154, 99, 0.11);
 }
 
 html[data-theme='light'] button.cell-card:not(.meal-slot-done):not(.meal-slot-skipped) {
