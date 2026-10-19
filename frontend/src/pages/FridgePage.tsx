@@ -42,10 +42,14 @@ type FridgeItem = {
  *
  * Раньше в списке всегда были все пять единиц сразу, и для «молока»
  * предлагались граммы, а для «гречки» — миллилитры. Теперь набор
- * зависит от категории продукта: масса для еды, объём для питья.
+ * зависит от категории продукта: объём для питья, «шт» для штучных,
+ * масса для всего остального (крупы, мука, мясо).
  */
 const LIQUID_UNITS: FridgeUnit[] = ['мл', 'л'];
-const SOLID_UNITS: FridgeUnit[] = ['г', 'кг', 'шт'];
+/** Сыпучее и весовое: крупы, мука, мясо — «шт» не предлагаем. */
+const SOLID_UNITS: FridgeUnit[] = ['г', 'кг'];
+/** Еда, которую считают штуками (яйца, фрукты) — без «г» и «кг». */
+const COUNTABLE_UNITS: FridgeUnit[] = ['шт'];
 
 /**
  * Похоже ли, что продукт — жидкость.
@@ -56,11 +60,37 @@ const SOLID_UNITS: FridgeUnit[] = ['г', 'кг', 'шт'];
  */
 const LIQUID_CATEGORY_RE = /напит|жидкост|вода|сок|молок|кефир|бульон|соус|масло/i;
 const LIQUID_NAME_RE = /молок|молочн|кефир|ряженк|сок|вода|чай|кофе|компот|бульон|напит|сироп|уксус|вино|пиво|сливк|йогурт/i;
+/**
+ * Считают ли продукт штуками.
+ *
+ * Раньше «шт» предлагалось всем: гречку или муку можно было «взять
+ * 3 штуки», что бессмысленно. Штуки оставлены там, где продукт реально
+ * считают поштучно — яйца, фрукты, овощи, выпечка.
+ *
+ * Составные блюда («каша», «суп») в штуках тоже не измеряют,
+ * поэтому проверяем и категорию, и название.
+ */
+const COUNTABLE_CATEGORY_RE = /яйц|фрукт|овощ|ягод|бахчев|гриб|зелень|орех|сухофрукт|хлеб|выпечк|кондитер/i;
+const COUNTABLE_NAME_RE = /\bяйц|яблок|банан|апельсин|мандарин|груш|лимон|лайм|киви|авокадо|томат|помидор|огурец|перец|лук|морков|картоф|кабачок|баклажан|свекл|капуст|редис|виноград|слив|персик|абрикос|вишн|черешн|гранат|манго|ананас|хлеб|батон|булочк|лаваш|яйцо|яйца|зубчик/i;
 
-function unitsForProduct(name: string, category?: string | null): FridgeUnit[] {
+function isCountableProduct(name: string, category?: string | null): boolean {
+  const text = String(name ?? '').toLowerCase();
+  if (COUNTABLE_CATEGORY_RE.test(category ?? '')) return true;
+  return COUNTABLE_NAME_RE.test(text);
+}
+
+/**
+ * Итоговый список единиц для продукта.
+ *
+ * Жидкости — объём, штучные продукты — только «шт», остальная еда —
+ * масса. Список никогда не пустой: интерфейс всегда показывает хотя бы
+ * одну единицу.
+ */
+function unitsForFridge(name: string, category?: string | null): FridgeUnit[] {
   const hay = `${category ?? ''} ${name}`.toLowerCase();
-  const isLiquid = LIQUID_CATEGORY_RE.test(category ?? '') || LIQUID_NAME_RE.test(hay);
-  return isLiquid ? LIQUID_UNITS : SOLID_UNITS;
+  if (LIQUID_CATEGORY_RE.test(category ?? '') || LIQUID_NAME_RE.test(hay)) return LIQUID_UNITS;
+  if (isCountableProduct(name, category)) return COUNTABLE_UNITS;
+  return SOLID_UNITS;
 }
 
 /** Порядок категорий: сначала самые используемые при готовке. */
@@ -106,7 +136,7 @@ export function FridgePage() {
   const [draftCategory, setDraftCategory] = useState<string | null>(null);
 
   /** Единицы, допустимые для текущего продукта (масса или объём). */
-  const effectiveUnits = unitsForProduct(draftName, draftCategory);
+  const effectiveUnits = unitsForFridge(draftName, draftCategory);
 
   /**
    * Держит единицу внутри допустимого списка.
@@ -386,7 +416,7 @@ export function FridgePage() {
                       setDraftName(s.name);
                       // Из справочника знаем категорию — подбираем единицы под неё.
                       setDraftCategory(s.category ?? null);
-                      setDraftUnit(unitsForProduct(s.name, s.category)[0]);
+                      setDraftUnit(unitsForFridge(s.name, s.category)[0]);
                       setSuggestOpen(false);
                     }}
                   >
