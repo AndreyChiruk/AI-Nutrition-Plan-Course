@@ -3751,6 +3751,12 @@ html[data-theme='dark'] .logo-icon { color: #D2764A; }
   color: var(--terracotta-dark);
 }
 
+/* Пересчёт цены в BYN по курсу НБРБ: вспомогательная строка
+   под основной суммой, без акцента. */
+.subscription-rate-note {
+  margin: 2px 0 0;
+}
+
 .subscription-features {
   list-style: none;
   margin: 10px 0 0;

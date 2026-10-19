@@ -326,6 +326,28 @@ export const ProfilePage = () => {
               </div>
             </div>
           </section>
+
+          {/* «Действия» стоят сразу под статистикой: раньше блок был в самом
+              конце правой колонки, и до кнопки «Сохранить» приходилось
+              прокручивать всю страницу. */}
+          <section className="card section-card">
+            <div className="section-head">
+              <h3>Действия</h3>
+            </div>
+            {validationError ? <p className="error">{validationError}</p> : null}
+            {message ? <p className="success">{message}</p> : null}
+            <div className="action-buttons">
+              <button type="submit" className="btn-primary">
+                <Save size={16} /> Сохранить все изменения
+              </button>
+              <button type="button" onClick={() => setShowPasswordModal(true)}>
+                Сменить пароль
+              </button>
+              <button type="button" className="btn-danger" onClick={logout}>
+                <LogOut size={16} /> Выйти
+              </button>
+            </div>
+          </section>
         </aside>
 
         <section className="right-col">
@@ -543,25 +565,6 @@ export const ProfilePage = () => {
           </section>
 
           <SubscriptionCard />
-
-          <section className="card section-card">
-            <div className="section-head">
-              <h3>Действия</h3>
-            </div>
-            {validationError ? <p className="error">{validationError}</p> : null}
-            {message ? <p className="success">{message}</p> : null}
-            <div className="action-buttons">
-              <button type="submit" className="btn-primary">
-                <Save size={16} /> Сохранить все изменения
-              </button>
-              <button type="button" onClick={() => setShowPasswordModal(true)}>
-                Сменить пароль
-              </button>
-              <button type="button" className="btn-danger" onClick={logout}>
-                <LogOut size={16} /> Выйти
-              </button>
-            </div>
-          </section>
         </section>
       </form>
 

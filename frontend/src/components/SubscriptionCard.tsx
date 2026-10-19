@@ -20,8 +20,8 @@ const FEATURES = [
   'Диалог с ассистентом без ограничений',
 ] as const;
 
-/** Валюта берётся из переменной окружения сборки; цена — из Stripe. */
-const PRICE_LABEL = import.meta.env.VITE_SUBSCRIPTION_PRICE ?? '9.90 $';
+/** Запасная цена, если бэкенд не отдал курс (BYN по умолчанию). */
+const FALLBACK_PRICE_LABEL = '9.90 $';
 
 const STATUS_LABEL: Record<string, string> = {
   active: 'Активна',
@@ -47,12 +47,15 @@ export function SubscriptionCard() {
     currentPeriodEnd,
     cancelAtPeriodEnd,
     chatMessagesLeft,
+    priceByn,
     loading,
     syncFromStripe,
     startCheckout,
     openPortal,
   } = useSubscription();
 
+  // Название суммы: основная цена в долларах, рядом — пересчёт в BYN.
+  const priceLabel = priceByn ? `${priceByn.usd.toFixed(2)} $` : FALLBACK_PRICE_LABEL;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -134,9 +137,22 @@ export function SubscriptionCard() {
           </p>
 
           <p className="subscription-price">
-            <span className="subscription-price-value mono">{PRICE_LABEL}</span>
+            <span className="subscription-price-value mono">{priceLabel}</span>
             <span className="muted small">в месяц</span>
           </p>
+
+          {/* Курс НБРБ меняется ежедневно, поэтому сумму в BYN считает
+              бэкенд и отдаёт вместе со статусом подписки. */}
+          {priceByn && !priceByn.isFallback ? (
+            <p className="muted small subscription-rate-note">
+              ≈ {priceByn.byn.toFixed(2)} BYN по курсу НБРБ {priceByn.rate.toFixed(4)}
+              {priceByn.rateDate ? ` от ${priceByn.rateDate}` : ''}
+            </p>
+          ) : (
+            <p className="muted small subscription-rate-note">
+              Оплата в долларах. Курс НБРБ временно недоступен — сумма в BYN не показана.
+            </p>
+          )}
 
           <ol className="subscription-features">
             {FEATURES.map((f) => (

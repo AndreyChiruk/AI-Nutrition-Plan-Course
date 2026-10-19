@@ -149,6 +149,7 @@ export function useSubscription() {
     cancelAtPeriodEnd: Boolean(data?.cancelAtPeriodEnd),
     /** Остаток бесплатных сообщений; null при активной подписке. */
     chatMessagesLeft: data?.chatMessagesLeft ?? null,
+    priceByn: data?.priceByn ?? null,
     loading,
     /** Проверка подписки напрямую в Stripe (кнопка «Обновить статус»). */
     syncFromStripe,

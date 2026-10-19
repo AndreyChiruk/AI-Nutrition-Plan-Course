@@ -4,6 +4,7 @@ import { Op } from 'sequelize';
 import type Stripe from 'stripe';
 import { Subscription, type SubscriptionStatus } from '../models/Subscription';
 import { AiChatUsage } from '../models/AiChatUsage';
+import { CurrencyService, type UsdBynRate } from './currency.service';
 import { User } from '../models/User';
 import {
   stripe,
@@ -40,6 +41,30 @@ export type SubscriptionSnapshot = {
   cancelAtPeriodEnd: boolean;
   /** Остаток бесплатных сообщений в чате (для пользователей без подписки). */
   chatMessagesLeft: number | null;
+  /** Цена подписки в белорусских рублях по текущему курсу НБРБ. */
+  priceByn: SubscriptionPriceByn;
+};
+
+/**
+ * Цена месячной подписки в долларах.
+ *
+ * Должна совпадать с ценой в Stripe (`STRIPE_PRICE_ID_MONTHLY`):
+ * Stripe списывает доллары, а BYN мы показываем для наглядности.
+ */
+export const SUBSCRIPTION_PRICE_USD = 9.9;
+
+/** Цена подписки в BYN, посчитанная по динамическому курсу. */
+export type SubscriptionPriceByn = {
+  /** Цена в долларах (как задано в Stripe). */
+  usd: number;
+  /** Цена в белорусских рублях. */
+  byn: number;
+  /** Курс: сколько BYN за 1 USD. */
+  rate: number;
+  /** Дата курса НБРБ (YYYY-MM-DD) или null для запасного курса. */
+  rateDate: string | null;
+  /** Курс не удалось получить — сумма ориентировочная. */
+  isFallback: boolean;
 };
 
 @Injectable()
@@ -53,6 +78,7 @@ export class SubscriptionService {
     private readonly chatUsageModel: typeof AiChatUsage,
     @InjectModel(User)
     private readonly userModel: typeof User,
+    private readonly currency: CurrencyService,
   ) {}
 
   /** Запись подписки пользователя или null. */
@@ -80,9 +106,26 @@ export class SubscriptionService {
         : null,
       cancelAtPeriodEnd: Boolean(sub?.cancelAtPeriodEnd),
       chatMessagesLeft: isActive ? null : await this.chatMessagesLeft(userId),
+      priceByn: await this.priceByn(),
     };
   }
 
+  /**
+   * Цена подписки в BYN по текущему курсу НБРБ.
+   *
+   * Доллары списывает Stripe, BYN — только отображение для
+   * пользователя: цена в долларах не меняется, меняется курс.
+   */
+  private async priceByn(): Promise<SubscriptionPriceByn> {
+    const { rate, date, isFallback } = await this.currency.usdToByn();
+    return {
+      usd: SUBSCRIPTION_PRICE_USD,
+      byn: Number((SUBSCRIPTION_PRICE_USD * rate).toFixed(2)),
+      rate,
+      rateDate: date,
+      isFallback,
+    };
+  }
   /** Действует ли подписка — используется middleware. */
   async isActive(userId: number | string): Promise<boolean> {
     const sub = await this.find(userId);

@@ -113,4 +113,18 @@ export type SubscriptionStatusResponse = {
   cancelAtPeriodEnd: boolean;
   /** Остаток бесплатных сообщений; `null` при активной подписке. */
   chatMessagesLeft: number | null;
+  /** Цена подписки в BYN по динамическому курсу НБРБ. */
+  priceByn: SubscriptionPriceByn;
+};
+
+/** Цена подписки в белорусских рублях по текущему курсу. */
+export type SubscriptionPriceByn = {
+  usd: number;
+  byn: number;
+  /** Сколько BYN за 1 USD. */
+  rate: number;
+  /** Дата курса НБРБ (YYYY-MM-DD) или null для запасного курса. */
+  rateDate: string | null;
+  /** Курс не удалось получить — сумма ориентировочная. */
+  isFallback: boolean;
 };

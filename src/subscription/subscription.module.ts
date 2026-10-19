@@ -9,6 +9,7 @@ import { Subscription } from '../models/Subscription';
 import { User } from '../models/User';
 import { SubscriptionController } from './subscription.controller';
 import { SubscriptionService } from './subscription.service';
+import { CurrencyService } from './currency.service';
 import { StripeWebhookController } from './stripe-webhook.controller';
 
 /**
@@ -24,7 +25,7 @@ import { StripeWebhookController } from './stripe-webhook.controller';
     JwtModule.register({ secret: resolveJwtSecret() }),
   ],
   controllers: [SubscriptionController, StripeWebhookController],
-  providers: [SubscriptionService, JwtAuthGuard, RolesGuard],
-  exports: [SubscriptionService],
+  providers: [SubscriptionService, CurrencyService, JwtAuthGuard, RolesGuard],
+  exports: [SubscriptionService, CurrencyService],
 })
 export class SubscriptionModule {}
