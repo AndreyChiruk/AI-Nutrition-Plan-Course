@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Activity, Apple, BarChart3, Dumbbell, Home, LayoutList, Leaf, Menu, MessageCircle, Refrigerator, Shield, Sparkles, User, UtensilsCrossed, X } from '../components/icons';
+import { Activity, Apple, ArrowLeft, BarChart3, ChevronRight, Dumbbell, Home, LayoutList, Leaf, Menu, MessageCircle, Refrigerator, Shield, Sparkles, User, UtensilsCrossed, X } from '../components/icons';
 import type { LucideIcon } from '../components/icons';
 import { useAuth } from '../context/AuthContext';
 import { Logo } from '../components/Logo';
@@ -30,6 +30,23 @@ const navItems: Array<{
 export const AppLayout = () => {
   const { user, logout } = useAuth();
   const [navOpen, setNavOpen] = useState(false);
+  /**
+   * Свёрнуто ли боковое меню за левый край.
+   *
+   * Когда свёрнуто, видна только узкая полоска; наведение на неё
+   * плавно выдвигает панель полностью, а уход курсора возвращает её
+   * обратно. Выбор запоминается, чтобы меню не разворачивалось при
+   * каждом переходе между страницами.
+   */
+  const [collapsed, setCollapsed] = useState(() => {
+    return localStorage.getItem('ui-sidebar-collapsed') === '1';
+  });
+  /** Меню раскрыто наведением прямо сейчас. */
+  const [navHovered, setNavHovered] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('ui-sidebar-collapsed', collapsed ? '1' : '0');
+  }, [collapsed]);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const t = localStorage.getItem('ui-theme');
     return t === 'light' ? 'light' : 'dark';
@@ -43,7 +60,11 @@ export const AppLayout = () => {
   const toggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
 
   return (
-    <div className={`app-shell${navOpen ? ' app-shell--nav-open' : ''}`}>
+    <div
+      className={`app-shell${navOpen ? ' app-shell--nav-open' : ''}${
+        collapsed ? ' app-shell--nav-collapsed' : ''
+      }${collapsed && navHovered ? ' app-shell--nav-peek' : ''}`}
+    >
       {navOpen ? (
         <button
           type="button"
@@ -84,7 +105,38 @@ export const AppLayout = () => {
           </button>
         </div>
       </header>
-      <nav id="app-sidebar" className="sidebar" aria-label="Основное меню">
+      {/*
+        Узкая полоса у левого края: видна только у свёрнутого меню.
+        Наведение раскрывает панель, поэтому кнопка не нужна для
+        самого выезда — она остаётся для открепления меню.
+      */}
+      {collapsed ? (
+        <div
+          className="sidebar-peek"
+          aria-hidden="true"
+          onMouseEnter={() => setNavHovered(true)}
+        />
+      ) : null}
+      <nav
+        id="app-sidebar"
+        className="sidebar"
+        aria-label="Основное меню"
+        onMouseEnter={() => setNavHovered(true)}
+        onMouseLeave={() => setNavHovered(false)}
+      >
+        <button
+          type="button"
+          className="sidebar-collapse"
+          onClick={() => {
+            setCollapsed((v) => !v);
+            setNavHovered(false);
+          }}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Закрепить меню' : 'Свернуть меню'}
+        >
+          {collapsed ? <ChevronRight size={16} /> : <ArrowLeft size={16} />}
+          {collapsed ? 'Закрепить' : 'Свернуть'}
+        </button>
         {navItems
           .filter((item) => !item.adminOnly || user?.role === 'admin')
           .map(({ to, label, icon: Icon, end }) => (

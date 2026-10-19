@@ -93,6 +93,73 @@ h1, h2, h3, h4 {
   min-height: 100vh;
 }
 
+/*
+ * Свёрнутое боковое меню.
+ *
+ * Колонка сжимается до узкой полоски, а сама панель уезжает влево за
+ * край экрана. При наведении на полоску (или на панель) добавляется
+ * класс `--nav-peek`, и меню плавно выезжает обратно — без перезагрузки
+ * страницы и без прыжка контента.
+ */
+.app-shell--nav-collapsed {
+  grid-template-columns: 14px 1fr;
+}
+
+.app-shell--nav-collapsed .sidebar {
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.28s cubic-bezier(0.33, 1, 0.68, 1),
+    opacity 0.2s ease;
+}
+
+/* Наведение: меню возвращается на место поверх контента. */
+.app-shell--nav-peek .sidebar {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 40;
+  position: relative;
+}
+
+/* Полоска у левого края: по ней пользователь и «ловит» меню. */
+.sidebar-peek {
+  grid-column: 1;
+  grid-row: 2;
+  width: 14px;
+  cursor: pointer;
+  position: relative;
+  z-index: 41;
+}
+
+.sidebar-peek::after {
+  content: '';
+  position: absolute;
+  inset: 24px 4px auto 4px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background 0.2s ease;
+}
+
+.sidebar-peek:hover::after {
+  background: var(--terracotta);
+}
+
+/* Кнопка закрепления/сворачивания внутри меню. */
+.sidebar-collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  font-size: 0.82rem;
+  border-radius: var(--radius-md);
+}
+
 .topbar {
   grid-column: 1 / 3;
   display: flex;
@@ -111,6 +178,11 @@ h1, h2, h3, h4 {
   flex-direction: column;
   gap: 10px;
   border-right: 1px solid rgba(222, 215, 203, 0.2);
+  /* Плавный выезд/уезд при наведении на полоску у края. */
+  transition:
+    transform 0.28s cubic-bezier(0.33, 1, 0.68, 1),
+    opacity 0.2s ease;
+  will-change: transform;
 }
 
 .sidebar a {
