@@ -1,8 +1,11 @@
-# syntax=docker/dockerfile:1.7
-# Директива syntax= обязана быть первой строкой файла — иначе BuildKit
-# её игнорирует и --mount=type=cache ниже не сработает.
-# Она включает BuildKit-фичи: без BuildKit сборка падает с ошибкой
-# «the --mount option requires BuildKit».
+# Строку `# syntax=docker/dockerfile:N` здесь СОЗНАТЕЛЬНО не ставим.
+#
+# Она заставляет BuildKit скачивать с Docker Hub образ
+# docker/dockerfile:1.7 ради одного лишь парсера — лишняя сетевая
+# зависимость. При недоступном registry сборка падала ещё до
+# начала работы («failed to authorize: TLS handshake timeout»),
+# хотя сам --mount=type=cache локальный BuildKit (v0.31.2)
+# поддерживает без неё.
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 COPY package*.json ./

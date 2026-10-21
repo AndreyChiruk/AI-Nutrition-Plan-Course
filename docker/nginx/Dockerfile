@@ -1,7 +1,11 @@
-# syntax=docker/dockerfile:1.7
-# Директива syntax= — первой строкой: она включает BuildKit-фичи
-# (--mount=type=cache ниже). Без BuildKit сборка падает с ошибкой
-# «the --mount option requires BuildKit».
+# Строку `# syntax=docker/dockerfile:N` здесь СОЗНАТЕЛЬНО не ставим.
+#
+# Она заставляет BuildKit скачивать с Docker Hub образ
+# docker/dockerfile:1.7 ради одного лишь парсера — лишняя сетевая
+# зависимость. При недоступном registry сборка падала ещё до
+# начала работы («failed to authorize: TLS handshake timeout»),
+# хотя сам --mount=type=cache локальный BuildKit (v0.31.2)
+# поддерживает без неё.
 FROM node:22-alpine AS frontend-build
 WORKDIR /frontend
 COPY frontend/package*.json ./
