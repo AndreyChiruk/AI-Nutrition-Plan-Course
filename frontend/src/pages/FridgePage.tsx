@@ -551,6 +551,7 @@ export function FridgePage() {
                             }}
                           >
                             <Pencil size={13} />
+                            <span className="fridge-item-btn-text">Изменить</span>
                           </button>
                         </div>
                       )}
@@ -572,6 +573,7 @@ export function FridgePage() {
                         ) : (
                           <ImagePlus size={14} />
                         )}
+                        <span className="fridge-item-btn-text">Фото</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -594,6 +596,7 @@ export function FridgePage() {
                           onClick={() => void removePhoto(item)}
                         >
                           <ImageOff size={14} />
+                          <span className="fridge-item-btn-text">Без фото</span>
                         </button>
                       ) : null}
 

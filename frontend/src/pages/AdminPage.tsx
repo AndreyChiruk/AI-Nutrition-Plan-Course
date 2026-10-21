@@ -276,14 +276,12 @@ export const AdminPage = () => {
   const [baseDraft, setBaseDraft] = useState<Partial<BaseRec>>({});
 
   const [products, setProducts] = useState<ProductRow[]>([]);
-  const [catalogImportMsg, setCatalogImportMsg] = useState('');
-  const [catalogImportBusy, setCatalogImportBusy] = useState(false);
-  const [catalogAiLocalizeAllMsg, setCatalogAiLocalizeAllMsg] = useState('');
-  const [catalogAiLocalizeAllBusy, setCatalogAiLocalizeAllBusy] = useState(false);
   const [aiLocalizeId, setAiLocalizeId] = useState('');
   const [catalogAiLocalizeOneMsg, setCatalogAiLocalizeOneMsg] = useState('');
   const [catalogAiLocalizeOneBusy, setCatalogAiLocalizeOneBusy] = useState(false);
-  const [aiOnlyMissingDetailed, setAiOnlyMissingDetailed] = useState(false);
+  /* Переменная aiOnlyMissingDetailed удалена: она использовалась
+     только в aiLocalizeCatalogAll, который убран вместе с кнопкой
+     «AI: обработать весь каталог». */
   const [productEditingId, setProductEditingId] = useState<string | null>(null);
   const [productDraft, setProductDraft] = useState<Partial<ProductRow> & { allergensText?: string }>({});
 
@@ -582,69 +580,11 @@ export const AdminPage = () => {
     await refreshProducts();
   };
 
-  const replaceCatalogFromTheMealDb = async () => {
-    setCatalogImportBusy(true);
-    setCatalogImportMsg('Запрос к TheMealDB… может занять несколько минут.');
-    try {
-      const r = await adminApi.replaceCatalogTheMealDb({ perCategory: 200, delayMs: 120 });
-      setCatalogImportMsg(
-        `Готово: удалено строк ${r.removed}, импортировано ${r.imported}, дубликатов имён ${r.skippedDuplicates}, категорий API ${r.categoriesProcessed}. Планы: дней проверено ${r.mealPlanDaysScanned}, обновлено ${r.mealPlanDaysUpdated}, ячеек блюд перепривязано ${r.mealPlanSnapshotCellsUpdated}.`,
-      );
-      await refreshProducts();
-    } catch {
-      setCatalogImportMsg('Ошибка: проверьте сеть, что сервер запущен и вы вошли как администратор.');
-    } finally {
-      setCatalogImportBusy(false);
-    }
-  };
-
-  const aiLocalizeCatalogAll = async () => {
-    setCatalogAiLocalizeAllBusy(true);
-    setCatalogAiLocalizeAllMsg('AI обрабатывает весь каталог пакетами…');
-    const batchSize = 10;
-    let loops = 0;
-    let offset = 0;
-    let totalProcessed = 0;
-    let totalUpdated = 0;
-    let totalFailed = 0;
-    let model = 'gpt-4o-mini';
-    try {
-      while (loops < 1000) {
-        loops += 1;
-        const r = await adminApi.aiLocalizeCatalogBatch({
-          limit: batchSize,
-          offset: aiOnlyMissingDetailed ? 0 : offset,
-          onlyMissingDetailed: aiOnlyMissingDetailed,
-        });
-        model = r.model;
-        const processedNow = Number(r.processed ?? 0);
-        if (processedNow <= 0) break;
-        totalProcessed += processedNow;
-        totalUpdated += Number(r.updated ?? 0);
-        totalFailed += Number(r.failed ?? 0);
-        if (!aiOnlyMissingDetailed) {
-          offset += processedNow;
-        }
-        setCatalogAiLocalizeAllMsg(
-          `AI-прогон... батч ${loops}, обработано ${totalProcessed}, обновлено ${totalUpdated}, ошибок ${totalFailed}.`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, 250));
-        if (aiOnlyMissingDetailed && processedNow < batchSize) break;
-      }
-      await refreshProducts();
-      setCatalogAiLocalizeAllMsg(
-        `Готово (${model}): батчей ${loops}, обработано ${totalProcessed}, обновлено ${totalUpdated}, ошибок ${totalFailed}. Режим: ${
-          aiOnlyMissingDetailed ? 'только без ingredientsDetailed' : 'все блюда'
-        }.`,
-      );
-    } catch {
-      setCatalogAiLocalizeAllMsg(
-        `Ошибка полного AI-прогона. Уже обработано ${totalProcessed}, обновлено ${totalUpdated}, ошибок ${totalFailed}.`,
-      );
-    } finally {
-      setCatalogAiLocalizeAllBusy(false);
-    }
-  };
+  /* Разовые служебные операции с каталогом удалены вместе с кнопками
+     по просьбе: replaceCatalogFromTheMealDb (полная замена каталога
+     из TheMealDB) и aiLocalizeCatalogAll (AI-прогон всего каталога).
+     Они вызывались только со своих кнопок, поэтому после их скрытия
+     остались бы мёртвым кодом. */
 
   const aiLocalizeProductById = async () => {
     const id = aiLocalizeId.trim();
@@ -1058,32 +998,15 @@ export const AdminPage = () => {
           {section === 'products' ? (
             <div className="card admin-crud">
               <h2>Продукты (CRUD)</h2>
-              <p className="muted small">
-                Полная замена каталога: удаление всех блюд в таблице <code>products</code> и загрузка из TheMealDB с
-                картинками-превью.
-              </p>
+              {/* Кнопки «Заменить каталог из TheMealDB» и «AI: обработать
+                  весь каталог» убраны по просьбе: это разовые служебные
+                  операции, в обычной работе админки они не нужны.
+                  Вместе с кнопками удалены и сами обработчики
+                  (replaceCatalogFromTheMealDb, aiLocalizeCatalogAll),
+                  так как вызывались только отсюда — иначе остался бы
+                  неиспользуемый код, на котором падает сборка
+                  (noUnusedLocals в tsconfig). */}
               <div className="stack-row wrap" style={{ marginBottom: 12 }}>
-                <button type="button" className="btn-secondary" disabled={catalogImportBusy} onClick={replaceCatalogFromTheMealDb}>
-                  Заменить каталог из TheMealDB
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={catalogAiLocalizeAllBusy}
-                  onClick={() => void aiLocalizeCatalogAll()}
-                >
-                  AI: обработать весь каталог (по 10)
-                </button>
-              </div>
-              <div className="stack-row wrap" style={{ marginBottom: 12 }}>
-                <label className="check-item" style={{ marginRight: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={aiOnlyMissingDetailed}
-                    onChange={(e) => setAiOnlyMissingDetailed(e.target.checked)}
-                  />
-                  <span className="small muted">Только блюда без ingredientsDetailed</span>
-                </label>
                 <input
                   aria-label="ID блюда для AI-обработки"
                   placeholder="ID блюда (UUID)"
@@ -1099,8 +1022,6 @@ export const AdminPage = () => {
                   AI: обработать блюдо по ID
                 </button>
               </div>
-              {catalogImportMsg ? <p className="muted small">{catalogImportMsg}</p> : null}
-              {catalogAiLocalizeAllMsg ? <p className="muted small">{catalogAiLocalizeAllMsg}</p> : null}
               {catalogAiLocalizeOneMsg ? <p className="muted small">{catalogAiLocalizeOneMsg}</p> : null}
               <div className="stack-row wrap" style={{ marginBottom: 12 }}>
                 <button type="button" className="btn-primary" onClick={() => setAddDishModalOpen(true)}>

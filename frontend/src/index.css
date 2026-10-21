@@ -11,8 +11,20 @@
   --charcoal: #2A2724;
   --charcoal-soft: #6B655D;
   --line: #DED7CB;
-  --danger: var(--danger);
+  /* Основной красный для ошибок и предупреждений.
+     Раньше здесь стояло `--danger: var(--danger)` — самоссылка. Такая
+     переменная невалидна и всегда сбрасывается в unset, поэтому весь
+     текст ошибок (.error и ещё 12 мест) красился «никак».
+     Оттенок взят из комментария у .btn-danger: #EF4444 с белым текстом
+     давал 3.76:1, поэтому выбран более тёмный #DC2626 — 4.83:1. */
+  --danger: #DC2626;
   --danger-line: #E3C4C4;
+
+  /* Мягкая заливка поверхностей при наведении/подсветке.
+     Была объявлена только в местах использования, из-за чего
+     переменная не существовала и фон не менялся. */
+  --bg-elevated: #EFEAE1;
+  --accent-soft: #F3E3DA;
 
   /* Статусы приёма пищи. Фон и текст задаются парой в каждом теме:
      раньше текст был жёстко белым, а фон — токеном, и в светлой теме
@@ -48,7 +60,13 @@
   --text-muted: var(--charcoal-soft);
   --border: var(--line);
   --accent: var(--terracotta-dark);
-  --content-width: 920px;
+  /* Максимальная ширина контентной колонки.
+     Поведение как у Apple: до 1280px контент тянется вместе с окном,
+     дальше — центрируется (`margin: 0 auto`), а поля растут.
+     Раньше тут стояло 920px, но этот токен почти не использовался,
+     а .content жёстко задавал 1180px — на 2К-экране полоса
+     растягивалась почти на всю ширину и выглядела рыхло. */
+  --content-width: 1280px;
 }
 
 * {
@@ -131,7 +149,7 @@ h1, h2, h3, h4 {
 
 .content {
   padding: 26px 22px 40px;
-  max-width: 1180px;
+  max-width: var(--content-width);
   margin: 0 auto;
   width: 100%;
 }
@@ -316,7 +334,9 @@ pre {
 
 .input-icon:focus-within {
   border-color: var(--terracotta);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+  /* Было rgba(99, 102, 241, 0.18) — индиго из старой палитры:
+     вокруг терракотовой рамки появлялось фиолетовое свечение. */
+  box-shadow: 0 0 0 3px rgba(180, 85, 45, 0.18);
 }
 
 .ghost-icon {
@@ -692,7 +712,7 @@ pre {
 }
 
 .goal-card.active {
-  border-color: rgba(99, 102, 241, 0.7);
+  border-color: var(--terracotta);
   background: var(--paper);
 }
 
@@ -715,7 +735,8 @@ pre {
 }
 
 .allergy-chip.selected {
-  border-color: rgba(99, 102, 241, 0.65);
+  /* Было rgba(99, 102, 241, 0.65) — индиго из старой палитры. */
+  border-color: var(--terracotta);
   background: var(--line);
 }
 
@@ -751,11 +772,12 @@ pre {
 }
 
 .auth-subtabs button.active {
-  border-color: rgba(129, 140, 248, 0.6);
-  background: rgba(99, 102, 241, 0.25);
-  color: var(--sand);
+  /* Сегментный активный таб по макету: мягкая терракотовая заливка и
+     тёмно-терракотовый текст. Были индиго/фиолетовый из старой палитры. */
+  border-color: var(--terracotta);
+  background: var(--tab-active-bg);
+  color: var(--tab-active-fg);
 }
-
 .auth-code-row {
   display: flex;
   align-items: stretch;
@@ -1187,18 +1209,47 @@ html[data-theme='dark'] .bmi-obese {
 
 :root {
   --primary: var(--olive);
-  --primary-hover: var(--olive);
+  /* Цвет кнопки при наведении.
+     Было var(--olive) — оливковый #5C6B3F. Он остался от прежней
+     схемы, где олива была «успехом/нормой», и на терракотовой
+     кнопке смотрелся чужеродно: при наведении кнопка зеленела.
+
+     В новой палитре акцент — терракота, поэтому наведение идёт
+     в её тёмный оттенок: и логично, и контраст сохранён. */
+  --primary-hover: var(--terracotta-dark);
   --secondary: var(--terracotta);
   --accent: var(--terracotta);
-  --danger: var(--danger);
+  --danger: #DC2626;
   --neutral: var(--charcoal-soft);
   --bg: var(--sand);
   --card: var(--paper);
   --text: var(--charcoal);
   --muted-text: var(--charcoal-soft);
   --border: var(--line);
-}
 
+  /* ─── Токены нового дизайна (страница Вход/Регистрация) ───────────────
+     Добавлены под макеты newdesign/mockup-light.png и mockup-dark.png.
+     Значения замерены по макетам и сверены с базовыми токенами. */
+
+  /* Заливка активного таба сегментного переключателя.
+     ВАЖНО: текст на ней — только --terracotta-dark (#8C3F1F).
+     --terracotta (#B4552D) на этой заливке даёт 3.93:1 и не проходит
+     WCAG AA (нужно ≥4.5:1 для обычного текста). */
+  --tab-active-bg: #F3E3DA;
+  --tab-active-fg: var(--terracotta-dark);
+
+  /* Приподнятая поверхность (активный таб, вложенные панели). */
+  --surface-raised: #F0EBE2;
+
+  /* Оливковый ДЛЯ ТЕКСТА на тёмном фоне.
+     --olive (#5C6B3F) на тёмном даёт 2.7:1 и не читается —
+     он допустим только как заливка, не как цвет текста. */
+  --olive-text: #8A9A63;
+
+  /* Радиусы карточки и полей по макетам. */
+  --radius-card: 20px;
+  --radius-field: 10px;
+}
 /*
  * Паттерн из еды — фоном самого body.
  *
@@ -1436,42 +1487,18 @@ pre,
   box-shadow: none;
 }
 
+/* Блок плоской версии дизайна удалён.
+   Он был объявлен ПОВТОРНО после основных правил и перекрывал их:
+   карточка становилась белой (#fff вместо --paper), табы — подчёркнутыми
+   (border-bottom вместо сегментного контрола), углы — прямоугольными
+   (radius 0 / radius-sm вместо radius-md). Из-за этого страница входа
+   не соответствовала макетам. Живые стили остались выше — в первом
+   определении .login-page / .auth-card / .auth-tabs / .input-icon. */
+
+/* min-height: 100vh из удалённого блока перенесён сюда: он нужен,
+   чтобы левая фото-панель растягивалась на всю высоту окна. */
 .login-page {
   min-height: 100vh;
-  padding: 24px;
-  gap: 24px;
-}
-
-.auth-card {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 16px;
-}
-
-.auth-tabs button {
-  border-radius: 0;
-  border: none;
-  border-bottom: 2px solid var(--border);
-  background: transparent;
-  color: var(--muted-text);
-}
-
-.auth-tabs button.active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
-  background: transparent;
-}
-
-.input-icon {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-
-.input-icon:focus-within {
-  border-color: var(--primary);
-  box-shadow: none;
 }
 
 .ghost-icon,
@@ -1480,22 +1507,13 @@ pre,
   color: var(--neutral);
 }
 
-.toast {
-  background: #fff;
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-}
+/* .toast из плоского блока удалён — оставлено первое определение
+   (строки выше), которое использует токены темы, а не #fff.
+   #fff в тёмной теме давал светлую плашку с тёмным текстом. */
 
-.ripple:active::after {
-  animation: none;
-}
-
-.section-card:hover {
-  transform: none;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  border-color: var(--border);
-}
+/* .ripple:active::after и .section-card:hover из плоского блока
+   удалены: они гасили анимацию нажатия и тень карточек (transform: none,
+   animation: none) — то есть отключали обратную связь интерфейса. */
 
 @media (max-width: 1024px) {
   .login-page {
@@ -2142,8 +2160,8 @@ button.catalog-dish-chip {
 
 .thumb-breakfast { background: rgba(245, 158, 11, 0.14); color: var(--terracotta-dark); border-color: rgba(245, 158, 11, 0.3); }
 .thumb-lunch     { background: rgba(16, 185, 129, 0.14); color: var(--olive); border-color: rgba(16, 185, 129, 0.3); }
-.thumb-dinner    { background: rgba(99, 102, 241, 0.14); color: var(--charcoal); border-color: rgba(99, 102, 241, 0.3); }
-.thumb-snack     { background: rgba(236, 72, 153, 0.14); color: var(--danger); border-color: rgba(236, 72, 153, 0.3); }
+.thumb-dinner    { background: rgba(180, 85, 45, 0.14); color: var(--charcoal); border-color: rgba(180, 85, 45, 0.3); }
+.thumb-snack     { background: rgba(140, 63, 31, 0.14); color: var(--terracotta-dark); border-color: rgba(140, 63, 31, 0.3); }
 
 .meal-detail-modal-photo.dish-thumb-fallback {
   width: 100%;
@@ -3494,18 +3512,21 @@ html[data-theme='dark'] .catalog-dish-chip .macro-cell-kcal {
 }
 
 /* Шаги: нумерация моноширинным, без декоративных иконок. */
+/* Шаги: нумерация моноширинным, отдельные карточки как в макете.
+   Раньше сетка была «сомкнутой»: gap 1px + фон --line давали
+   тёмные полосы между шагами — на странице это читалось как
+   грязная тень и серый фон под блоком. */
 .steps-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 1px;
+  gap: 14px;
   list-style: none;
   margin: 0;
   padding: 0;
-  background: var(--line);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  counter-reset: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
 }
 
 .step-card {

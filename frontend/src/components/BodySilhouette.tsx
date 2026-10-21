@@ -148,7 +148,12 @@ export function BodySilhouette({
             <path d="M50 44 L24 58 Q20 80 26 96 L50 100 L74 96 Q80 80 76 58 Z" fill={fill} />
             <rect x="12" y="58" width="10" height="70" rx="5" fill={fill} />
             <rect x="78" y="58" width="10" height="70" rx="5" fill={fill} />
-            <path d="M26 96 L50 100 L74 96 Q70 122 68 132 L32 132 Q30 122 Z" fill={fill} />
+            {/* Нижняя часть туловища. В исходном пути было
+                `Q30 122 Z` — у квадратичной кривой Q должно быть
+                ЧЕТЫРЕ числа (контрольная точка + конец), а дано два.
+                Браузер ругался в консоли «Expected number» и этот
+                фрагмент не рисовался; заменено на корректное L. */}
+            <path d="M26 96 L50 100 L74 96 Q70 122 68 132 L32 132 L30 122 Z" fill={fill} />
             <rect x="32" y="132" width="14" height="66" rx="7" fill={fill} />
             <rect x="54" y="132" width="14" height="66" rx="7" fill={fill} />
           </svg>

@@ -12,3 +12,51 @@ coverage
 terminals
 docker/nginx/certs/*.key
 docker/nginx/certs/*.crt
+
+# ── Лишнее в контексте сборки ────────────────────────────────
+# ВАЖНО: frontend НЕ исключаем — web-сборка (docker/nginx/Dockerfile)
+# читает его через `COPY frontend/ ./` из этого же корневого
+# контекста, и исключение сломало бы сборку фронта.
+# Для фронта есть отдельный frontend/.dockerignore: он действует
+# на файлы внутри frontend/ и его читают оба COPY.
+
+# Макеты, скриншоты и документация — в образы не нужны.
+newdesign
+currentdesign
+currentrefernces
+# Картинки НЕ исключаем глобально: в frontend/public лежат
+# login/slide-*.jpg и home/bg-home.png — они нужны web-сборке.
+# Поэтому шаблоны *.png работают только внутри папочных правил выше
+# (newdesign/currentdesign/currentrefernces исключены целиком).
+
+# ── Дампы БД и бэкапы перед ручными правками схемы (~44 МБ) ───
+# В образ не нужны: миграции лежат в database/migrations.
+.repair-backup
+
+# Дампы в корне проекта перечисляем ПО ИМЕНАМ, без шаблона *.sql.
+# Причина важная: в .dockerignore ведущий слеш НЕ привязывает шаблон
+# к корню — Docker его отбрасывает и матчит на любой глубине. Поэтому
+# и /*.sql, и *.sql исключили бы database/migrations/*.sql (33 файла),
+# и образ остался бы без миграций вообще (их копирует
+# COPY --from=builder /app/database).
+backup.sql
+backup_utf8.sql
+backup*.sql
+
+# Скриншоты автотестов и документация.
+browser-screenshots
+docs
+# Терминалы и локальные скрипты.
+terminals
+rebuild.sh
+
+# Артефакты сборки и кэши.
+.vite
+*.tsbuildinfo
+.npm
+
+# Файлы IDE и ОС.
+.DS_Store
+.idea
+.vscode
+*.swp

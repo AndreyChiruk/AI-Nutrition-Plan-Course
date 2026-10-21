@@ -10,7 +10,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { AlertTriangle, Brain, ChefHat, ClipboardList, Loader2, Lock, ShoppingBasket } from '../components/icons';
+import { AlertTriangle, Brain, ChefHat, ClipboardList, Lock, ShoppingBasket } from '../components/icons';
 import html2pdf from 'html2pdf.js';
 import { isAxiosError } from 'axios';
 import {
@@ -84,29 +84,9 @@ function durationChipLabel(days: number): string {
 
 const MAIN_SLOTS: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack', 'snack2'];
 
-function constructorRefineSlotLabel(slot: string): string {
-  switch (slot) {
-    case 'breakfast':
-      return 'Завтрак';
-    case 'lunch':
-      return 'Обед';
-    case 'dinner':
-      return 'Ужин';
-    case 'snack':
-      return 'Перекус 1';
-    case 'snack2':
-      return 'Перекус 2';
-    default:
-      return slot;
-  }
-}
-
-function constructorRefineActionLabel(action: string): string {
-  if (action === 'keep') return 'оставлено';
-  if (action === 'fill') return 'добавлено';
-  if (action === 'replace') return 'замена';
-  return action;
-}
+/* Функции constructorRefineSlotLabel и constructorRefineActionLabel
+   удалены: они использовались только в модалке ИИ-доработки,
+   которая убрана вместе с кнопкой «Доработать с ИИ». */
 
 function catalogSlotMatchesDish(dish: MealItem, slot: MealSlot): boolean {
   return slot === 'snack2' ? dish.category === 'snack' : dish.category === slot;
@@ -737,21 +717,9 @@ export const MealPlanPage = () => {
     replace: string[];
     corrections: string[];
   } | null>(null);
-  const [constructorDaysScope, setConstructorDaysScope] = useState<1 | 2 | 3 | 7 | 14 | 0>(2);
-  const [aiRefineModal, setAiRefineModal] = useState<null | {
-    overview: string;
-    changes: Array<{
-      day: number;
-      slot: string;
-      action: string;
-      dishName?: string;
-      previousDishName?: string;
-      reason: string;
-    }>;
-    warnings: string[];
-    days: MealPlanDayPayload[];
-  }>(null);
-  const [aiRefineLoading, setAiRefineLoading] = useState(false);
+  /* Значение фиксировано: селектор горизонта расчёта убран из UI.
+     Само значение нужно анализатору (analyzeConstructorPlan). */
+  const [constructorDaysScope] = useState<1 | 2 | 3 | 7 | 14 | 0>(2);
   const [showTargetModal, setShowTargetModal] = useState(false);
   const [targetInput, setTargetInput] = useState(2200);
   const [pendingGenerate, setPendingGenerate] = useState<'auto' | 'aiCat' | null>(null);
@@ -1542,51 +1510,9 @@ export const MealPlanPage = () => {
     });
   };
 
-  const buildConstructorAuditHint = useCallback(() => {
-    if (!constructorAudit) return undefined;
-    const chunks = [
-      `Балл ${constructorAudit.score}/100.`,
-      constructorAudit.verdict.trim(),
-      constructorAudit.replace.length ? `Рекомендации по замене: ${constructorAudit.replace.join('; ')}` : '',
-      constructorAudit.corrections.length ? `Корректировки: ${constructorAudit.corrections.join('; ')}` : '',
-    ].filter((x) => String(x).trim().length > 0);
-    return chunks.join(' ');
-  }, [constructorAudit]);
+  /* buildConstructorAuditHint удалён: собирал текст для модалки
+     ИИ-доработки, которая убрана. */
 
-  const runAiRefineConstructor = async () => {
-    if (!user) return;
-    setAiRefineLoading(true);
-    setSaveMsg('');
-    try {
-      const payloadDays: MealPlanDayPayload[] = days.map((d) => {
-        const snack2 = d.meals.snack2;
-        const extraSnacks = snack2 ? [mealToSnapshot(snack2)!].filter(Boolean) : [];
-        return {
-          dayNumber: d.day,
-          breakfast: mealToSnapshot(d.meals.breakfast),
-          lunch: mealToSnapshot(d.meals.lunch),
-          dinner: mealToSnapshot(d.meals.dinner),
-          snack: mealToSnapshot(d.meals.snack),
-          extraSnacks: extraSnacks.length ? (extraSnacks as MealSlotSnapshot[]) : [],
-        };
-      });
-      const data = await mealPlanApi.refineConstructorAi(user.id, {
-        targetCalories: dailyCalories,
-        days: payloadDays,
-        auditHint: buildConstructorAuditHint(),
-      });
-      setAiRefineModal({
-        overview: data.overview,
-        changes: data.changes,
-        warnings: data.warnings ?? [],
-        days: data.days,
-      });
-    } catch (err) {
-      setSaveMsg('Не удалось доработать план с ИИ. Проверьте сеть и ключ API на сервере.');
-    } finally {
-      setAiRefineLoading(false);
-    }
-  };
 
   const totalCalories = (day: (typeof days)[number]) =>
     MAIN_SLOTS.reduce((s, slot) => s + (day.meals[slot]?.calories ?? 0), 0);
@@ -1792,46 +1718,7 @@ export const MealPlanPage = () => {
               Очистить таблицу
             </button>
           ) : null}
-          {mode === 'constructor' ? (
-            <select
-              value={constructorDaysScope}
-              onChange={(e) => setConstructorDaysScope(Number(e.target.value) as 1 | 2 | 3 | 7 | 14 | 0)}
-              title="Горизонт расчёта списка покупок"
-            >
-              <option value={1}>На 1 день</option>
-              <option value={2}>На 2 дня</option>
-              <option value={3}>На 3 дня</option>
-              <option value={7}>На 7 дней</option>
-              <option value={14}>На 14 дней</option>
-              <option value={0}>На весь план</option>
-            </select>
-          ) : null}
-          {/* Анализ конструктора считается синхронно по уже загруженным
-              данным, без обращения к серверу — спиннер здесь не нужен. */}
-          {mode === 'constructor' ? (
-            <button type="button" className="btn-secondary" onClick={() => analyzeConstructorPlan()}>
-              Анализ конструктора
-            </button>
-          ) : null}
-          {mode === 'constructor' ? (
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={aiRefineLoading || days.length === 0}
-              title="Учитываются любимые и нежелательные продукты из профиля (подсказки для модели и фильтр каталога). ИИ заполнит пустые слоты и при необходимости скорректирует блюда с пояснениями."
-              onClick={() => void runAiRefineConstructor()}
-            >
-              {aiRefineLoading ? <Loader2 size={14} className="btn-spinner" /> : null}
-              {aiRefineLoading ? 'ИИ думает…' : 'Доработать с ИИ'}
-            </button>
-          ) : null}
         </div>
-        {mode === 'constructor' ? (
-          <p className="muted small" style={{ marginTop: 8 }}>
-            Кнопка «Доработать с ИИ» передаёт в модель любимые и нежелательные продукты из профиля (как подсказки),
-            плюс диету и аллергены; каталог для подстановки фильтруется с учётом нежелательных ингредиентов.
-          </p>
-        ) : null}
         {saveMsg ? <p className="success">{saveMsg}</p> : null}
         {mode === 'ai' && aiError ? <p className="error">{aiError}</p> : null}
         {mode === 'constructor' && constructorAudit ? (
@@ -1896,91 +1783,6 @@ export const MealPlanPage = () => {
           </div>
         ) : null}
 
-        {aiRefineModal ? (
-          <div className="modal-backdrop">
-            <div className="modal-window" style={{ maxWidth: 560 }}>
-              <h4>Доработка плана (ИИ)</h4>
-              <p className="small" style={{ whiteSpace: 'pre-wrap' }}>
-                {aiRefineModal.overview}
-              </p>
-              {aiRefineModal.warnings.length ? (
-                <div className="card" style={{ marginTop: 10 }}>
-                  {aiRefineModal.warnings.map((w) => (
-                    <p key={w} className="small muted" style={{ margin: '0 0 6px' }}>
-                      {w}
-                    </p>
-                  ))}
-                </div>
-              ) : null}
-              <div style={{ maxHeight: 280, overflow: 'auto', marginTop: 12 }}>
-                {aiRefineModal.changes.length === 0 ? (
-                  <p className="muted small" style={{ margin: 0 }}>
-                    Пояснения по отдельным ячейкам недоступны. Нажмите «Применить»: сервер мог автоматически
-                    заполнить пустые слоты из каталога.
-                  </p>
-                ) : (
-                  <>
-                    <p className="muted small" style={{ margin: '0 0 6px' }}>
-                      Изменения по ячейкам (пояснения модели):
-                    </p>
-                    <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
-                      {aiRefineModal.changes.map((c, idx) => (
-                        <li key={`${c.day}-${c.slot}-${idx}`} style={{ marginBottom: 8 }}>
-                          <strong>
-                            День {c.day}, {constructorRefineSlotLabel(c.slot)}
-                          </strong>
-                          {' — '}
-                          {constructorRefineActionLabel(c.action)}
-                          {c.dishName ? `: ${c.dishName}` : ''}
-                          <div className="muted small">{c.reason}</div>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </div>
-              <div className="chip-grid" style={{ marginTop: 12 }}>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() => {
-                    const merged = days.map((row) => {
-                      const hit = aiRefineModal.days.find((d) => d.dayNumber === row.day);
-                      if (!hit) return row;
-                      const snack2 =
-                        hit.extraSnacks && hit.extraSnacks.length > 0
-                          ? snapshotToMeal(hit.extraSnacks[0], 'snack2')
-                          : null;
-                      return {
-                        ...row,
-                        meals: {
-                          breakfast: snapshotToMeal(hit.breakfast, 'breakfast'),
-                          lunch: snapshotToMeal(hit.lunch, 'lunch'),
-                          dinner: snapshotToMeal(hit.dinner, 'dinner'),
-                          snack: snapshotToMeal(hit.snack, 'snack'),
-                          snack2,
-                        },
-                      };
-                    });
-                    setDays(merged);
-                    analyzeConstructorPlan(merged);
-                    setAiRefineModal(null);
-                    setSaveMsg(
-                      aiRefineModal.changes.length === 0
-                        ? `Таблица обновлена: пустые слоты заполнены из каталога (пояснения ИИ недоступны). Сохраните план при необходимости.${reviewPlanMsg}`
-                        : `План обновлён по предложению ИИ. При необходимости сохраните его на сервере.${reviewPlanMsg}`,
-                    );
-                  }}
-                >
-                  Применить к таблице
-                </button>
-                <button type="button" className="btn-secondary" onClick={() => setAiRefineModal(null)}>
-                  Отмена
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
 
         {dietConfirm ? (
           <div className="modal-backdrop">
@@ -2055,12 +1857,8 @@ export const MealPlanPage = () => {
                   ))}
                 </div>
               </div>
-              <div className="card">
-                <h4>Подсказка</h4>
-                <p className="muted small">
-                  Клик по ячейке открывает карточку. Можно подставить блюдо кнопками быстрого выбора ниже.
-                </p>
-              </div>
+              {/* Блок «Подсказка» убран: занимал целую карточку
+                  в правой колонке ради одной строки текста. */}
             </div>
         ) : null}
 

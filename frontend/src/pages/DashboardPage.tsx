@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Activity,
-  Apple,
-  Dumbbell,
-  LineChart,
-  Refrigerator,
-  UtensilsCrossed,
+  /* Иконки карточек «Быстрый доступ»: версии Tile* рисуют SVG
+     даже при PLAIN_ICONS = true — в макете иконки есть именно здесь.
+     Имена обычных (Activity, Apple и т.д.) остаются заглушками,
+     поэтому боковое меню не изменится. */
+  TileActivity as Activity,
+  TileApple as Apple,
+  TileDumbbell as Dumbbell,
+  TileLineChart as LineChart,
+  TileRefrigerator as Refrigerator,
+  TileUtensilsCrossed as UtensilsCrossed,
   Salad,
   Soup,
   Wheat,
 } from '../components/icons';
-import { useAuth } from '../context/AuthContext';
 import { publicApi } from '../api/services';
 
 /**
@@ -26,6 +29,15 @@ import { publicApi } from '../api/services';
  * куда можно перейти и что даёт каждый раздел. Оформление строится
  * на типографике и сетке, без декоративных картинок.
  */
+
+/** Одно блюдо витрины, приходит из /health/catalog-samples. */
+type CatalogSample = { id: string; name: string; slot: string; kcal: number; imageUrl: string };
+
+/** Фото для hero-блока. Лежит локально в public/home/, как и фото входа. */
+const HERO_PHOTO = '/home/hero-bowl.png';
+
+/** Ссылка кнопки «Создать план питания» — тот же раздел, что и в быстром доступе. */
+const CREATE_PLAN_TO = '/meal-plan';
 
 const SECTIONS = [
   {
@@ -103,10 +115,13 @@ const SAMPLE_DISHES = [
 ] as const;
 
 export const DashboardPage = () => {
-  const { user } = useAuth();
-  const name = user?.name?.trim();
+  /* useAuth здесь больше не нужен: заголовок hero теперь фиксированный
+     («Твой персональный план питания» по макету), а не приветствие
+     по имени пользователя. */
   /** Показатели каталога — публичный эндпоинт, работает без входа. */
   const [stats, setStats] = useState<{ dishes: number; categories: number } | null>(null);
+  /** Блюда для витрины: берём из базы с фотографиями (см. catalog-samples). */
+  const [samples, setSamples] = useState<CatalogSample[] | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -118,6 +133,17 @@ export const DashboardPage = () => {
       .catch(() => {
         // Показатели не критичны: без них страница остаётся рабочей.
       });
+
+    /* Блюда витрины грузим отдельным запросом: он медленнее из-за
+       random(), и его падение не должно ломать всю главную. */
+    void publicApi
+      .catalogSamples()
+      .then((data) => {
+        if (alive) setSamples(data);
+      })
+      .catch(() => {
+        // Витрина не критична: останутся карточки без фото.
+      });
     return () => {
       alive = false;
     };
@@ -125,14 +151,26 @@ export const DashboardPage = () => {
 
   return (
     <div className="dashboard">
-      <header className="dashboard-intro">
-        <p className="eyebrow">Главная</p>
-        <h1 className='h1-home'>{name ? `Здравствуйте, ${name}` : 'Личный помощник по питанию'}</h1>
-        <p className="lead">
-          Планирование рациона, учёт продуктов и анализ прогресса — в одном месте.
-          Расчёты строятся на составе блюд, а не на приблизительных оценках.
-        </p>
+      {/* Hero по макету: слева заголовок, подзаголовок и КНОПКА
+          «Создать план питания» (ведёт в тот же раздел, что и карточка
+          «План питания» в быстром доступе); справа — фото блюда. */}
+      <header className="dashboard-hero">
+        <div className="dashboard-hero-text">
+          <p className="eyebrow">Главная</p>
+          <h1 className="h1-home">Твой персональный план питания</h1>
+          <p className="lead">
+            Достигай целей, следи за прогрессом и заботься о себе с умом
+          </p>
+          <Link to={CREATE_PLAN_TO} className="btn-primary hero-cta">
+            Создать план питания
+          </Link>
+        </div>
+        <div className="dashboard-hero-photo" aria-hidden="true">
+          <img src={HERO_PHOTO} alt="" loading="eager" />
+        </div>
       </header>
+
+      <h2 className="dashboard-block-title">Быстрый доступ</h2>
 
       <section className="section-grid" aria-label="Разделы">
         {SECTIONS.map(({ to, Icon, title, text }) => (
@@ -160,21 +198,38 @@ export const DashboardPage = () => {
         </ol>
       </section>
 
-      {/* Примеры блюд из каталога. */}
+      {/* Блюда берём из базы (с фото), а не из захардкоженного списка:
+          у трёх из четырёх прежних блюд фотографий в products нет,
+          поэтому на витрине были пустые заглушки. Если запрос не
+          прошёл — показываем прежний список с иконками. */}
       <section className="dashboard-block" aria-label="Что в каталоге">
         <h2 className="dashboard-block-title">Что в каталоге</h2>
         <div className="dish-sample-grid">
-          {SAMPLE_DISHES.map(({ name: dish, slot, kcal, Icon }) => (
-            <article key={dish} className="dish-sample">
-              <span className="dish-sample-icon">
-                <Icon size={20} strokeWidth={1.6} aria-hidden />
-              </span>
-              <span className="dish-sample-name">{dish}</span>
-              <span className="dish-sample-meta">
-                {slot} · <span className="mono">{kcal}</span> ккал
-              </span>
-            </article>
-          ))}
+          {samples && samples.length
+            ? samples.map((d) => (
+                <article key={d.id} className="dish-sample has-photo">
+                  <span className="dish-sample-photo">
+                    <img src={d.imageUrl} alt="" loading="lazy" />
+                  </span>
+                  <span className="dish-sample-body">
+                    <span className="dish-sample-name">{d.name}</span>
+                    <span className="dish-sample-meta">
+                      {d.slot} · <span className="mono">{d.kcal}</span> ккал
+                    </span>
+                  </span>
+                </article>
+              ))
+            : SAMPLE_DISHES.map(({ name: dish, slot, kcal, Icon }) => (
+                <article key={dish} className="dish-sample">
+                  <span className="dish-sample-icon">
+                    <Icon size={20} strokeWidth={1.6} aria-hidden />
+                  </span>
+                  <span className="dish-sample-name">{dish}</span>
+                  <span className="dish-sample-meta">
+                    {slot} · <span className="mono">{kcal}</span> ккал
+                  </span>
+                </article>
+              ))}
         </div>
         <p className="muted small">
           Калорийность рассчитана по составу блюда, а не взята приблизительно.

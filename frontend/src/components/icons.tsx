@@ -30,6 +30,30 @@ export type LucideIcon = ComponentType<IconProps>;
  */
 const PLAIN_ICONS = true;
 
+/**
+ * Иконки карточек «Быстрый доступ» на главной.
+ *
+ * Зачем отдельные обёртки, а не отключение флага или список имён:
+ * 1) снятие PLAIN_ICONS вернуло бы SVG сразу во всех ~108 местах сайта;
+ * 2) список ПО ИМЕНАМ не годится — те же Activity, Refrigerator,
+ *    UtensilsCrossed, Dumbbell и Apple использует боковое меню,
+ *    а там иконки НЕ нужны (просили оставить только в быстром доступе).
+ *
+ * Поэтому ниже — отдельные экспорты, которые всегда рисуют SVG.
+ * Имена совпадают с тем, что используется в SECTIONS главной.
+ */
+function iconAlways(name: string): ComponentType<IconProps> {
+  const Original = (Lucide as unknown as Record<string, ComponentType<IconProps>>)[name];
+  return Original ?? (() => null);
+}
+
+export const TileActivity = iconAlways('Activity');
+export const TileApple = iconAlways('Apple');
+export const TileDumbbell = iconAlways('Dumbbell');
+export const TileLineChart = iconAlways('LineChart');
+export const TileRefrigerator = iconAlways('Refrigerator');
+export const TileUtensilsCrossed = iconAlways('UtensilsCrossed');
+
 type IconProps = SVGProps<SVGSVGElement> & {
   size?: number | string;
   strokeWidth?: number | string;
@@ -44,7 +68,7 @@ type IconProps = SVGProps<SVGSVGElement> & {
  */
 function icon(name: string): ComponentType<IconProps> {
   const Original = (Lucide as unknown as Record<string, ComponentType<IconProps>>)[name];
-
+  /* Заглушка — прежнее поведение, менять не нужно. */
   if (!PLAIN_ICONS) {
     return Original ?? (() => null);
   }

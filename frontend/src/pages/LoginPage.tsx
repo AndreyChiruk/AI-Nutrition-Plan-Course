@@ -19,40 +19,49 @@ import type { EmailCodePurpose } from '../types';
  * Теперь панель строится на типографике и палитре: крупные заголовки
  * Plex Serif и короткие тезисы о возможностях приложения.
  */
+/*
+ * Фотографии левой панели.
+ *
+ * Файлы лежат ЛОКАЛЬНО в frontend/public/login/ — раньше здесь были
+ * внешние ссылки на images.unsplash.com, то есть запрос на сторонний
+ * сервер ДО авторизации (утечка IP и реферера + зависимость от чужой
+ * доступности). Картинки те же самые, просто скачаны в проект.
+ */
 const LOGIN_ART_SLIDES = [
   {
-    url: 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=1200&q=75',
+    url: '/login/slide-1.jpg',
     title: 'План питания',
     caption: 'Расчёт КБЖУ по составу блюд, а не по приблизительным оценкам',
   },
   {
-    url: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1200&q=75',
+    url: '/login/slide-2.jpg',
     title: 'Анализ тела',
     caption: 'Замеры по зонам с подсказками и прогноз изменения фигуры',
   },
   {
-    url: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=1200&q=75',
+    url: '/login/slide-3.jpg',
     title: 'Свой холодильник',
     caption: 'Продукты группируются по категориям, видно что докупить',
   },
   {
-    url: 'https://images.unsplash.com/photo-1466637574441-749b8f19452f?auto=format&fit=crop&w=1200&q=75',
+    url: '/login/slide-4.jpg',
     title: 'Готовые рецепты',
     caption: 'Свыше семисот блюд с полным составом и аллергенами',
   },
 ] as const;
 
-/**
+/*
  * Фон слайда: фотография с затемняющей подложкой.
  *
  * Затемнение нужно, чтобы белый текст и номер раздела читались
- * на любом снимке. В тёмной теме оно сильнее.
+ * на любом снимке. Значения проверены на локальных фото в public/login/.
  */
-function slideBackground(theme: 'dark' | 'light', url: string): string {
+function slideBackground(url: string): string {
+  /* Затемнение по низу сильнее, чем для градиентов: на реальных фото
+     (дерево, светлые тарелки) прежние 0.68 не гасили фон, и белый
+     заголовок «План питания» сливался с снимком. */
   const overlay =
-    theme === 'dark'
-      ? 'linear-gradient(rgba(28, 26, 24, 0.45), rgba(28, 26, 24, 0.88))'
-      : 'linear-gradient(rgba(28, 26, 24, 0.15), rgba(28, 26, 24, 0.68))';
+    'linear-gradient(rgba(28, 26, 24, 0.10) 0%, rgba(28, 26, 24, 0.25) 45%, rgba(28, 26, 24, 0.82) 100%)';
   return `${overlay}, url(${url})`;
 }
 
@@ -82,18 +91,8 @@ export const LoginPage = () => {
   const [resetCode, setResetCode] = useState('');
   const [resetPassword, setResetPassword] = useState('');
   const [resetConfirm, setResetConfirm] = useState('');
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const t = localStorage.getItem('ui-theme');
-    return t === 'light' ? 'light' : 'dark';
-  });
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('ui-theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-
+  /* Переключатель темы убран: тёмная тема больше не нужна.
+     Тема зафиксирована в светлой в main.tsx. */
   const slideTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startSlideRotation = useCallback(() => {
@@ -271,24 +270,18 @@ export const LoginPage = () => {
 
   return (
     <div className="login-page">
-      <div className="login-page-toolbar">
-        {/* Текстовая подпись вместо иконки: без неё непонятно назначение. */}
-        <button
-          type="button"
-          className="theme-toggle"
-          onClick={toggleTheme}
-          title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-        >
-          Сменить тему
-        </button>
-      </div>
+      {/* Обёртка держит колонки в пределах --content-width (1280px):
+          до этой ширины они тянутся вместе с окном, дальше — центрируются.
+          Сам фон остаётся на .login-page на всю ширину окна. */}
+      <div className="login-page-inner">
       <div className="login-art" aria-hidden="true">
-        {/* Фотографии-слайды: сменяются автоматически, точки переключают вручную. */}
+        {/* Слайды-фоны: сменяются автоматически, точки переключают вручную.
+            Фон — локальный градиент, без внешних запросов. */}
         {LOGIN_ART_SLIDES.map((slide, i) => (
           <div
-            key={slide.url}
+            key={slide.title}
             className={`login-art-slide ${imageIndex === i ? 'is-visible' : ''}`}
-            style={{ backgroundImage: slideBackground(theme, slide.url) }}
+            style={{ backgroundImage: slideBackground(slide.url) }}
           />
         ))}
         <div className="login-art-body">
@@ -523,6 +516,7 @@ export const LoginPage = () => {
             {mode === 'login' ? 'Войти' : 'Зарегистрироваться'}
           </button>
         </form>
+      </div>
       </div>
       {toast ? <div className="toast">{toast}</div> : null}
 

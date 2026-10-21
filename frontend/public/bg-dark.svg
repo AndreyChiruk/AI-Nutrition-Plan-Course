@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Фон тёмной темы: глубокий графит с оливковым подтоном
+  и мягкими оливковыми формами по краям.
+
+  Пара к bg-light.svg. Формы такие же по геометрии — темы
+  переключаются без «прыжка» композиции.
+
+  Цвета:
+    фон          #1C1A18  (графит)
+    подтон       #26261C  (оливково-графитовый), opacity 0.55
+    форма 1      #8C7A3F  тёплый, opacity 0.055
+    форма 2      #5C6B3F  (--olive), opacity 0.09
+    форма 3      #B4552D  (--terracotta), opacity 0.045
+
+  ВАЖНО: тёмный оливковый #5C6B3F на тёмном фоне даёт 2.7:1
+  и как ТЕКСТ не читается. Здесь он допустим только как
+  заливка формы — текста в этом файле нет.
+
+  Использование: html[data-theme='dark'] body {
+    background-image: url('/bg-dark.svg'); }
+
+  Размер 1440x900, растягивается через background-size: cover.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+  <defs>
+    <filter id="blurD" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="90"/>
+    </filter>
+    <!-- Оливковый подтон по всему полотну: проявляет «зелень»
+         в графите, не поднимая общую яркость. -->
+    <radialGradient id="oliveTint" cx="50%" cy="50%" r="75%">
+      <stop offset="0%" stop-color="#26261C" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#26261C" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Фон -->
+  <rect width="1440" height="900" fill="#1C1A18"/>
+  <rect width="1440" height="900" fill="url(#oliveTint)"/>
+
+  <g filter="url(#blurD)">
+    <!-- Оливковое пятно сверху-слева -->
+    <ellipse cx="150" cy="90" rx="330" ry="250" fill="#8C7A3F" opacity="0.055"/>
+
+    <!-- Оливковое пятно справа сверху -->
+    <ellipse cx="1330" cy="150" rx="300" ry="270" fill="#5C6B3F" opacity="0.09"/>
+
+    <!-- Терракотовый тёплый акцент снизу-слева -->
+    <ellipse cx="230" cy="830" rx="360" ry="230" fill="#B4552D" opacity="0.045"/>
+
+    <!-- Оливковое снизу-справа -->
+    <ellipse cx="1290" cy="800" rx="290" ry="220" fill="#5C6B3F" opacity="0.075"/>
+  </g>
+</svg>

@@ -2,10 +2,20 @@ html[data-theme="light"] {
   /* Тёплая палитра: терракота — действие, олива — успех/норма. */
   --primary: var(--terracotta);
   --primary-dark: var(--terracotta-dark);
-  --primary-soft: #F0E4DA;
+  /* Мягкая заливка активного таба по макету (#F3E3DA).
+     Было #F0E4DA — близко, но не совпадало с макетом.
+     ВНИМАНИЕ: текст на ней — только --primary-dark (#8C3F1F),
+     т.к. --primary (#B4552D) даёт 3.93:1 и не проходит WCAG AA. */
+  --primary-soft: #F3E3DA;
   --secondary: var(--olive);
   --accent: var(--terracotta);
   --accent-soft: #F3E6DC;
+  /* Токены для страницы входа (макет mockup-light.png). */
+  --tab-active-bg: #F3E3DA;
+  --tab-active-fg: var(--terracotta-dark);
+  --surface-raised: #F0EBE2;
+  --radius-card: 20px;
+  --radius-field: 10px;
   --bg-page: var(--sand);
   --bg-elevated: var(--paper);
   --bg-elevated-2: #EFEAE1;
@@ -27,6 +37,8 @@ html[data-theme="light"] {
      Раньше везде стоял `#fff !important`: в тёмной теме поля
      оставались белыми, а текст в них — светлым, то есть нечитаемым. */
   --field-bg: #FFFFFF;
+  /* Оливковый ДЛЯ ТЕКСТА. В светлой теме совпадает с --olive. */
+  --olive-text: var(--olive);
 }
 
 html[data-theme="dark"] {
@@ -34,11 +46,23 @@ html[data-theme="dark"] {
      терракота осветлена для контраста на тёмном фоне. */
   --primary: #D2764A;
   --primary-dark: #B4552D;
-  --primary-soft: rgba(210, 118, 74, 0.16);
+  /* Мягкая заливка активного таба в тёмной теме.
+     По макету mockup-dark.png — приглушённый оливковый. */
+  --primary-soft: rgba(138, 154, 99, 0.18);
   --secondary: #8A9A63;
   --secondary-muted: rgba(138, 154, 99, 0.28);
   --accent: #D2764A;
   --accent-soft: rgba(210, 118, 74, 0.14);
+  /* Токены страницы входа (макет mockup-dark.png).
+     Текст активного таба — светлый оливковый #8A9A63:
+     тёмный --olive #5C6B3F на тёмном даёт 2.7:1 и не читается. */
+  --tab-active-bg: #2E2A25;
+  --tab-active-fg: #8A9A63;
+  --surface-raised: #2E2A25;
+  --radius-card: 20px;
+  --radius-field: 10px;
+  /* Оливковый ДЛЯ ТЕКСТА на тёмном фоне. */
+  --olive-text: #8A9A63;
   --bg-page: #1C1A18;
   --bg-elevated: #26231F;
   --bg-elevated-2: #302C27;
@@ -136,9 +160,28 @@ html[data-theme='dark'] .topbar {
   box-shadow: none !important;
 }
 
+/* Кнопки в шапке при наведении.
+
+   Было: background --primary-dark (#B4552D) — насыщенный тёмно-
+   терракотовый фон. На нём тёмный текст «Выйти» почти не читался
+   (тёмное на тёмном).
+
+   Стало: мягкая терракотовая подложка --primary-soft и тёмный
+   терракотовый текст: контраст высокий, и кнопка выглядит
+   как часть палитры, а не как отдельное пятно. */
 .topbar .actions button:hover {
-  background: var(--primary-dark) !important;
-  box-shadow: var(--shadow-md);
+  background: var(--primary-soft) !important;
+  color: var(--primary-dark) !important;
+  border-color: var(--primary) !important;
+  box-shadow: none;
+}
+
+/* Кнопка «Выйти» — акцентная, но не заливная:
+   в шапке достаточно границы и цвета текста. */
+.topbar .actions .btn-logout:hover {
+  background: var(--primary-soft) !important;
+  color: var(--primary-dark) !important;
+  border-color: var(--primary) !important;
 }
 
 .brand-dot {
@@ -370,7 +413,10 @@ html[data-theme='dark'] .profile-premium .profile-restrictions-summary {
 }
 
 .dashboard {
-  max-width: 1120px;
+  /* Ширина по общему токену — раньше здесь было жёстко 1120px,
+     из-за чего .content (1280px) и .dashboard (1120px) спорили
+     и страницы выглядели по-разному. */
+  max-width: 100%;
   margin: 0 auto;
   gap: 1.25rem;
 }
@@ -429,7 +475,17 @@ html[data-theme='dark'] .auth-subtabs button:hover {
 }
 
 
-button:not(.nav-link):not(.auth-tabs button):not(.auth-subtabs button):not(.ghost-icon):not(.allergy-chip):not(.goal-card):not(.btn-secondary):not(.cell-card):not(.link-btn) {
+/*
+ * Правило ниже — «кнопка по умолчанию» для всего приложения.
+ *
+ * ВАЖНО: раньше в списке исключений не было .fridge-item-btn,
+ * поэтому кнопки списка холодильника («Изменить», «Фото»,
+ * «Без фото», «Удалить») получали чужую зелёную тень
+ * rgba(76, 175, 80, …) и радиус radius-md (4px) вместо radius-field.
+ * Добавили их в исключения — теперь вид задаёт отдельный блок
+ * .fridge-page .fridge-item-btn ниже.
+ */
+button:not(.nav-link):not(.auth-tabs button):not(.auth-subtabs button):not(.ghost-icon):not(.allergy-chip):not(.goal-card):not(.btn-secondary):not(.cell-card):not(.link-btn):not(.fridge-item-btn) {
   /* color: #fff !important; */
   border: none !important;
   font-weight: 600;
@@ -441,7 +497,7 @@ button:not(.nav-link):not(.auth-tabs button):not(.auth-subtabs button):not(.ghos
     box-shadow 0.2s ease;
 }
 
-button:not(.nav-link):not(.auth-tabs button):not(.auth-subtabs button):not(.ghost-icon):not(.allergy-chip):not(.goal-card):not(.btn-secondary):not(.cell-card):not(.link-btn):hover {
+button:not(.nav-link):not(.auth-tabs button):not(.auth-subtabs button):not(.ghost-icon):not(.allergy-chip):not(.goal-card):not(.btn-secondary):not(.cell-card):not(.link-btn):not(.fridge-item-btn):hover {
   /* background: var(--primary-dark) !important; */
   box-shadow: 0 4px 14px rgba(76, 175, 80, 0.35);
 }
@@ -1941,3 +1997,1109 @@ html[data-theme='dark'] .login-page .toast {
   border: 1px solid var(--border) !important;
   box-shadow: var(--shadow-md) !important;
 }
+
+/* ============================================================
+   НОВЫЙ ДИЗАЙН — страница Вход / Регистрация
+   Макеты: newdesign/mockup-light.png, newdesign/mockup-dark.png
+   Манифест: newdesign/ASSETS.md
+   ============================================================
+
+   Блок идёт В КОНЦЕ файла и поэтому выигрывает каскад
+   без лишних !important — правки точечные, разметка не меняется.
+
+   Цвета — через токены из html[data-theme]:
+     --tab-active-bg / --tab-active-fg — сегментный таб
+     --radius-card / --radius-field   — радиусы
+     --olive-text                     — оливковый текст на тёмном
+*/
+
+/* ── Карточка авторизации ─────────────────────────────────────
+   По макету: поверхность темы, радиус 20px, тонкая граница,
+   один сдержанный теневой слой и отступ от края окна. */
+.login-page .auth-card {
+  background: var(--bg-elevated) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-card) !important;
+  box-shadow: var(--shadow-lift) !important;
+  padding: 30px !important;
+}
+
+/* Отступ от края окна: карточка не должна быть прижата к краю. */
+.login-page {
+  padding: 24px;
+  gap: 24px;
+}
+
+/* ── Сегментный переключатель Вход / Регистрация ──────────── */
+.login-page .auth-tabs {
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.login-page .auth-tabs button {
+  background: var(--bg-page) !important;
+  color: var(--text-muted) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-field) !important;
+  font-weight: 500 !important;
+  padding: 9px 14px !important;
+}
+
+/* Активный таб: заливка --tab-active-bg и текст --tab-active-fg.
+   Именно это отличает его от неактивного — в текущем дизайне
+   табы выглядели одинаково. */
+.login-page .auth-tabs button.active {
+  background: var(--tab-active-bg) !important;
+  color: var(--tab-active-fg) !important;
+  border-color: var(--tab-active-bg) !important;
+  font-weight: 600 !important;
+}
+
+.login-page .auth-tabs button.active:hover {
+  background: var(--tab-active-bg) !important;
+  color: var(--tab-active-fg) !important;
+}
+
+/* ── Под-табы (Пароль / Код из письма) ──────────────────── */
+.login-page .auth-subtabs button {
+  background: var(--bg-page) !important;
+  color: var(--text-muted) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-field) !important;
+}
+
+.login-page .auth-subtabs button.active {
+  background: var(--tab-active-bg) !important;
+  color: var(--tab-active-fg) !important;
+  border-color: var(--tab-active-bg) !important;
+  font-weight: 600 !important;
+}
+
+/* ── Поля ввода ──────────────────────────────────────── */
+.login-page .input-icon {
+  background: var(--field-bg) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-field) !important;
+  padding: 0 12px !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* ============================================================
+   Заглушки иконок — глобально
+   ============================================================
+
+   При PLAIN_ICONS = true каждая иконка — пустой <span> с inline
+   width/height (см. components/icons.tsx). Сами SVG не рисуются,
+   но заглушка остаётся в разметке и ведёт себя как обычный элемент:
+   занимает место и получает отступ gap от соседей по флексу.
+
+   Из-за этого текст съезжал в 102 местах: поля ввода, кнопки,
+   заголовки, чипы (самое заметное — поля логина, где текст
+   начинался на 37px от края вместо 13px).
+
+   Решение — вариант Б: иконок нет, но и следа от них нет.
+   Заглушку ИЗЫМАЕМ ИЗ ПОТОКА (display: none), а не просто делаем
+   прозрачной: только так она перестаёт участвовать в раскладке
+   и создавать gap.
+
+   Разметку не трогаем — <Icon/> остаётся в JSX, и если позже
+   включить PLAIN_ICONS = false, достаточно убрать это правило. */
+.icon-placeholder {
+  display: none;
+}
+
+/* ── Исключение: «Быстрый доступ» на главной ────────────────
+   Там используются настоящие иконки (Tile* — всегда рисуют SVG),
+   поэтому правило выше на них и так не действует: оно про
+   .icon-placeholder, а не про svg.
+
+   Но если иконка нарисована и стоит рядом с текстом во флексе,
+   gap остаётся нужным — он держит отступ между знаком и подписью. */
+
+/* Терракотовый фокус. Раньше здесь было индиго/фиолетовое
+   свечение rgba(99, 102, 241, 0.18) из старой палитры. */
+.login-page .input-icon:focus-within {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--primary-soft) !important;
+}
+
+/* ── Кнопки ──────────────────────────────────────────
+   Главное действие на экране ОДНО — кнопка отправки.
+   «Забыли пароль?» переведена во второстепенные (прозрачная
+   с тонкой рамкой): две залитые терракотовые кнопки подряд
+   заставляли пользователя выбирать между ними. */
+
+/* Главная кнопка: Войти / Зарегистрироваться */
+.login-page button[type='submit'].btn-primary {
+  padding: 13px 18px !important;
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  border-radius: var(--radius-pill) !important;
+  background: var(--primary-dark) !important;
+  border-color: var(--primary-dark) !important;
+  color: #FFFFFF !important;
+}
+
+.login-page button[type='submit'].btn-primary:hover:not(:disabled) {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+}
+
+/* Второстепенная: Забыли пароль? */
+.login-page .auth-forgot-password {
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-muted) !important;
+  font-weight: 500 !important;
+  padding: 11px 18px !important;
+  border-radius: var(--radius-pill) !important;
+  box-shadow: none !important;
+}
+
+.login-page .auth-forgot-password:hover:not(:disabled) {
+  background: var(--bg-page) !important;
+  border-color: var(--primary) !important;
+  color: var(--text) !important;
+}
+
+/* ── Заголовок и подзаголовок карточки ──────────────── */
+.login-page .auth-card h2 {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  margin: 0 0 6px;
+}
+
+/* Подзаголовок должен читаться, а не сливаться с фоном —
+   особенно в тёмной теме. */
+.login-page .auth-card > .muted {
+  color: var(--text-muted) !important;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: 0 0 18px;
+}
+
+/* ── Чекбокс «Запомнить меня» ────────────────────────── */
+.login-page .check-item {
+  color: var(--text) !important;
+  font-size: 0.86rem;
+}
+
+.login-page .check-item input[type='checkbox'] {
+  accent-color: var(--primary);
+}
+
+/* ── Тёмная тема: оливковый текст ─────────────────────
+   --olive (#5C6B3F) на тёмном даёт 2.7:1 и как ТЕКСТ
+   не читается — только заливки. Для текста — --olive-text. */
+html[data-theme='dark'] .login-page .auth-tabs button.active,
+html[data-theme='dark'] .login-page .auth-subtabs button.active {
+  color: var(--olive-text) !important;
+}
+
+/* ── Фоны страницы входа ────────────────────────────────
+   Подключаем newdesign/assets/bg-light.svg и bg-dark.svg
+   (копии лежат в frontend/public/).
+
+   ВАЖНО: фон вешается на .login-page, а НЕ на body.
+   В theme.css выше фон body сознательно убран
+   («сплошной цвет без узоров и градиентов»), и ломать это
+   для всего приложения не нужно — страница входа отдельная.
+
+   Формы в SVG размыты (feGaussianBlur 90) и почти невидимы —
+   контраст с фоном ниже 1.1:1, текст они не трогают. */
+.login-page {
+  /* Фон — на всю ширину окна, чтобы по бокам не оголялся
+     body с паттерном из еды (food-pattern.svg).
+     Ограничение ширины живёт на обёртке .login-page-inner
+     (см. разметку в LoginPage.tsx) — иначе фон обрезался бы
+     вместе с контентом и по краям вылезал бы паттерн. */
+  background-color: var(--bg-page);
+  background-image: url('/bg-light.svg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  min-height: 100vh;
+  width: 100%;
+  /* Раскладка страницы.
+     по высоте содержимого, и панель с карточкой «висят» по центру,
+     вместо того чтобы тянуться на всю высоту экрана. */
+  display: flex;
+  justify-content: center;
+  /* Центрируем контент и по вертикали: без этого на высоких
+     окнах (2560×1300) колонки прижимались к верху, а ниже
+     оставалась пустота в половину экрана. */
+  align-items: center;
+}
+
+/* Обёртка контента: держит колонки панели и карточки
+   в пределах 1280px и центрирует их на широком экране.
+   До 1280px — тянется вместе с окном, дальше — центрируется
+   (поведение как у Apple). */
+.login-page-inner {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 24px;
+  width: min(100%, var(--content-width));
+  margin: 0 auto;
+  padding: 24px;
+  /* Колонки растягиваются по высоте самой высокой из них
+     (панель, min-height 520px), поэтому карточка получает ту же
+     высоту — как в макете. align-content: center здесь НЕЛЬЗЯ:
+     оно отключает растягивание и карточка «виснет» по центру. */
+  /* align-items: stretch — колонки одной высоты.
+     Высоту задаёт сама карточка через min-height (см. ниже),
+     панель её догоняет. */
+  align-items: stretch;
+  /* Флекс-элемент растягивается по главной оси, из-за чего
+     width: min(100%, 1280px) на 2560px давало 2512px —
+     ограничение переставало работать. */
+  flex: 0 0 auto;
+  /* Потолок высоты обёртки: колонки растягиваются внутри неё,
+     но сама она не выше 640px. Без этого на 2560×1300 колонки
+     раздувались до 1204px и выглядели вытянутыми. */
+  max-height: 640px;
+}
+
+/* Карточка и панель одной высоты — как в макете.
+
+   Разбираем причины, почему карточка не совпадала с панелью:
+   1) .narrow (класс карточки) задаёт margin: 40px auto — эти 80px
+      (40 сверху + 40 снизу) отнимали высоту у колонки грида;
+   2) там же max-width: 420px — карточка сжималась до 363px,
+      хотя в колонке должна занимать всю её ширину.
+   Оба правила рассчитаны на центрированную карточку в обычном
+   потоке, а на этой странице карточка — колонка сетки. */
+.login-page .auth-card {
+  margin: 0;
+  max-width: none;
+  /* Высота колонок.
+     min() с vh нужен, чтобы на низких окнах колонки не упирались
+     в края; 640px — потолок, чтобы на высоких экранах (2560×1300)
+     не появлялась пустота: без него колонки растягивались
+     до 1204px и выглядели непропорционально вытянутыми. */
+  min-height: min(72vh, 640px);
+}
+
+/* ============================================================
+   НОВЫЙ ДИЗАЙН — главная страница
+   Макет: newdesign/mockup-home-light.png
+   ============================================================ */
+
+/* ── Фон страницы ──────────────────────────────────────────
+   По макету — чистый кремовый с мягкими органическими формами
+   (bg-light.svg). Паттерн из еды на главной убираем: в макете его нет,
+   а на скриншотах он либо не виден, либо мешает читать карточки.
+
+   Фон вешаем на .dashboard, а не на body: паттерн остаётся
+   на остальных страницах приложения, где он задуман. */
+/* Фон страницы — как в макете: кремовый с мягкими органическими
+   формами (bg-light.svg). Паттерн из еды на главной убираем —
+   в макете его нет.
+
+   ВАЖНО: фон крепим на всю оболочку (.app-shell), а не на .dashboard.
+   На .dashboard он обрезался в «прямоугольник»: блок ниже экрана,
+   а background-size: cover считает размеры от высоты этого блока.
+   органическими формами и еле заметными листьями. Лежит локально
+   в public/home/bg-home.png.
+
+   ВАЖНО: фон на .app-shell, а не на .dashboard: блок ниже экрана,
+   и background-size: cover считал размер от его высоты — фон
+   обрезался в «прямоугольник». С fixed он держится на месте. */
+.app-shell {
+  background-color: var(--bg-page);
+  background-image: url('/home/bg-home.png');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+/* Паттерн из еды под контентом главной убираем. */
+.dashboard::before {
+  content: none;
+}
+
+
+/* ── Hero: слева текст с кнопкой, справа фото блюда ─────── */
+.dashboard-hero {
+  display: grid;
+  /* Колонка текста уже, чем была: иначе подзаголовок растягивался
+     на две строки, а кнопка оставалась на третьей — под ней
+     образовывалась большая пустота (видно на скриншоте). */
+  grid-template-columns: minmax(0, 0.95fr) minmax(260px, 0.75fr);
+  gap: 28px;
+  /* align-items: center — текст и фото выровнены по вертикали. */
+  align-items: center;
+  margin-bottom: 34px;
+}
+
+.dashboard-hero-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* Заголовок hero — крупнее прежнего, с запасом по строке. */
+.dashboard-hero .h1-home {
+  font-family: var(--font-serif);
+  font-size: clamp(1.7rem, 2.5vw, 2.15rem);
+  line-height: 1.18;
+  margin: 0;
+}
+
+.dashboard-hero .lead {
+  max-width: 40ch;
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
+/* Главная кнопка экрана: ведёт в /meal-plan — туда же,
+   куда и карточка «План питания» в быстром доступе. */
+.dashboard-hero .hero-cta {
+  margin-top: 6px;
+  padding: 12px 24px;
+  border-radius: var(--radius-pill);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* Фото блюда: круг, как в макете. Мягкая органическая подложка. */
+.dashboard-hero-photo {
+  position: relative;
+  justify-self: center;
+  align-self: center;
+  /* Круг задан квадратом через aspect-ratio. Фото внутри — object-fit:
+     cover с object-position по центру: тарелка должна сидеть в круге
+     ровно, без смещения к краю. */
+  width: min(100%, 320px);
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+}
+
+.dashboard-hero-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 50%;
+  display: block;
+}
+
+@media (max-width: 860px) {
+  .dashboard-hero {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .dashboard-hero-photo {
+    order: -1;
+    width: min(100%, 240px);
+  }
+}
+
+/* ── Карточки быстрого доступа ─────────────────────────────
+   В макете это отдельные скруглённые карточки, а не сомкнутая сетка
+   с линиями (как было). Поэтому плитки получают радиус, границы
+   и один мягкий теневой слой. */
+.dashboard .section-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  margin-bottom: 30px;
+}
+
+.dashboard .section-tile {
+  position: relative;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 18px 18px;
+  box-shadow: var(--shadow-lift);
+  gap: 9px;
+}
+
+.dashboard .section-tile:hover {
+  background: var(--bg-elevated);
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+/* Стрелка в правом верхнем углу — как в макете. */
+.dashboard .section-tile::after {
+  content: '→';
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  color: var(--primary);
+  font-size: 1rem;
+  opacity: 0.75;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.dashboard .section-tile:hover::after {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+@media (max-width: 1080px) {
+  .dashboard .section-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .dashboard .section-grid { grid-template-columns: 1fr; }
+}
+
+/* ── «Как это работает»: отдельные карточки-шаги ──────────── */
+.dashboard .step-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 18px 16px;
+  box-shadow: var(--shadow-lift);
+  gap: 8px;
+}
+
+/* Номер шага — терракотовый моноширинный, как в макете. */
+.dashboard .step-number {
+  color: var(--primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.dashboard .step-title {
+  font-weight: 600;
+  font-size: 0.98rem;
+  color: var(--text);
+}
+
+.dashboard .step-text {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+/* ── «Что в каталоге»: фото СЛЕВА, текст СПРАВА ─────────────
+   По просьбе: картинка слева в карточке, название и ккал справа.
+   Длинные названия переносятся, а не обрезаются. */
+/* Четыре карточки В СТРОКУ (по просьбе). На узких экранах
+   перестраиваются, чтобы не сжиматься до нечитаемого вида. */
+.dashboard .dish-sample-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 1180px) {
+  .dashboard .dish-sample-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .dashboard .dish-sample-grid { grid-template-columns: 1fr; }
+}
+
+.dish-sample.has-photo {
+  /* Фото СЛЕВА, текст СПРАВА. flex-direction явно row: базовое
+     правило из index.css ставит column (иконка сверху), и без этого
+     картинка оставалась над текстом. */
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lift);
+}
+
+.dish-sample-photo {
+  /* Фото умеренно крупное: в строке из четырёх колонок
+     карточка узкая, слишком большая картинка выдавит текст. */
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-page);
+}
+
+.dish-sample-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.dish-sample-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* Название переносится, а не обрезается: блюда бывают длинными. */
+.dish-sample.has-photo .dish-sample-name {
+  white-space: normal;
+  line-height: 1.3;
+}
+
+/* ============================================================
+   Профиль: выравнивание кнопок и видимые элементы управления
+   ============================================================ */
+
+/* ── Кнопки: текст строго по центру ─────────────────────────
+   И по горизонтали, и по вертикали. Раньше сюда добавлялся gap
+   от иконок, которых уже нет, и текст сдвигался вбок. */
+.profile-grid .action-buttons button,
+.profile-grid .btn-primary,
+.profile-grid .btn-secondary,
+.profile-grid .btn-danger,
+.subscription-card button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0;
+  min-height: 38px;
+  line-height: 1.2;
+}
+
+/* Если иконка всё же есть — небольшой отступ только справа от неё. */
+.profile-grid button svg {
+  flex: 0 0 auto;
+  margin-right: 6px;
+}
+
+/* ── Крестик удаления в чипах «Любимые/Нежелательные» ──────
+   Был прозрачным на почти белой заливке чипа — кнопка есть,
+   но её не видно. Даём видимый фон и границу. */
+.pref-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-page);
+  color: var(--text-muted);
+  opacity: 1;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+/* Если крестик не отрисовался (заглушка вместо иконки),
+   показываем вместо него символ × — кнопка остаётся понятной. */
+.pref-chip-remove:has(> .icon-placeholder)::after {
+  content: '×';
+  font-size: 13px;
+  line-height: 1;
+}
+
+.pref-chip-remove:has(> .icon-placeholder) > .icon-placeholder {
+  display: none;
+}
+
+.pref-chip-remove:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #FFFFFF;
+}
+
+/* ============================================================
+   НОВЫЙ ДИЗАЙН — страница «Анализ тела»
+   Макет: newregference (карточка «Анализ тела» в презентации)
+   ============================================================
+
+   Только оформление: разметка и вся логика страницы не меняются.
+   Страница уже использует .profile-grid / .left-col / .right-col,
+   поэтому оформление согласовано с профилем. */
+
+/* ── Показатели — карточки, а не строка с линиями ─────────
+   Раньше это была сплошная строка (flex + border-top/bottom),
+   из-за чего значения липли друг к другу. В макете каждая
+   величина — отдельная карточка. */
+.analysis-page .metric-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 10px;
+  padding: 0;
+  border: 0;
+}
+
+.analysis-page .metric-strip .metric {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 12px 14px;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+/* Подпись — мелкая и приглушённая, значение — крупное. */
+.analysis-page .metric-strip .metric-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.analysis-page .metric-strip .metric-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--text);
+}
+
+.analysis-page .metric-strip .metric-unit {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+
+/* ── Карточки страницы — свободнее по отступам ─────────────── */
+.analysis-page .section-card {
+  padding: 18px;
+}
+
+.analysis-page .section-card .section-head {
+  margin-bottom: 10px;
+}
+
+/* ── Карта тела: силуэт компактнее и по центру ────────────────
+   Раньше силуэт растягивался на всю ширину карточки и выглядел
+   непропорционально крупным. */
+.analysis-page .silhouette {
+  margin: 6px auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.analysis-page .silhouette-frame {
+  margin-left: auto;
+  margin-right: auto;
+}
+/* Подпись «выше нормы / норма» — приглушённая. */
+.analysis-page .silhouette-caption {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+/* ── Прогноз фигуры: изображение не растягивается на всю ширину ── */
+.analysis-page .forecast-illustration-wrap {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-page);
+}
+
+.analysis-page .forecast-illustration {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  height: auto;
+}
+
+/* ── Кнопки страницы: единое выравнивание текста ──────────── */
+.analysis-page .btn-primary,
+.analysis-page .btn-secondary,
+.analysis-page .forecast-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 38px;
+}
+
+/* ── Список недель прогноза: читаемые интервалы ───────────── */
+.analysis-page .forecast-block ul,
+.analysis-page .recommend-list {
+  padding-left: 20px;
+  margin-top: 10px;
+}
+
+.analysis-page .forecast-block li,
+.analysis-page .recommend-list li {
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+/* ============================================================
+   НОВЫЙ ДИЗАЙН — страница «Мой холодильник»
+   ============================================================
+
+   Только оформление: разметка и логика не меняются.
+   Переиспользуются существующие классы (fridge-*). */
+
+/* ── Шапка страницы ────────────────────────────────────── */
+.fridge-page .fridge-head {
+  margin-bottom: 6px;
+}
+
+.fridge-page .fridge-head h1 {
+  font-family: var(--font-serif);
+  font-size: clamp(1.7rem, 2.4vw, 2.1rem);
+  line-height: 1.18;
+  margin: 2px 0 8px;
+}
+
+.fridge-page .fridge-head .muted {
+  max-width: 78ch;
+  line-height: 1.5;
+}
+
+/* ── Показатели — карточками, как в профиле ──────────────
+   Раньше — строка с линиями сверху/снизу, числа мелкие. */
+.fridge-page .fridge-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  margin: 18px 0 22px;
+}
+
+.fridge-page .fridge-stat {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lift);
+}
+
+.fridge-page .fridge-stat-value {
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text);
+}
+
+.fridge-page .fridge-stat-label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+/* «Скоро истекает» — предупреждение, выделяем терракотой.
+   Если таких нет (0), цвет остаётся обычным. */
+.fridge-page .fridge-stat.is-warn .fridge-stat-value {
+  color: var(--primary);
+}
+
+/* ── Форма добавления ──────────────────────────────────── */
+.fridge-page .fridge-add {
+  padding: 18px;
+  border-radius: 16px;
+  box-shadow: var(--shadow-lift);
+  margin-bottom: 22px;
+}
+
+.fridge-page .fridge-add-head {
+  margin-bottom: 12px;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+/* Сетка полей: на узких экранах перестраивается. */
+.fridge-page .fridge-add-grid {
+  grid-template-columns: minmax(0, 2fr) 100px 90px 150px auto;
+  gap: 10px;
+  align-items: end;
+}
+
+@media (max-width: 900px) {
+  .fridge-page .fridge-add-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Поля формы — единый радиус и высота, как на остальных страницах. */
+.fridge-page .fridge-add-grid input,
+.fridge-page .fridge-add-grid select {
+  padding: 10px 12px;
+  border-radius: var(--radius-field);
+  border: 1px solid var(--border);
+  background: var(--field-bg);
+  color: var(--text);
+  min-height: 40px;
+  width: 100%;
+}
+
+.fridge-page .fridge-add-grid input:focus,
+.fridge-page .fridge-add-grid select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+  outline: none;
+}
+
+/* Кнопка «Добавить» — по высоте полей, не выше и не ниже. */
+.fridge-page .fridge-add-grid .btn-primary {
+  min-height: 40px;
+  padding: 0 20px;
+  border-radius: var(--radius-field);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* ── Категории и товары ──────────────────────────────────
+   Список был плоским с пунктирными линиями. Теперь каждая
+   категория — своя карточка, а товары — строки внутри неё. */
+/* Категории — одна колонка на широком экране.
+   При двух колонках карточка ~460px, и три кнопки с подписями
+   («Изменить», «Фото», «Удалить») не влезали в строку — они
+   переносились вниз отдельным рядом (видно на скриншотах).
+   В одну колонку строка просторная и всё встаёт в линию. */
+.fridge-page .fridge-groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  /* Список не растягивается на всю ширину окна: длинные строки
+     трудно читать, а кнопки уезжают далеко от названия. */
+  max-width: 100%;
+}
+
+@media (min-width: 1500px) {
+  .fridge-page .fridge-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.fridge-page .fridge-group {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--shadow-lift);
+}
+
+.fridge-page .fridge-group-title {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 1;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin: 0 0 10px;
+  gap: 10px;
+}
+
+/* Счётчик товаров в категории — видимая пилюля, а не бледное число. */
+.fridge-page .fridge-group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* Строка товара: иконка, название, количество, срок и кнопки.
+   Раньше здесь была жёсткая grid-сетка на 5 колонок, но кнопок
+   в строке ПЕРЕМЕННОЕ число (правка, срок, загрузка фото,
+   удаление фото — только для своего снимка, удалить товар).
+   Из-за несовпадения колонок кнопки съезжали вниз отдельной
+   строкой (видно на скриншоте: «Удалить» под товаром).
+
+   Флекс подстраивается под любое число элементов. */
+.fridge-page .fridge-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Название тянется и переносится, кнопки прижимаются вправо. */
+.fridge-page .fridge-item-main {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+/* Последний товар в списке — без лишней линии. */
+.fridge-page .fridge-items .fridge-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 2px;
+}
+
+/* Иконка продукта — крупнее, в мягкой подложке. */
+.fridge-page .fridge-item img,
+.fridge-page .fridge-item .product-image,
+.fridge-page .fridge-item .product-image-placeholder {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+
+.fridge-page .fridge-item-name {
+  font-weight: 500;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  /* Длинные названия переносим, а не обрезаем. */
+  overflow-wrap: anywhere;
+}
+
+/* Количество — моноширинное, чтобы цифры не «прыгали». */
+.fridge-page .fridge-item-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+.fridge-page .fridge-item-expiry {
+  font-size: 0.82rem;
+  white-space: nowrap;
+  opacity: 1;
+  color: var(--text-muted);
+}
+
+/* Кнопки правки/удаления — видимые, с рамкой и нужного размера
+   для пальца. Раньше были почти прозрачными. */
+.fridge-page .fridge-item-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-field);
+  border: 1px solid var(--border);
+  background: var(--bg-page);
+  color: var(--text-muted);
+  opacity: 1;
+  font-size: 0.82rem;
+  cursor: pointer;
+  /* Никаких теней: кнопки в списке — утилитарные, не акцентные. */
+  box-shadow: none;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+/* Кнопки списка с текстом: иконка + подпись в одну строку.
+   Пустые заглушки иконок (Pencil, ImagePlus, ImageOff, Trash2
+   при PLAIN_ICONS = true) уже скрыты глобальным правилом
+   .icon-placeholder { display: none }, поэтому остаётся текст —
+   кнопка читается и без значка. */
+.fridge-page .fridge-item-btn {
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.fridge-page .fridge-item-btn-text {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.fridge-page .fridge-item-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+  box-shadow: none;
+}
+
+.fridge-page .fridge-item-btn.is-danger,
+.fridge-page .fridge-item-btn[title*='Удалить'] {
+  border-color: var(--danger-line);
+  color: var(--danger);
+}
+
+.fridge-page .fridge-item-btn.is-danger:hover,
+.fridge-page .fridge-item-btn[title*='Удалить']:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #FFFFFF;
+  box-shadow: none;
+}
+
+/* Режим правки количества внутри строки. */
+.fridge-page .fridge-item-edit {
+  grid-column: 3 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fridge-page .fridge-item-edit input {
+  width: 90px;
+  padding: 8px 10px;
+  border-radius: var(--radius-field);
+  border: 1px solid var(--border);
+  background: var(--field-bg);
+  min-height: 36px;
+}
+
+/* ── Пустое состояние ──────────────────────────────────── */
+.fridge-page .fridge-empty {
+  padding: 28px 20px;
+  border-radius: 16px;
+  border: 1px dashed var(--border);
+  background: var(--bg-elevated);
+  text-align: center;
+}
+/* ── Иконки продуктов в списке ────────────────────────────
+   Заглушки — SVG-файлы из public/placeholders/fridge/,
+   вставленные через <img>. Внутри них stroke="currentColor",
+   и это НЕ работает: SVG, загруженный как изображение,
+   изолирован от документа, и currentColor превращается
+   в чёрный. Из-за этого значки выглядели чёрными квадратами
+   и выбивались из кремовой палитры.
+
+   Цвета по категориям уже заданы в index.css
+   (.product-cat-*), но на <img> они не действуют. Перекрашиваем
+   фильтром — он работает и с изображениями. */
+.fridge-page .product-image-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+/* Значок крупнее: в подложке 44px доля 60% давала ~23px —
+   значок терялся и читался как «фото нет». Теперь 74%. */
+.fridge-page .product-image-placeholder img {
+  width: 74%;
+  height: 74%;
+  object-fit: contain;
+  opacity: 1;
+  /* Терракотовый оттенок: sepia + насыщенность + поворот тона. */
+  filter: sepia(0.55) saturate(2.1) hue-rotate(-8deg) brightness(0.85);
+}
+
+/* В тёмной теме — светлее, чтобы значок читался. */
+html[data-theme='dark'] .fridge-page .product-image-placeholder img {
+  filter: sepia(0.35) saturate(1.6) hue-rotate(-8deg) brightness(1.5);
+}
+/* Слайды из LoginPage.tsx — фотографии с локальными путями
+   (public/login/), без внешних запросов. */

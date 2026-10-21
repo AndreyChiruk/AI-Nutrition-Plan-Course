@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import type { FormEvent } from 'react';
 import { Camera, Dumbbell, LogOut, Save, Scale, TrendingDown } from '../components/icons';
 import { userApi } from '../api/services';
@@ -331,6 +331,10 @@ export const ProfilePage = () => {
           {/* «Действия» стоят сразу под статистикой: раньше блок был в самом
               конце правой колонки, и до кнопки «Сохранить» приходилось
               прокручивать всю страницу. */}
+          {/* Подписка — под краткой статистикой (по просьбе). */}
+          <SubscriptionCard />
+
+          {/* Действия — под подпиской, последним блоком левой колонки. */}
           <section className="card section-card">
             <div className="section-head">
               <h3>Действия</h3>
@@ -339,9 +343,9 @@ export const ProfilePage = () => {
             {message ? <p className="success">{message}</p> : null}
             <div className="action-buttons">
               <button type="submit" className="btn-primary">
-                <Save size={16} /> Сохранить все изменения
+                <Save size={16} /> Сохранить
               </button>
-              <button type="button" onClick={() => setShowPasswordModal(true)}>
+              <button type="button" className="btn-secondary" onClick={() => setShowPasswordModal(true)}>
                 Сменить пароль
               </button>
               <button type="button" className="btn-danger" onClick={logout}>
@@ -456,9 +460,6 @@ export const ProfilePage = () => {
                 ? ` При сохранении цель будет скорректирована на «${safeGoal === 'lose' ? 'похудеть' : safeGoal === 'gain' ? 'набрать массу' : 'поддерживать'}».`
                 : ''}
             </p>
-            <p className="muted small" style={{ marginTop: 10 }}>
-              Длительность и калорийность планов настраиваются в разделе «План питания».
-            </p>
             <div className="form-grid" style={{ marginTop: 10 }}>
               <FoodPreferencePicker
                 label="Любимые продукты и блюда"
@@ -557,20 +558,8 @@ export const ProfilePage = () => {
             </div>
           </section>
 
-          <section className="card section-card">
-            <div className="section-head">
-              <h3>Продукты пользователя</h3>
-            </div>
-            <p className="muted small">
-              Холодильник переехал на отдельную страницу: там группировка по категориям,
-              поиск по справочнику, изменение количества и учёт срока годности.
-            </p>
-            <Link className="btn-secondary" to="/fridge">
-              Открыть «Мой холодильник»
-            </Link>
-          </section>
-
-          <SubscriptionCard />
+          {/* Блок «Продукты пользователя» удалён: см. комментарий выше —
+              для него есть отдельная вкладка. */}
         </section>
       </form>
 
@@ -591,10 +580,10 @@ export const ProfilePage = () => {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
               />
-              <button type="button" onClick={changePassword}>
+              <button type="button" className="btn-primary" onClick={changePassword}>
                 Сохранить пароль
               </button>
-              <button type="button" onClick={() => setShowPasswordModal(false)}>
+              <button type="button" className="btn-secondary" onClick={() => setShowPasswordModal(false)}>
                 Отмена
               </button>
             </div>

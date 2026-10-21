@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { Activity, Apple, BarChart3, Dumbbell, Home, LayoutList, Leaf, Menu, MessageCircle, Refrigerator, Shield, Sparkles, User, UtensilsCrossed, X } from '../components/icons';
 import type { LucideIcon } from '../components/icons';
@@ -30,18 +30,8 @@ const navItems: Array<{
 export const AppLayout = () => {
   const { user, logout } = useAuth();
   const [navOpen, setNavOpen] = useState(false);
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const t = localStorage.getItem('ui-theme');
-    return t === 'light' ? 'light' : 'dark';
-  });
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('ui-theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-
+  /* Переключатель темы убран: тёмная тема больше не нужна,
+     тема зафиксирована в светлой в main.tsx. */
   return (
     <div className={`app-shell${navOpen ? ' app-shell--nav-open' : ''}`}>
       {navOpen ? (
@@ -70,14 +60,6 @@ export const AppLayout = () => {
           </div>
         </div>
         <div className="actions">
-          <button
-            type="button"
-            className="theme-toggle"
-            onClick={toggleTheme}
-            title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-          >
-            Сменить тему
-          </button>
           <span className="user-email-pill">{user?.email}</span>
           <button type="button" className="btn-logout" onClick={logout}>
             Выйти

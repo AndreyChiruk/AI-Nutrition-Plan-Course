@@ -27,6 +27,14 @@ export const publicApi = {
     }>('/health/catalog-stats');
     return data;
   },
+
+  /** Несколько блюд с фото для блока «Что в каталоге» на главной. */
+  catalogSamples: async () => {
+    const { data } = await api.get<
+      Array<{ id: string; name: string; slot: string; kcal: number; imageUrl: string }>
+    >('/health/catalog-samples');
+    return data;
+  },
 };
 
 export const authApi = {
