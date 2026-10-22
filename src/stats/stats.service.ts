@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { Op } from 'sequelize';
 import { BodyAnalysis } from '../models/BodyAnalysis';
 import { Meal } from '../models/Meal';
 import { MealItem } from '../models/MealItem';
@@ -105,7 +106,8 @@ export class StatsService {
 
   async userProgress(userId: string) {
     const meals = await this.mealModel.findAll({
-      where: { userId: this.uid(userId) },
+      where: { userId: this.uid(userId), status: { [Op.ne]: 'rejected' } },
+      attributes: ['id', 'recognizedAt', 'createdAt', 'confidence', 'status'],
       include: [{ model: MealItem }],
       order: [['recognizedAt', 'ASC']],
     });
@@ -133,7 +135,8 @@ export class StatsService {
 
   async kbjuStats(userId: string) {
     const meals = await this.mealModel.findAll({
-      where: { userId: this.uid(userId) },
+      where: { userId: this.uid(userId), status: { [Op.ne]: 'rejected' } },
+      attributes: ['id', 'recognizedAt', 'createdAt', 'confidence', 'status'],
       include: [{ model: MealItem }],
     });
 
@@ -168,7 +171,8 @@ export class StatsService {
     });
 
     const meals = await this.mealModel.findAll({
-      where: { userId: uid },
+      where: { userId: uid, status: { [Op.ne]: 'rejected' } },
+      attributes: ['id', 'recognizedAt', 'createdAt', 'confidence', 'status'],
       include: [{ model: MealItem }],
     });
 
@@ -213,6 +217,7 @@ export class StatsService {
     const [meals, plans, body] = await Promise.all([
       this.mealModel.findAll({
         where: { userId: uid },
+        attributes: ['id', 'recognizedAt', 'createdAt', 'confidence', 'status'],
         include: [{ model: MealItem }],
         order: [['recognizedAt', 'DESC']],
         limit: 2000,

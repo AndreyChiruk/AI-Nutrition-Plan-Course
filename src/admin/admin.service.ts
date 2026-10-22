@@ -546,8 +546,16 @@ export class AdminService {
 
     const [users, meals, plans] = await Promise.all([
       this.userModel.findAll({ attributes: ['id', 'createdAt'], raw: true }),
-      this.mealModel.findAll({ attributes: ['id', 'createdAt', 'confidence'], raw: true }),
-      this.mealPlanModel.findAll({ attributes: ['id', 'createdAt'], raw: true }),
+      this.mealModel.findAll({
+        where: { createdAt: { [Op.gte]: since } },
+        attributes: ['id', 'createdAt', 'confidence'],
+        raw: true,
+      }),
+      this.mealPlanModel.findAll({
+        where: { createdAt: { [Op.gte]: since } },
+        attributes: ['id', 'createdAt'],
+        raw: true,
+      }),
     ]);
 
     const userRows = users as unknown as Array<{ id: number; createdAt: Date }>;
@@ -628,9 +636,12 @@ export class AdminService {
   }
 
   async recognitionStats() {
-    const meals = await this.mealModel.findAll();
+    const meals = await this.mealModel.findAll({
+      attributes: ['id', 'confidence'],
+      raw: true,
+    });
     const avgConfidenceScore =
-      meals.reduce((sum, meal) => sum + meal.confidence, 0) / (meals.length || 1);
+      meals.reduce((sum, meal) => sum + (Number(meal.confidence) || 0), 0) / (meals.length || 1);
     return { avgConfidenceScore, total: meals.length };
   }
 
