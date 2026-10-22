@@ -1439,6 +1439,7 @@ export class AdminService {
       : undefined;
     const totalCandidates = await this.productModel.count({ where });
     let offset = 0;
+    let failedOffset = 0;
     let batches = 0;
     let processed = 0;
     let updated = 0;
@@ -1450,10 +1451,11 @@ export class AdminService {
         where,
         order: [['createdAt', 'DESC'], ['id', 'ASC']],
         limit: batchSize,
-        offset: onlyMissingDetailed ? 0 : offset,
+        offset: onlyMissingDetailed ? failedOffset : offset,
       });
       if (rows.length === 0) break;
       batches += 1;
+      let batchFailed = 0;
       for (const p of rows) {
         if (delayMs > 0) {
           await sleep(delayMs);
@@ -1464,6 +1466,7 @@ export class AdminService {
           const one = await this.aiLocalizeSingleProduct(p);
           if (!one.updated) {
             failed += 1;
+            batchFailed += 1;
             errors.push(`${p.id}: ${one.error ?? 'no update'}`);
             processedItems.push({ id: p.id, nameBefore, updated: false });
             continue;
@@ -1472,11 +1475,13 @@ export class AdminService {
           processedItems.push({ id: p.id, nameBefore, updated: true });
         } catch (e: unknown) {
           failed += 1;
+          batchFailed += 1;
           errors.push(`${p.id}: ${e instanceof Error ? e.message : String(e)}`);
           processedItems.push({ id: p.id, nameBefore: p.name, updated: false });
         }
       }
-      if (!onlyMissingDetailed) offset += rows.length;
+      if (onlyMissingDetailed) failedOffset += batchFailed;
+      else offset += rows.length;
     }
     const sync = await this.syncMealPlanSnapshotsFromProductsByDishId();
     return {
