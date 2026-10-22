@@ -4,6 +4,7 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  InternalServerErrorException,
   Logger,
   Post,
   Req,
@@ -87,9 +88,8 @@ export class StripeWebhookController {
         `Событие ${event.type}: ${applied ? 'применено' : 'пропущено (нет подписки)'}`,
       );
     } catch (e) {
-      // Ошибку обработки логируем, но Stripe отвечаем 200: повторная
-      // доставка того же события не поможет, если дело в наших данных.
       this.logger.error(`Не удалось обработать ${event.type}: ${redactSecrets(String(e))}`);
+      throw new InternalServerErrorException('Ошибка обработки события Stripe.');
     }
 
     return { received: true };

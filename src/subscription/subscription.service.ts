@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Op } from 'sequelize';
+import { Op, UniqueConstraintError } from 'sequelize';
 import type Stripe from 'stripe';
 import { Subscription, type SubscriptionStatus } from '../models/Subscription';
 import { AiChatUsage } from '../models/AiChatUsage';
@@ -157,11 +157,11 @@ export class SubscriptionService {
       );
     }
 
-    await this.subscriptionModel.upsert({
-      userId: user.id,
-      stripeCustomerId: customer.id,
-      status: 'none',
-    } as never);
+    if (existing) {
+      await existing.update({ stripeCustomerId: customer.id } as never);
+    } else {
+      await this.upsertForUser(user.id, { stripeCustomerId: customer.id, status: 'none' });
+    }
 
     return customer.id;
   }
@@ -487,11 +487,24 @@ export class SubscriptionService {
       cancelAtPeriodEnd: boolean;
     }>,
   ): Promise<void> {
-    const existing = await this.find(userId);
-    if (existing) {
-      await existing.update({ ...patch } as never);
-      return;
+    try {
+      const [record] = await this.subscriptionModel.findOrCreate({
+        where: { userId },
+        defaults: { userId, status: 'none', ...patch } as never,
+      });
+      await record.update({ ...patch } as never);
+    } catch (e) {
+      if (
+        e instanceof UniqueConstraintError ||
+        (e as { name?: string }).name === 'SequelizeUniqueConstraintError'
+      ) {
+        const record = await this.find(userId);
+        if (record) {
+          await record.update({ ...patch } as never);
+          return;
+        }
+      }
+      throw e;
     }
-    await this.subscriptionModel.create({ userId, status: 'none', ...patch } as never);
   }
 }
