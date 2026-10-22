@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Op } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 import { TrainingBlock } from '../models/TrainingBlock';
 import { User } from '../models/User';
 import { WorkoutPlan } from '../models/WorkoutPlan';
@@ -89,10 +89,18 @@ export class WorkoutPlanService {
     return `Копия от ${this.formatRuDateTimeMinsk(createdAt)} — ${base}`;
   }
 
-  private async cancelActive(userId: string) {
+  private async runInTx<T>(fn: (t?: Transaction) => Promise<T>): Promise<T> {
+    const seq = this.workoutPlanModel.sequelize;
+    if (seq?.transaction) {
+      return seq.transaction(fn);
+    }
+    return fn(undefined);
+  }
+
+  private async cancelActive(userId: string, t?: Transaction) {
     await this.workoutPlanModel.update(
       { status: 'cancelled' },
-      { where: { userId: this.uid(userId), status: 'active' } },
+      { where: { userId: this.uid(userId), status: 'active' }, ...(t ? { transaction: t } : {}) },
     );
   }
 
@@ -172,39 +180,49 @@ export class WorkoutPlanService {
     this.assertDuration(dto.durationDays);
     if (!user) throw new NotFoundException('User not found');
 
-    await this.cancelActive(userId);
     const startDate = this.minskDayStart();
     const endDate = new Date(startDate);
     endDate.setUTCDate(endDate.getUTCDate() + dto.durationDays - 1);
     const defaultName = `План тренировок ${this.formatRuDateTimeMinsk(new Date())}`;
 
-    const plan = await this.workoutPlanModel.create({
-      userId: this.uid(userId),
-      startDate,
-      endDate,
-      durationDays: dto.durationDays,
-      name: dto.name ?? defaultName,
-      trackingStartedAt: null,
-      status: 'active',
-    } as never);
+    await this.runInTx(async (t) => {
+      await this.cancelActive(userId, t);
 
-    const rows = dto.days.map((d) => {
-      const date = new Date(startDate);
-      date.setUTCDate(date.getUTCDate() + d.dayNumber - 1);
-      return {
-        workoutPlanId: plan.id,
-        dayNumber: d.dayNumber,
-        date,
-        session1: d.session1,
-        session2: d.session2,
-        session3: d.session3,
-        session4: d.session4,
-        sessionStatuses: {},
-      };
+      const plan = await this.workoutPlanModel.create(
+        {
+          userId: this.uid(userId),
+          startDate,
+          endDate,
+          durationDays: dto.durationDays,
+          name: dto.name ?? defaultName,
+          trackingStartedAt: null,
+          status: 'active',
+        } as never,
+        t ? { transaction: t } : {},
+      );
+
+      const rows = dto.days.map((d) => {
+        const date = new Date(startDate);
+        date.setUTCDate(date.getUTCDate() + d.dayNumber - 1);
+        return {
+          workoutPlanId: plan.id,
+          dayNumber: d.dayNumber,
+          date,
+          session1: d.session1,
+          session2: d.session2,
+          session3: d.session3,
+          session4: d.session4,
+          sessionStatuses: {},
+        };
+      });
+
+      // Страховка на запись: восстанавливаем кодировку во всех снапшотах дня.
+      await this.workoutPlanDayModel.bulkCreate(
+        recoverDeep(rows) as never,
+        t ? { transaction: t } : {},
+      );
     });
 
-    // Страховка на запись: восстанавливаем кодировку во всех снапшотах дня.
-    await this.workoutPlanDayModel.bulkCreate(recoverDeep(rows) as never);
     return this.getActivePlan(userId);
   }
 
@@ -252,8 +270,13 @@ export class WorkoutPlanService {
       where: { id: planId, userId: this.uid(userId) },
     });
     if (!plan) throw new NotFoundException('Plan not found');
-    await this.workoutPlanDayModel.destroy({ where: { workoutPlanId: planId } });
-    await plan.destroy();
+    await this.runInTx(async (t) => {
+      await this.workoutPlanDayModel.destroy({
+        where: { workoutPlanId: planId },
+        ...(t ? { transaction: t } : {}),
+      });
+      await plan.destroy(t ? { transaction: t } : {});
+    });
     return { ok: true };
   }
 
@@ -262,8 +285,10 @@ export class WorkoutPlanService {
     if (plan.status === 'active') {
       return this.getPlanById(userId, planId);
     }
-    await this.cancelActive(userId);
-    await plan.update({ status: 'active' } as never);
+    await this.runInTx(async (t) => {
+      await this.cancelActive(userId, t);
+      await plan.update({ status: 'active' } as never, t ? { transaction: t } : {});
+    });
     return this.getPlanById(userId, planId);
   }
 
@@ -275,33 +300,43 @@ export class WorkoutPlanService {
     const endDate = new Date(start);
     endDate.setUTCDate(endDate.getUTCDate() + src.durationDays - 1);
 
-    const plan = await this.workoutPlanModel.create({
-      userId: this.uid(userId),
-      startDate: start,
-      endDate,
-      durationDays: src.durationDays,
-      name,
-      trackingStartedAt: null,
-      status: 'cancelled',
-    } as never);
+    const newPlanId = await this.runInTx(async (t) => {
+      const plan = await this.workoutPlanModel.create(
+        {
+          userId: this.uid(userId),
+          startDate: start,
+          endDate,
+          durationDays: src.durationDays,
+          name,
+          trackingStartedAt: null,
+          status: 'cancelled',
+        } as never,
+        t ? { transaction: t } : {},
+      );
 
-    const rows = (src.days ?? []).map((row) => {
-      const date = new Date(start);
-      date.setUTCDate(date.getUTCDate() + row.dayNumber - 1);
-      return {
-        workoutPlanId: plan.id,
-        dayNumber: row.dayNumber,
-        date,
-        session1: row.session1,
-        session2: row.session2,
-        session3: row.session3,
-        session4: row.session4,
-        sessionStatuses: {},
-      };
+      const rows = (src.days ?? []).map((row) => {
+        const date = new Date(start);
+        date.setUTCDate(date.getUTCDate() + row.dayNumber - 1);
+        return {
+          workoutPlanId: plan.id,
+          dayNumber: row.dayNumber,
+          date,
+          session1: row.session1,
+          session2: row.session2,
+          session3: row.session3,
+          session4: row.session4,
+          sessionStatuses: {},
+        };
+      });
+      // Страховка на запись: восстанавливаем кодировку во всех снапшотах дня.
+      await this.workoutPlanDayModel.bulkCreate(
+        recoverDeep(rows) as never,
+        t ? { transaction: t } : {},
+      );
+      return plan.id;
     });
-    // Страховка на запись: восстанавливаем кодировку во всех снапшотах дня.
-    await this.workoutPlanDayModel.bulkCreate(recoverDeep(rows) as never);
-    return this.getPlanById(userId, plan.id);
+
+    return this.getPlanById(userId, newPlanId);
   }
 
   async startTracking(userId: string, planId: string) {

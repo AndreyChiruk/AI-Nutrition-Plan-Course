@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Op, Sequelize } from 'sequelize';
+import { Op, Sequelize, Transaction } from 'sequelize';
 import { Allergen } from '../models/Allergen';
 import { FridgeItem } from '../models/FridgeItem';
 import { Ingredient } from '../models/Ingredient';
@@ -154,10 +154,10 @@ export class MealPlanService {
   }
 
 
-  private async archiveActivePlans(userId: string) {
+  private async archiveActivePlans(userId: string, t?: Transaction) {
     await this.mealPlanModel.update(
       { status: 'completed' },
-      { where: { userId: this.uid(userId), status: 'active' } },
+      { where: { userId: this.uid(userId), status: 'active' }, ...(t ? { transaction: t } : {}) },
     );
   }
 
@@ -2417,11 +2417,30 @@ export class MealPlanService {
       return this.getPlanById(userId, planId);
     }
 
-    await this.archiveActivePlans(userId);
-    await plan.update({
-      status: 'active',
-      restrictionsChanged: diffs.length > 0,
-    } as never);
+    const runInTx = async <T>(fn: (t?: Transaction) => Promise<T>): Promise<T> => {
+      const seq = this.mealPlanModel.sequelize;
+      if (seq?.transaction) {
+        return seq.transaction(fn);
+      }
+      return fn(undefined);
+    };
+
+    await runInTx(async (t) => {
+      if (t) {
+        await this.mealPlanModel.sequelize!.query(
+          'SELECT id FROM users WHERE id = :id FOR UPDATE',
+          { replacements: { id: this.uid(userId) }, transaction: t },
+        );
+      }
+      await this.archiveActivePlans(userId, t);
+      await plan.update(
+        {
+          status: 'active',
+          restrictionsChanged: diffs.length > 0,
+        } as never,
+        t ? { transaction: t } : {},
+      );
+    });
     return this.getPlanById(userId, planId);
   }
 

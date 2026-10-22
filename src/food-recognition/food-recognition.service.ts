@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { randomUUID } from 'crypto';
-import { Op } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 import { Allergen } from '../models/Allergen';
 import { Meal } from '../models/Meal';
 import { MealItem } from '../models/MealItem';
@@ -368,18 +368,34 @@ export class FoodRecognitionService {
         ? Math.min(1, Math.max(0, confidence))
         : 0;
 
-    const meal = await this.mealModel.create({
-      userId: uid,
-      // Храним нормализованное изображение (JPEG, до 1600 px).
-      photoUrl: photo.dataUrl,
-      recognizedAt: new Date(),
-      confidence: c,
-      status: 'pending',
-    } as Meal);
+    const runInTx = async <T>(fn: (t?: Transaction) => Promise<T>): Promise<T> => {
+      const seq = this.mealModel.sequelize;
+      if (seq?.transaction) {
+        return seq.transaction(fn);
+      }
+      return fn(undefined);
+    };
 
-    await this.mealItemModel.bulkCreate(
-      sanitized.map((item) => ({ mealId: meal.id, ...item })) as MealItem[],
-    );
+    const meal = await runInTx(async (t) => {
+      const created = await this.mealModel.create(
+        {
+          userId: uid,
+          // Храним нормализованное изображение (JPEG, до 1600 px).
+          photoUrl: photo.dataUrl,
+          recognizedAt: new Date(),
+          confidence: c,
+          status: 'pending',
+        } as Meal,
+        t ? { transaction: t } : {},
+      );
+
+      await this.mealItemModel.bulkCreate(
+        sanitized.map((item) => ({ mealId: created.id, ...item })) as MealItem[],
+        t ? { transaction: t } : {},
+      );
+
+      return created;
+    });
 
     // Сохраняем предупреждения об аллергенах, привязав их к записи приёма пищи.
     const { allergenWarnings } = await this.buildAllergenWarnings(uid, sanitized);

@@ -409,71 +409,84 @@ export class AdminService {
     const items = meal.items ?? [];
     const photo = meal.photoUrl?.trim() ? meal.photoUrl.trim() : null;
 
-    for (const item of items) {
-      const rawName = String(item.foodName ?? '').trim();
-      if (!rawName) continue;
-      const localizedName = localizeFoodTitleToRu(rawName);
-      const exists = await this.productModel.findOne({ where: { name: localizedName } });
-      if (exists) continue;
-
-      const allergens = normalizeCatalogAllergenList(item.allergensFound ?? []);
-      const dietaryTags = normalizeCatalogDietaryTagList(item.dietaryTags ?? []);
-
-      let ingredients: ProductIngredient[] =
-        Array.isArray(item.ingredients) && item.ingredients.length > 0
-          ? item.ingredients
-              .map((x) => ({
-                name: String(x?.name ?? '').trim(),
-                grams: Math.max(0, Number(x?.grams) || 0),
-              }))
-              .filter((x) => x.name)
-          : [];
-
-      let ingredientsDetailed: ProductIngredientDetailed[] =
-        Array.isArray(item.ingredientsDetailed) && item.ingredientsDetailed.length > 0
-          ? item.ingredientsDetailed
-          : [];
-
-      if (ingredients.length === 0) {
-        ingredients = inferIngredientsFromDishTitle(localizedName);
+    const runInTx = async <T>(fn: (t?: Transaction) => Promise<T>): Promise<T> => {
+      const seq = this.mealModel.sequelize;
+      if (seq?.transaction) {
+        return seq.transaction(fn);
       }
+      return fn(undefined);
+    };
 
-      if (ingredientsDetailed.length === 0 && ingredients.length > 0) {
-        ingredientsDetailed = ingredients.map((ing) => ({
-          id: randomUUID(),
-          name: ing.name,
-          amount: ing.grams,
-          unit: 'г',
-          grams: ing.grams,
-        }));
+    await runInTx(async (t) => {
+      for (const item of items) {
+        const rawName = String(item.foodName ?? '').trim();
+        if (!rawName) continue;
+        const localizedName = localizeFoodTitleToRu(rawName);
+
+        const allergens = normalizeCatalogAllergenList(item.allergensFound ?? []);
+        const dietaryTags = normalizeCatalogDietaryTagList(item.dietaryTags ?? []);
+
+        let ingredients: ProductIngredient[] =
+          Array.isArray(item.ingredients) && item.ingredients.length > 0
+            ? item.ingredients
+                .map((x) => ({
+                  name: String(x?.name ?? '').trim(),
+                  grams: Math.max(0, Number(x?.grams) || 0),
+                }))
+                .filter((x) => x.name)
+            : [];
+
+        let ingredientsDetailed: ProductIngredientDetailed[] =
+          Array.isArray(item.ingredientsDetailed) && item.ingredientsDetailed.length > 0
+            ? item.ingredientsDetailed
+            : [];
+
+        if (ingredients.length === 0) {
+          ingredients = inferIngredientsFromDishTitle(localizedName);
+        }
+
+        if (ingredientsDetailed.length === 0 && ingredients.length > 0) {
+          ingredientsDetailed = ingredients.map((ing) => ({
+            id: randomUUID(),
+            name: ing.name,
+            amount: ing.grams,
+            unit: 'г',
+            grams: ing.grams,
+          }));
+        }
+
+        if (ingredients.length === 0 && ingredientsDetailed.length > 0) {
+          ingredients = ingredientsDetailed.map((d) => ({
+            name: d.name,
+            grams: d.grams || d.amount,
+          }));
+        }
+
+        const matchKeywords = collectIngredientMatchRoots(ingredients, []);
+
+        await this.productModel.findOrCreate({
+          where: { name: localizedName },
+          defaults: {
+            name: localizedName,
+            category: this.categoryFromRecognizedCalories(Number(item.calories) || 0),
+            calories: Number(item.calories) || 0,
+            protein: Number(item.protein) || 0,
+            fat: Number(item.fat) || 0,
+            carbs: Number(item.carbs) || 0,
+            allergens,
+            dietaryTags,
+            ingredients,
+            ingredientsDetailed,
+            matchKeywords,
+            imageUrl: photo,
+            isFromApi: false,
+          } as never,
+          ...(t ? { transaction: t } : {}),
+        });
       }
+      await meal.update({ status: 'confirmed' }, t ? { transaction: t } : {});
+    });
 
-      if (ingredients.length === 0 && ingredientsDetailed.length > 0) {
-        ingredients = ingredientsDetailed.map((d) => ({
-          name: d.name,
-          grams: d.grams || d.amount,
-        }));
-      }
-
-      const matchKeywords = collectIngredientMatchRoots(ingredients, []);
-
-      await this.productModel.create({
-        name: localizedName,
-        category: this.categoryFromRecognizedCalories(Number(item.calories) || 0),
-        calories: Number(item.calories) || 0,
-        protein: Number(item.protein) || 0,
-        fat: Number(item.fat) || 0,
-        carbs: Number(item.carbs) || 0,
-        allergens,
-        dietaryTags,
-        ingredients,
-        ingredientsDetailed,
-        matchKeywords,
-        imageUrl: photo,
-        isFromApi: false,
-      } as never);
-    }
-    await meal.update({ status: 'confirmed' });
     return this.getMealById(id);
   }
 
