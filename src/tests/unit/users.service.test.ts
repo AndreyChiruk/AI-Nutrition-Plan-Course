@@ -14,11 +14,25 @@ describe('UsersService unit', () => {
     create: async () => ({}),
     findOne: async () => null,
   };
+  const ingredientModel = {
+    findAll: async () => [],
+    findOne: async () => null,
+  };
+  const fridgeImageStorage = {
+    save: async () => ({ url: '/uploads/fridge/test.webp', bytes: 10 }),
+    removeByUrl: async () => {},
+  };
 
   it('updateProfile: выбрасывает исключение, когда пользователь не найден', async () => {
     const userModel = { findByPk: async () => null };
     const allergenModel = {} as Record<string, unknown>;
-    const service = new UsersService(userModel as never, allergenModel as never, fridgeModel as never);
+    const service = new UsersService(
+      userModel as never,
+      allergenModel as never,
+      fridgeModel as never,
+      ingredientModel as never,
+      fridgeImageStorage as never,
+    );
 
     try {
       await service.updateProfile('42', { weight: 80 } as never);
@@ -36,7 +50,13 @@ describe('UsersService unit', () => {
     };
     const userModel = { findByPk: async () => user };
     const allergenModel = {} as Record<string, unknown>;
-    const service = new UsersService(userModel as never, allergenModel as never, fridgeModel as never);
+    const service = new UsersService(
+      userModel as never,
+      allergenModel as never,
+      fridgeModel as never,
+      ingredientModel as never,
+      fridgeImageStorage as never,
+    );
 
     const result = await service.updateProfile('5', { weight: 77 } as never);
 
@@ -46,7 +66,13 @@ describe('UsersService unit', () => {
   it('setAllergies: выбрасывает исключение, когда пользователь не найден', async () => {
     const userModel = { findByPk: async () => null };
     const allergenModel = { findAll: async () => [] };
-    const service = new UsersService(userModel as never, allergenModel as never, fridgeModel as never);
+    const service = new UsersService(
+      userModel as never,
+      allergenModel as never,
+      fridgeModel as never,
+      ingredientModel as never,
+      fridgeImageStorage as never,
+    );
 
     try {
       await service.setAllergies('1', ['a1', 'a2']);
@@ -68,7 +94,13 @@ describe('UsersService unit', () => {
     const allergenModel = {
       findAll: async () => [{ id: 'a1' }, { id: 'a2' }],
     };
-    const service = new UsersService(userModel as never, allergenModel as never, fridgeModel as never);
+    const service = new UsersService(
+      userModel as never,
+      allergenModel as never,
+      fridgeModel as never,
+      ingredientModel as never,
+      fridgeImageStorage as never,
+    );
     const originalGetById = service.getById.bind(service);
     service.getById = async () => ({ id: 1, allergens: [{ id: 'a1' }, { id: 'a2' }] }) as never;
 
@@ -94,7 +126,13 @@ describe('UsersService unit', () => {
       }),
     };
     const allergenModel = {} as Record<string, unknown>;
-    const service = new UsersService(userModel as never, allergenModel as never, fridgeModel as never);
+    const service = new UsersService(
+      userModel as never,
+      allergenModel as never,
+      fridgeModel as never,
+      ingredientModel as never,
+      fridgeImageStorage as never,
+    );
 
     const result = await service.calculateBmrAndCalories('1');
 
@@ -112,7 +150,13 @@ describe('UsersService unit', () => {
       }),
     };
     const allergenModel = {} as Record<string, unknown>;
-    const service = new UsersService(userModel as never, allergenModel as never, fridgeModel as never);
+    const service = new UsersService(
+      userModel as never,
+      allergenModel as never,
+      fridgeModel as never,
+      ingredientModel as never,
+      fridgeImageStorage as never,
+    );
 
     try {
       await service.changePassword('3', 'wrong', 'new-password');
@@ -134,7 +178,13 @@ describe('UsersService unit', () => {
       }),
     };
     const allergenModel = {} as Record<string, unknown>;
-    const service = new UsersService(userModel as never, allergenModel as never, fridgeModel as never);
+    const service = new UsersService(
+      userModel as never,
+      allergenModel as never,
+      fridgeModel as never,
+      ingredientModel as never,
+      fridgeImageStorage as never,
+    );
 
     const result = await service.changePassword('3', 'old-password', 'new-password');
 

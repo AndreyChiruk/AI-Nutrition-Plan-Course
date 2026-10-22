@@ -1,11 +1,9 @@
 import { assert } from 'chai';
 import { describe, it } from 'mocha';
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const SILHOUETTE = join(HERE, '..', '..', '..', 'frontend', 'public', 'silhouettes', 'body-front.svg');
+const SILHOUETTE = join(process.cwd(), 'frontend', 'public', 'silhouettes', 'body-front.svg');
 
 /**
  * Тесты силуэта тела с подсветкой целиком (вариант А).

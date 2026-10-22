@@ -1,5 +1,7 @@
+import { ForbiddenException, type ExecutionContext } from '@nestjs/common';
 import { assert } from 'chai';
 import { describe, it } from 'mocha';
+import { FullUserGuard } from '../../auth/full-user.guard';
 
 /**
  * Тесты ограничений для роли «guest».
@@ -10,18 +12,20 @@ import { describe, it } from 'mocha';
  * к планам, тренировкам, статистике и профилю, хотя интерфейс обещал
  * «доступен только раздел „Распознавание еды“».
  *
- * Здесь повторяется логика `FullUserGuard.canActivate`.
+ * Здесь тестируется реальный `FullUserGuard.canActivate`.
  */
-class ForbiddenError extends Error {}
+const guard = new FullUserGuard();
+
+function makeMockContext(user?: { role?: string }): ExecutionContext {
+  return {
+    switchToHttp: () => ({
+      getRequest: () => ({ user }),
+    }),
+  } as unknown as ExecutionContext;
+}
 
 function canActivate(user?: { role?: string }): boolean {
-  const role = user?.role;
-  if (role === 'guest') {
-    throw new ForbiddenError(
-      'Для аккаунта «Гость» доступен только раздел «Распознавание еды».',
-    );
-  }
-  return true;
+  return guard.canActivate(makeMockContext(user));
 }
 
 /** Контроллеры, закрытые для гостя (кроме распознавания еды). */
@@ -39,7 +43,7 @@ const RESTRICTED = [
 describe('роль «guest»: ограничение доступа', () => {
   it('гость получает 403 в закрытых разделах', () => {
     for (const section of RESTRICTED) {
-      assert.throws(() => canActivate({ role: 'guest' }), ForbiddenError);
+      assert.throws(() => canActivate({ role: 'guest' }), ForbiddenException);
     }
   });
 

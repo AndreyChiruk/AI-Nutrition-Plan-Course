@@ -1,5 +1,6 @@
 import { assert } from 'chai';
 import { describe, it } from 'mocha';
+import { MealPlanService } from '../../meal-plan/meal-plan.service';
 
 /**
  * Тесты разнообразия планов.
@@ -9,9 +10,21 @@ import { describe, it } from 'mocha';
  * возвращала ИДЕНТИЧНЫЙ результат: кнопка «Сгенерировать заново» ничего
  * не меняла, а в базе появлялись планы-дубликаты с одинаковыми итогами.
  *
- * Здесь повторяется логика выбора из `pickFromPool`.
+ * Здесь тестируется выбор из `MealPlanService.pickFromPool`.
  */
-type Dish = { name: string; calories: number };
+const service = new MealPlanService(
+  {} as never,
+  {} as never,
+  {} as never,
+  {} as never,
+  {} as never,
+  {} as never,
+  {} as never,
+);
+
+const emptyPref = { likes: [], dislikes: [], fridgeNames: [] };
+
+type Dish = { id: string; name: string; calories: number };
 
 function pickDish(
   pool: Dish[],
@@ -20,16 +33,19 @@ function pickDish(
   slotSalt: number,
   seed: number,
 ): Dish | null {
-  if (pool.length === 0) return null;
-  const near = pool
-    .map((p) => ({ p, diff: Math.abs(p.calories - budget) }))
-    .sort((a, b) => a.diff - b.diff);
-  const top = near.slice(0, Math.min(48, near.length));
-  const idx = Math.abs((dayIndex * 31 + slotSalt * 17 + seed) % top.length) % top.length;
-  return top[idx].p;
+  return (service as any).pickFromPool(
+    pool,
+    budget,
+    dayIndex,
+    slotSalt,
+    new Set<string>(),
+    emptyPref,
+    seed,
+  );
 }
 
 const pool: Dish[] = Array.from({ length: 48 }, (_, i) => ({
+  id: `dish-${i}`,
   name: `Блюдо${i}`,
   calories: 200 + i * 15,
 }));

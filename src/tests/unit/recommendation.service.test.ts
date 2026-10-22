@@ -26,10 +26,10 @@ describe('RecommendationService unit', () => {
   });
 
   it('generate создаёт suggestion с ответом ИИ', async () => {
-    let createdPayload: Record<string, unknown> | null = null;
+    let createdPayload: any = null;
 
     const suggestionModel = {
-      create: async (payload: Record<string, unknown>) => {
+      create: async (payload: { type?: string; content?: Record<string, unknown> }) => {
         createdPayload = payload;
         return { id: 'sug-1', ...payload };
       },
@@ -91,7 +91,7 @@ describe('RecommendationService unit', () => {
 
     const result = await service.generate('42');
 
-    assert.equal((result as { userId: string }).userId, '42');
+    assert.equal(String((result as unknown as { userId: unknown }).userId), '42');
     assert.equal((result as { type: string }).type, 'general');
     assert.isFalse((result as { isRead: boolean }).isRead);
     assert.equal(createdPayload?.type, 'general');
