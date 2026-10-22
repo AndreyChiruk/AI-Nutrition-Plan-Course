@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+import { Op } from 'sequelize';
 import { Allergen } from '../models/Allergen';
 import { FridgeItem } from '../models/FridgeItem';
 import { Ingredient } from '../models/Ingredient';
@@ -9,6 +10,7 @@ import { invalidateUserBlockCache } from '../auth/jwt-auth.guard';
 import { calculateEnergy } from '../common/energy.util';
 import { normalizeGoalByWeight } from '../common/weight-goal.util';
 import { FridgeImageStorage } from '../fridge/fridge-image.storage';
+import { EMAIL_RE, normalizeEmailForStorage } from '../common/sanitize';
 
 /**
  * Единицы измерения для продуктов в холодильнике.
@@ -197,6 +199,81 @@ export class UsersService {
       }
       patch[key] = cleaned;
     }
+
+    // Email: нормализация, валидация формата и проверка уникальности
+    if ('email' in patch && patch.email !== undefined && patch.email !== null) {
+      const normalized = normalizeEmailForStorage(patch.email);
+      if (!EMAIL_RE.test(normalized)) {
+        throw new BadRequestException('Некорректный email');
+      }
+      const existing = await this.userModel.findOne({
+        where: { email: normalized, id: { [Op.ne]: user.id } },
+      });
+      if (existing) {
+        throw new BadRequestException('Email уже занят');
+      }
+      patch.email = normalized;
+    }
+
+    // Числовые поля: рост, вес, целевой вес, целевая калорийность
+    if ('height' in patch && patch.height !== undefined && patch.height !== null) {
+      const h = Number(patch.height);
+      if (!Number.isFinite(h) || h < 50 || h > 280) {
+        throw new BadRequestException('Рост должен быть от 50 до 280 см');
+      }
+      patch.height = Math.round(h);
+    }
+
+    if ('weight' in patch && patch.weight !== undefined && patch.weight !== null) {
+      const w = Number(patch.weight);
+      if (!Number.isFinite(w) || w < 20 || w > 500) {
+        throw new BadRequestException('Вес должен быть от 20 до 500 кг');
+      }
+      patch.weight = Math.round(w * 10) / 10;
+    }
+
+    if ('targetWeight' in patch && patch.targetWeight !== undefined && patch.targetWeight !== null) {
+      const tw = Number(patch.targetWeight);
+      if (!Number.isFinite(tw) || tw < 20 || tw > 500) {
+        throw new BadRequestException('Целевой вес должен быть от 20 до 500 кг');
+      }
+      patch.targetWeight = Math.round(tw * 10) / 10;
+    }
+
+    if ('targetCalories' in patch && patch.targetCalories !== undefined && patch.targetCalories !== null) {
+      const tc = Number(patch.targetCalories);
+      if (!Number.isFinite(tc) || tc < 500 || tc > 10000) {
+        throw new BadRequestException('Целевая калорийность должна быть от 500 до 10000 ккал');
+      }
+      patch.targetCalories = Math.round(tc);
+    }
+
+    // Дата рождения и возраст
+    if ('birthDate' in patch && patch.birthDate !== undefined && patch.birthDate !== null) {
+      const bd = new Date(patch.birthDate as string | number | Date);
+      if (Number.isNaN(bd.getTime())) {
+        throw new BadRequestException('Некорректная дата рождения');
+      }
+      const now = new Date();
+      const age = (now.getTime() - bd.getTime()) / (365.25 * 24 * 3600 * 1000);
+      if (age < 0 || age > 120) {
+        throw new BadRequestException('Возраст должен быть от 0 до 120 лет');
+      }
+      patch.birthDate = bd;
+    }
+
+    // Ссылка на аватар
+    if ('avatarUrl' in patch && patch.avatarUrl) {
+      const url = String(patch.avatarUrl).trim();
+      if (url.length > 500) {
+        throw new BadRequestException('Ссылка на аватар не должна превышать 500 символов');
+      }
+      if (!/^https?:\/\//i.test(url)) {
+        throw new BadRequestException('Ссылка на аватар должна начинаться с http:// или https://');
+      }
+      patch.avatarUrl = url;
+    }
+
     const nextWeight = Number(patch.weight ?? user.weight);
     const nextHeight = Number(patch.height ?? user.height);
     const requestedGoal = (patch.goal ?? user.goal) as 'lose' | 'maintain' | 'gain';

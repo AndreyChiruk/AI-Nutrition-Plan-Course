@@ -40,7 +40,7 @@ export class ValidationError extends Error {
   }
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 function fail(field: string, reason: string): never {
   throw new ValidationError(`Поле «${field}»: ${reason}`);

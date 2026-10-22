@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { promises as fs } from 'node:fs';
-import { join, resolve, extname } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   detectImageMime,
@@ -62,7 +62,7 @@ export class FridgeImageStorage {
   private assertInside(filePath: string): void {
     const root = resolve(UPLOAD_DIR);
     const target = resolve(filePath);
-    if (!target.startsWith(root)) {
+    if (target !== root && !target.startsWith(root + sep)) {
       throw new BadRequestException('Недопустимый путь к файлу.');
     }
   }
@@ -97,7 +97,7 @@ export class FridgeImageStorage {
     // Уменьшаем и перекодируем в WebP. Если обработка не удалась,
     // сохраняем исходный формат — лучше показать фото, чем отказать.
     let data = buffer;
-    let ext = extname(originalName ?? '').toLowerCase() || '.jpg';
+    let ext = mime === 'image/png' ? '.png' : mime === 'image/webp' ? '.webp' : '.jpg';
     try {
       const optimized = await optimizeImageBuffer(buffer, TARGET_MAX_DIMENSION);
       if (optimized && optimized.length > 0) {

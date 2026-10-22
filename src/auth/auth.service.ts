@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/sequelize';
-import { createHash } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
 import { MailService } from '../mail/mail.service';
 import { hashPassword, needsRehash, verifyPassword } from '../common/password.util';
 import { EmailVerificationCode, EmailCodePurpose } from '../models/EmailVerificationCode';
@@ -102,6 +102,15 @@ export class AuthService {
     };
   }
 
+  private readonly codeAttempts = new Map<string, number>();
+
+  private safeCompareHash(a: string, b: string): boolean {
+    const bufA = Buffer.from(a, 'utf8');
+    const bufB = Buffer.from(b, 'utf8');
+    if (bufA.length !== bufB.length) return false;
+    return timingSafeEqual(bufA, bufB);
+  }
+
   private async verifyAndConsume(
     email: string,
     purpose: EmailCodePurpose,
@@ -115,9 +124,25 @@ export class AuthService {
     if (!record || new Date(record.expiresAt) < new Date()) {
       throw new BadRequestException('Неверный или просроченный код');
     }
-    if (record.codeHash !== this.hash(plainCode.trim())) {
+
+    const expectedHash = String(record.codeHash ?? '');
+    const actualHash = this.hash(plainCode.trim());
+    const isMatch = this.safeCompareHash(expectedHash, actualHash);
+
+    const recordKey = String(record.id);
+    const attempts = (this.codeAttempts.get(recordKey) ?? 0) + 1;
+    this.codeAttempts.set(recordKey, attempts);
+
+    if (!isMatch) {
+      if (attempts >= 5) {
+        this.codeAttempts.delete(recordKey);
+        await record.destroy();
+        throw new BadRequestException('Превышено количество попыток ввода кода. Запросите новый код');
+      }
       throw new BadRequestException('Неверный или просроченный код');
     }
+
+    this.codeAttempts.delete(recordKey);
     await record.destroy();
   }
 
