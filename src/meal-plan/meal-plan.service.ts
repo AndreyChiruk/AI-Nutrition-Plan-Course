@@ -269,9 +269,19 @@ export class MealPlanService {
    * сделать текущим старый план, в котором оставались блюда с рыбой,
    * уже запрещённой по аллергии.
    */
-  private restrictionSnapshot(user: User): Record<string, unknown> {
+  private restrictionSnapshot(user: User & { allergens?: Array<Allergen | string> }): Record<string, unknown> {
     const allergies = Array.isArray(user.allergens)
-      ? [...user.allergens].map((a) => String(a).trim().toLowerCase()).filter(Boolean).sort()
+      ? [...user.allergens]
+          .map((a) =>
+            (typeof a === 'object' && a !== null && 'name' in a
+              ? String((a as { name?: unknown }).name ?? '')
+              : String(a ?? '')
+            )
+              .trim()
+              .toLowerCase(),
+          )
+          .filter(Boolean)
+          .sort()
       : [];
     const restrictions = Array.isArray(user.dietaryRestrictions)
       ? [...user.dietaryRestrictions]
@@ -2102,7 +2112,7 @@ export class MealPlanService {
       name?: string;
     },
   ) {
-    const user = await this.userModel.findByPk(this.uid(userId));
+    const user = await this.loadPlanningUser(userId);
     if (!user) throw new NotFoundException('User not found');
 
     // Валидация входа: без неё `days` мог быть не-массивом, а durationDays —
@@ -2287,7 +2297,7 @@ export class MealPlanService {
   }
 
   async clonePlan(userId: string, planId: string, startDateIso?: string) {
-    const user = await this.userModel.findByPk(this.uid(userId));
+    const user = await this.loadPlanningUser(userId);
     if (!user) throw new NotFoundException('User not found');
 
     const src = await this.getPlanById(userId, planId);
@@ -2374,7 +2384,7 @@ export class MealPlanService {
     });
     if (!plan) throw new NotFoundException('Plan not found');
 
-    const user = await this.userModel.findByPk(this.uid(userId));
+    const user = await this.loadPlanningUser(userId);
     if (!user) throw new NotFoundException('User not found');
 
     const snapshot = (plan.restrictionsSnapshot ?? null) as Record<string, unknown> | null;
@@ -2414,7 +2424,7 @@ export class MealPlanService {
         where: { id: planId, userId: this.uid(userId) },
         attributes: ['id', 'restrictionsSnapshot'],
       }),
-      this.userModel.findByPk(this.uid(userId)),
+      this.loadPlanningUser(userId),
     ]);
     if (!plan || !user) throw new NotFoundException('Plan not found');
 
