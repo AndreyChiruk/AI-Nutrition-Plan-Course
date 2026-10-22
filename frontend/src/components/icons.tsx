@@ -14,7 +14,14 @@
  * место занимает сам текст подписи.
  */
 import type { ComponentType, SVGProps } from 'react';
-import * as Lucide from 'lucide-react';
+import {
+  Activity as LucideActivity,
+  Apple as LucideApple,
+  Dumbbell as LucideDumbbell,
+  LineChart as LucideLineChart,
+  Refrigerator as LucideRefrigerator,
+  UtensilsCrossed as LucideUtensilsCrossed,
+} from 'lucide-react';
 
 /**
  * Тип иконки для описания навигации и списков.
@@ -28,7 +35,12 @@ export type LucideIcon = ComponentType<IconProps>;
  *
  * Чтобы вернуть прежний вид — поставьте `false` и пересоберите web.
  */
-const PLAIN_ICONS = true;
+export const PLAIN_ICONS = true;
+
+type IconProps = SVGProps<SVGSVGElement> & {
+  size?: number | string;
+  strokeWidth?: number | string;
+};
 
 /**
  * Иконки карточек «Быстрый доступ» на главной.
@@ -42,22 +54,12 @@ const PLAIN_ICONS = true;
  * Поэтому ниже — отдельные экспорты, которые всегда рисуют SVG.
  * Имена совпадают с тем, что используется в SECTIONS главной.
  */
-function iconAlways(name: string): ComponentType<IconProps> {
-  const Original = (Lucide as unknown as Record<string, ComponentType<IconProps>>)[name];
-  return Original ?? (() => null);
-}
-
-export const TileActivity = iconAlways('Activity');
-export const TileApple = iconAlways('Apple');
-export const TileDumbbell = iconAlways('Dumbbell');
-export const TileLineChart = iconAlways('LineChart');
-export const TileRefrigerator = iconAlways('Refrigerator');
-export const TileUtensilsCrossed = iconAlways('UtensilsCrossed');
-
-type IconProps = SVGProps<SVGSVGElement> & {
-  size?: number | string;
-  strokeWidth?: number | string;
-};
+export const TileActivity: ComponentType<IconProps> = LucideActivity;
+export const TileApple: ComponentType<IconProps> = LucideApple;
+export const TileDumbbell: ComponentType<IconProps> = LucideDumbbell;
+export const TileLineChart: ComponentType<IconProps> = LucideLineChart;
+export const TileRefrigerator: ComponentType<IconProps> = LucideRefrigerator;
+export const TileUtensilsCrossed: ComponentType<IconProps> = LucideUtensilsCrossed;
 
 /**
  * Заглушка вместо иконки.
@@ -67,12 +69,6 @@ type IconProps = SVGProps<SVGSVGElement> & {
  * рядом всегда есть текстовая подпись, которая объясняет назначение.
  */
 function icon(name: string): ComponentType<IconProps> {
-  const Original = (Lucide as unknown as Record<string, ComponentType<IconProps>>)[name];
-  /* Заглушка — прежнее поведение, менять не нужно. */
-  if (!PLAIN_ICONS) {
-    return Original ?? (() => null);
-  }
-
   const Placeholder = ({ size = 16, className = '' }: IconProps) => {
     const px = typeof size === 'number' ? size : Number(size) || 16;
     return (

@@ -11,7 +11,6 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { AlertTriangle, Brain, ChefHat, ClipboardList, Lock, ShoppingBasket } from '../components/icons';
-import html2pdf from 'html2pdf.js';
 import { isAxiosError } from 'axios';
 import {
   mealPlanApi,
@@ -1049,6 +1048,7 @@ export const MealPlanPage = () => {
         pagebreak: { mode: ['css'], before: '.meal-pdf-break-before' },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       };
+      const { default: html2pdf } = await import('html2pdf.js');
       await html2pdf()
         .set(options as never)
         .from(pdfRef.current)
