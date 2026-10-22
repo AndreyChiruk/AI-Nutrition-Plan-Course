@@ -565,16 +565,21 @@ export function productHasUserAllergen(product: Product, userAllergenNames: Set<
   if (userAllergenNames.size === 0) return false;
   if (catalogAllergenHitsUser(product, userAllergenNames)) return true;
 
-  const detailedNames = detailedIngredientNames(product);
-  if (detailedNames.length === 0) return true;
+  const probes = [
+    ...detailedIngredientNames(product),
+    ...simpleIngredientNames(product),
+    n(String(product.name ?? '').trim()),
+  ].filter(Boolean);
+  if (probes.length === 0) return true;
+
   for (const userTag of userAllergenNames) {
     const raw = n(userTag);
     const key = ALLERGEN_SYNONYMS_MAP[raw] ?? raw;
     const expand = ALLERGEN_EXPANSION[key];
-    if (detailedNames.some((ing) => ing.includes(key))) return true;
+    if (probes.some((ing) => containsDietKey(ing, key))) return true;
     if (!expand) continue;
     for (const ex of expand) {
-      if (detailedNames.some((ing) => ing.includes(ex))) return true;
+      if (probes.some((ing) => containsDietKey(ing, ex))) return true;
     }
   }
   return false;
