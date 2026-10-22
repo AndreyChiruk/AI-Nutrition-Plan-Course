@@ -198,17 +198,16 @@ export const LoginPage = () => {
           return;
         }
         await register({
+          name: name.trim(),
           email: email.trim(),
           password,
           emailCode: registerEmailCode.trim(),
-          role: 'user',
           height: 170,
           weight: 70,
           gender: 'male',
           birthDate: '1995-01-01',
           goal: 'maintain',
           activityLevel: 'moderate',
-          displayName: name.trim(),
         });
         setToast(`Добро пожаловать, ${name}!`);
       }

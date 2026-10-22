@@ -64,7 +64,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('user', JSON.stringify(data.user));
     setUser(data.user);
     const displayName =
-      typeof payload.displayName === 'string' ? payload.displayName.trim() : '';
+      typeof payload.displayName === 'string'
+        ? payload.displayName.trim()
+        : typeof payload.name === 'string'
+          ? payload.name.trim()
+          : '';
     if (displayName && data.user?.id != null) {
       localStorage.setItem(`profile:name:${data.user.id}`, displayName);
     }
@@ -72,6 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = () => {
+    void authApi.logout().catch(() => {});
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');

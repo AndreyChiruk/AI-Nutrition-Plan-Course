@@ -65,6 +65,9 @@ export const authApi = {
     });
     return data;
   },
+  logout: async () => {
+    await api.post('/auth/logout');
+  },
 };
 
 export const userApi = {
