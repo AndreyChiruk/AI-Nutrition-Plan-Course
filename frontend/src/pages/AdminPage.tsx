@@ -363,6 +363,7 @@ export const AdminPage = () => {
           fetchedAt: billing.fetchedAt as string | undefined,
           apiKeyConfigured: billing.apiKeyConfigured as boolean | undefined,
           costs7d: billing.costs7d as BillingCostsState['costs7d'],
+          openRouter: billing.openRouter as BillingCostsState['openRouter'],
         });
         setBillingRefreshError('');
       } catch {

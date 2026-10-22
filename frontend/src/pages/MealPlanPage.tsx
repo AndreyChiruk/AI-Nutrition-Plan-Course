@@ -1564,7 +1564,7 @@ export const MealPlanPage = () => {
       return;
     }
     const names = mealIngredientsForView(selectedMeal)
-      .map((row) => String(row).split('—')[0]?.trim() ?? '')
+      .map((row) => String(row).split(/\s+[-—]\s+/)[0]?.trim() ?? '')
       .filter(Boolean)
       .map((name) => ({ name }));
     if (names.length === 0) {
