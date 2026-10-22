@@ -619,12 +619,16 @@ export class MealPlanService {
         if ((map.get(name) ?? 0) <= 1) continue;
 
         const pool = pools[slot] ?? [];
-        // Кандидат: не используется в этом слоте и отличается от текущего.
-        const candidate = pool.find((p) => {
+        const unusedPool = pool.filter((p) => {
           const pn = String(p.name ?? '').trim().toLowerCase();
           if (!pn || pn === name) return false;
           return (map.get(pn) ?? 0) === 0;
         });
+        const candidate = this.pickClosestByCalories(
+          unusedPool,
+          Number(snap.calories) || 300,
+          pref,
+        );
 
         if (!candidate) continue;
 
@@ -1804,6 +1808,10 @@ export class MealPlanService {
       seed?: number;
     },
   ) {
+    const dDays = Number(durationDays);
+    if (!Number.isInteger(dDays) || dDays < 1 || dDays > MAX_PLAN_DAYS) {
+      throw new BadRequestException(`Длительность плана должна быть от 1 до ${MAX_PLAN_DAYS} дней`);
+    }
     const user = await this.loadPlanningUser(userId);
     if (!user) throw new NotFoundException('User not found');
     const pref = await this.preferenceContext(userId, user);
@@ -2031,10 +2039,7 @@ export class MealPlanService {
         ? (opts?.targetCalories ?? user.targetCalories ?? defaultCal)
         : Math.round((CALORIE_BANDS[band][0] + CALORIE_BANDS[band][1]) / 2);
 
-    const daysScaled = days.map((d, idx) =>
-      this.scaleDaySnapshotsToTarget(d, targetForDay(idx), CALORIE_TARGET_TOLERANCE),
-    );
-    const daysFinalRaw = await this.finalizeGeneratedPlanDays(daysScaled, user, pref, pools);
+    const daysFinalRaw = await this.finalizeGeneratedPlanDays(days, user, pref, pools);
 
     // Финальное масштабирование: `finalizeGeneratedPlanDays` подменяет слоты
     // (например, под любимые продукты или убирает алкоголь), из-за чего
@@ -2355,6 +2360,7 @@ export class MealPlanService {
       const rows = days.map((d) => {
         const date = new Date(start);
         date.setDate(date.getDate() + d.dayNumber - 1);
+        const extra = d.extraSnacks ?? [];
         return {
           mealPlanId: plan.id,
           dayNumber: d.dayNumber,
@@ -2362,8 +2368,8 @@ export class MealPlanService {
           breakfast: d.breakfast,
           lunch: d.lunch,
           dinner: d.dinner,
-          snacks: d.snack ? [d.snack] : [],
-          extraSnacks: d.extraSnacks?.length ? d.extraSnacks : [],
+          snacks: [d.snack, ...extra].filter(Boolean) as MealSlotSnapshot[],
+          extraSnacks: extra.length ? extra : [],
           mealStatuses: {},
         };
       });
@@ -2795,11 +2801,11 @@ export class MealPlanService {
 
     merged = this.fillEmptyConstructorSlots(merged, calories, pools, pref, fallbackAnyPool);
 
-    const scaledDays = merged.map((d) =>
+    const enforced = await this.enforceDietaryForAiDays(userId, user, merged);
+    const scaledDays = enforced.days.map((d) =>
       this.scaleDaySnapshotsToTarget(d, calories, CALORIE_TARGET_TOLERANCE),
     );
-    const enforced = await this.enforceDietaryForAiDays(userId, user, scaledDays);
-    const fallbackChanges = this.buildConstructorFallbackChanges(normalized, enforced.days);
+    const fallbackChanges = this.buildConstructorFallbackChanges(normalized, scaledDays);
     const finalChanges = ai.changes.length > 0 ? ai.changes : fallbackChanges;
     const finalOverview =
       ai.changes.length > 0
@@ -2807,7 +2813,7 @@ export class MealPlanService {
         : `${ai.overview} Изменения определены сервером по сетке.`;
 
     return {
-      days: enforced.days,
+      days: scaledDays,
       overview: finalOverview,
       changes: finalChanges,
       warnings: enforced.warnings,
@@ -2815,9 +2821,11 @@ export class MealPlanService {
   }
 
   async generateAiPlan(userId: string, durationDays: number, opts?: { targetCalories?: number }) {
-    const user = (await this.userModel.findByPk(this.uid(userId), {
-      include: [Allergen],
-    })) as User & { allergens?: Allergen[] };
+    const dDays = Number(durationDays);
+    if (!Number.isInteger(dDays) || dDays < 1 || dDays > MAX_PLAN_DAYS) {
+      throw new BadRequestException(`Длительность плана должна быть от 1 до ${MAX_PLAN_DAYS} дней`);
+    }
+    const user = (await this.loadPlanningUser(userId)) as User & { allergens?: Allergen[] };
     if (!user) throw new NotFoundException('User not found');
     const safeGoal = normalizeGoalByWeight(user.goal, user.weight, user.height);
     const pref = await this.preferenceContext(userId, user);
@@ -3003,10 +3011,10 @@ export class MealPlanService {
       dinner: allowed.filter((p) => p.category === 'dinner'),
       snack: allowed.filter((p) => p.category === 'snack'),
     });
-    const scaledDays = diversified.map((d) =>
+    const enforced = await this.enforceDietaryForAiDays(userId, user, diversified);
+    const scaledDays = enforced.days.map((d) =>
       this.scaleDaySnapshotsToTarget(d, calories, CALORIE_TARGET_TOLERANCE),
     );
-    const enforced = await this.enforceDietaryForAiDays(userId, user, scaledDays);
 
     // Сообщаем, если модель предложила блюда, которых нет в каталоге:
     // раньше такие позиции сохранялись с 0 ккал и без состава.
@@ -3022,7 +3030,7 @@ export class MealPlanService {
     await this.saveUserPlan(userId, {
       durationDays,
       targetCalories: calories,
-      days: enforced.days,
+      days: scaledDays,
       name: `AI (каталог) ${this.formatRuPlanDateTime(new Date())}`,
     });
     const planCat = await this.getActivePlan(userId);
