@@ -301,6 +301,19 @@ export class SubscriptionService {
   }
 
   /**
+   * Проверяет, доступна ли отправка сообщения в чат без списания лимита.
+   */
+  async canSendChatMessage(
+    userId: number | string,
+  ): Promise<{ allowed: boolean; left: number }> {
+    if (await this.isActive(userId)) {
+      return { allowed: true, left: -1 };
+    }
+    const left = await this.chatMessagesLeft(userId);
+    return { allowed: left > 0, left };
+  }
+
+  /**
    * Проверяет и расходует бесплатное сообщение.
    *
    * Для активной подписки лимита нет. Иначе счётчик за сегодня

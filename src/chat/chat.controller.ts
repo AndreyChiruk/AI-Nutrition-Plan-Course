@@ -56,8 +56,8 @@ export class ChatController {
   ) {
     assertUserAccess(req.user, body.userId);
 
-    const gate = await this.subscription.consumeChatMessage(body.userId);
-    if (!gate.allowed) {
+    const check = await this.subscription.canSendChatMessage(body.userId);
+    if (!check.allowed) {
       throw new HttpException(
         {
           error: 'chat_limit_reached',
@@ -70,6 +70,7 @@ export class ChatController {
     }
 
     const reply = await this.chatService.sendMessage(body.userId, body.message);
+    const gate = await this.subscription.consumeChatMessage(body.userId);
     // `left` = -1 означает «без ограничений» (активная подписка).
     return { ...reply, messagesLeft: gate.left };
   }

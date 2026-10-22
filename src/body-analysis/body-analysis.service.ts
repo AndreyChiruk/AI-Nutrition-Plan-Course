@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { BodyAnalysis } from '../models/BodyAnalysis';
 import type { BodyForecastPayloadDb } from '../models/User';
@@ -129,7 +129,7 @@ export class BodyAnalysisService {
     const uid = Number(userId);
     const user = await this.userModel.findByPk(uid);
     if (!user) {
-      throw new Error('User not found');
+      throw new NotFoundException('User not found');
     }
     const analysis = await this.bodyAnalysisModel.findOne({
       where: { userId: uid },

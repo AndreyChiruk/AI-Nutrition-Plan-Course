@@ -96,9 +96,17 @@ const parseJsonRecordLenient = (text: string): JsonRecord => {
 
 export const parseBodyAnalysisResponse = (text: string) => {
   const parsed = parseJsonRecord(text);
+  const rawFat = Number(parsed.estimatedBodyFat);
+  const rawMuscle = Number(parsed.estimatedMuscleMass);
+  const estimatedBodyFat = Number.isFinite(rawFat)
+    ? Math.min(65, Math.max(3, Math.round(rawFat * 10) / 10))
+    : 20;
+  const estimatedMuscleMass = Number.isFinite(rawMuscle)
+    ? Math.min(75, Math.max(15, Math.round(rawMuscle * 10) / 10))
+    : 40;
   return {
-    estimatedBodyFat: Number(parsed.estimatedBodyFat ?? 20),
-    estimatedMuscleMass: Number(parsed.estimatedMuscleMass ?? 40),
+    estimatedBodyFat,
+    estimatedMuscleMass,
     aiNotes:
       typeof parsed.aiNotes === 'string'
         ? parsed.aiNotes

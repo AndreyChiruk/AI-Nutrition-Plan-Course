@@ -139,12 +139,7 @@ export class OpenAiService {
 
   async analyzeBodyFromPhoto(photoUrl: string) {
     if (!this.client) {
-      return {
-        estimatedBodyFat: 20,
-        estimatedMuscleMass: 40,
-        aiNotes:
-          'API-ключ OpenAI не настроен. Показаны ориентировочные значения; для разбора фото настройте ключ в .env',
-      };
+      throw new ServiceUnavailableException(OPENROUTER_MISSING_KEY_MESSAGE);
     }
 
     try {
@@ -175,11 +170,11 @@ export class OpenAiService {
       return parseBodyAnalysisResponse(text);
     } catch (error) {
       this.logger.error(`Анализ тела не выполнен: ${describeAiError(error)}`);
-      return {
-        estimatedBodyFat: 20,
-        estimatedMuscleMass: 40,
-        aiNotes: 'Не удалось разобрать ответ AI. Показаны ориентировочные значения.',
-      };
+      throw new ServiceUnavailableException(
+        error instanceof ServiceUnavailableException
+          ? error.message
+          : 'Не удалось выполнить анализ состава тела по фото. Попробуйте повторить позже.',
+      );
     }
   }
 

@@ -53,22 +53,19 @@ export class ChatService {
       throw new BadRequestException('Сообщение не должно быть пустым');
     }
 
-    await this.chatMessageModel.create({
-      userId: Number(userId),
-      role: 'user',
-      content: question,
-    } as never);
-
     const history = await this.chatMessageModel.findAll({
-      where: { userId },
+      where: { userId: Number(userId) },
       order: [['createdAt', 'DESC']],
       limit: 20,
     });
     const chronological = history.reverse();
-    const messages = chronological.map((item) => ({
-      role: item.role,
-      content: item.content,
-    }));
+    const messages = [
+      ...chronological.map((item) => ({
+        role: item.role,
+        content: item.content,
+      })),
+      { role: 'user' as const, content: question },
+    ];
 
     const assistantReply = await this.openAiService.generateChatReply({
       userProfile: {
@@ -92,6 +89,12 @@ export class ChatService {
     const safeReply =
       String(assistantReply ?? '').trim() ||
       'Не удалось получить ответ. Попробуйте повторить вопрос позже.';
+
+    await this.chatMessageModel.create({
+      userId: Number(userId),
+      role: 'user',
+      content: question,
+    } as never);
 
     const assistantMessage = await this.chatMessageModel.create({
       userId: Number(userId),
