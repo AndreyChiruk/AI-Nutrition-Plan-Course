@@ -2,6 +2,7 @@ import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { assert } from 'chai';
 import { describe, it } from 'mocha';
 import { AuthService } from '../../auth/auth.service';
+import { verifyPassword } from '../../common/password.util';
 
 type MockUser = {
   id: number;
@@ -129,7 +130,6 @@ describe('AuthService модульные тесты', () => {
     const stored = String(createdPayload.password ?? '');
     assert.match(stored, /^scrypt\$\d+\$\d+\$\d+\$[0-9a-f]+\$[0-9a-f]+$/, 'пароль хеширован scrypt');
     assert.notInclude(stored, '123456', 'пароль не хранится в открытом виде');
-    const { verifyPassword } = await import('../../common/password.util');
     assert.isTrue(await verifyPassword('123456', stored), 'хеш соответствует паролю');
     assert.equal(createdPayload.goal, 'gain');
   });

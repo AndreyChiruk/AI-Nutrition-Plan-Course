@@ -45,64 +45,67 @@ import {
   type MealSlotKeyInfer,
 } from './dish-category-infer.util';
 
-/**
- * Читает ВСЕ перекусы дня, а не только первый.
- *
- * Раньше функция возвращала лишь `raw[0]`, поэтому второй и третий перекусы,
- * созданные генератором, пропадали из интерфейса после сохранения и
- * перезагрузки плана: пользователь видел день на ~2200 ккал вместо 3000.
- * Здесь объединяются оба места хранения (`snacks` и `extra_snacks`),
- * чтобы старые записи читались корректно.
- */
-function snacksFromDb(snacksRaw: unknown, extraRaw: unknown): MealSlotSnapshot[] {
-  const out: MealSlotSnapshot[] = [];
-  const push = (value: unknown) => {
-    if (!value) return;
-    if (Array.isArray(value)) {
-      for (const item of value) push(item);
-      return;
-    }
-    if (typeof value === 'object' && value !== null && 'name' in (value as object)) {
-      out.push(value as MealSlotSnapshot);
-    }
-  };
-  push(snacksRaw);
-  push(extraRaw);
+import {
+  MAX_TEA_CUPS,
+  PreferenceContext,
+  SaveMealPlanDayDto,
+  normalizeKeywordList,
+  expandDislikeKeywords,
+  expandSingleLikeKeyword,
+  expandLikeKeywords,
+  ageFromBirthDate,
+  restrictionSnapshot,
+  restrictionDiff,
+  parseFoodHabits,
+  dishHaystackForProduct,
+  dislikeKeywordMatches,
+  productPreferenceScore,
+  productReason,
+  productMatchesAnyLike,
+  snapshotHaystackForPreferences,
+  snapshotMatchesAnyLike,
+  dayTouchesFoodLike,
+  alternativesForPool,
+  filterProductsByDislikes,
+  pickReusableDish,
+  snapshotFromProduct,
+} from './meal-plan-preferences.helper';
 
-  // Убираем возможные дубликаты по названию и калорийности.
-  const seen = new Set<string>();
-  return out.filter((s) => {
-    const key = `${String(s.name ?? '')}|${Number(s.calories) || 0}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
+import {
+  SLOT_ORDER,
+  CALORIE_TARGET_TOLERANCE,
+  snacksFromDb,
+  primarySnackFromDb,
+  daySnapshotsTotal,
+  scaleDaySnapshotsToTarget,
+  computeTotalsFromDbDays,
+  computePlanTotals,
+  diversifyCatalogDays,
+  pickFromPool,
+  refineProductsToTarget,
+  sortPoolByCalories,
+  stridedPoolSample,
+  hashSeed,
+} from './meal-plan-scaling.helper';
 
-/** Первый перекус дня (для обратной совместимости с полем `snack`). */
-function primarySnackFromDb(raw: unknown): MealSlotSnapshot | null {
-  return snacksFromDb(raw, null)[0] ?? null;
-}
+import {
+  ConstructorPlanSlot,
+  CONSTRUCTOR_PLAN_SLOTS,
+  isPlaceholderConstructorSnapshot,
+  getConstructorSlotSnapshot,
+  setConstructorSlotSnapshot,
+  formatConstructorPlanLine,
+  mergeConstructorRefinementAi,
+  fillEmptyConstructorSlots,
+  buildConstructorFallbackChanges,
+} from './meal-plan-constructor.helper';
 
-export type SaveMealPlanDayDto = {
-  dayNumber: number;
-  breakfast: MealSlotSnapshot | null;
-  lunch: MealSlotSnapshot | null;
-  dinner: MealSlotSnapshot | null;
-  snack: MealSlotSnapshot | null;
-  extraSnacks?: MealSlotSnapshot[] | null;
-};
+export type { SaveMealPlanDayDto };
+export { snacksFromDb, primarySnackFromDb };
 
 type MealSlotKey = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
-const SLOT_ORDER: MealSlotKey[] = ['breakfast', 'lunch', 'dinner', 'snack'];
-
-type ConstructorPlanSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'snack2';
-
-const CONSTRUCTOR_PLAN_SLOTS: ConstructorPlanSlot[] = ['breakfast', 'lunch', 'dinner', 'snack', 'snack2'];
-
 const DEFAULT_DIST = { breakfast: 0.25, lunch: 0.35, dinner: 0.25, snacks: 0.15 };
-const CALORIE_TARGET_TOLERANCE = 0.1;
 
 /**
  * Допуск для ФИНАЛЬНОГО прохода масштабирования.
@@ -112,30 +115,6 @@ const CALORIE_TARGET_TOLERANCE = 0.1;
  * остановиться на границе и после округления выйти за неё (наблюдалось 11.2 %).
  */
 const CALORIE_TARGET_STRICT_TOLERANCE = 0.05;
-
-type PreferenceContext = {
-  /** Отдельные фразы из профиля (без перекрёстного расширения) — для проверки «каждое любимое учтено». */
-  baseLikes: string[];
-  likes: string[];
-  dislikes: string[];
-  fridgeNames: string[];
-  /**
-   * Пищевые привычки из профиля (`users.food_habits`).
-   * Раньше поле только сохранялось и отдавалось в API, но в планировании
-   * не использовалось вовсе — «учтём ваши привычки» было фикцией.
-   */
-  habits: {
-    /** Сколько чашек чая/кофе в день добавлять перекусом. */
-    teaCupsPerDay: number;
-    /** Число приёмов пищи в день (3 или 4), если задано. */
-    mealsPerDay: number | null;
-    /** Предпочитает ли пользователь домашнюю еду. */
-    prefersHomeCooking: boolean;
-  };
-};
-
-/** Разумные границы для привычек, чтобы мусор в профиле не ломал план. */
-const MAX_TEA_CUPS = 6;
 
 @Injectable()
 export class MealPlanService {
@@ -201,48 +180,19 @@ export class MealPlanService {
   }
 
   private normalizeKeywordList(raw: unknown): string[] {
-    if (!Array.isArray(raw)) return [];
-    return raw
-      .map((v) => String(v).trim().toLowerCase())
-      .filter(Boolean);
+    return normalizeKeywordList(raw);
   }
 
   private expandDislikeKeywords(keys: string[]): string[] {
-    const s = new Set(keys);
-    for (const x of keys) {
-      if (/греч/i.test(x)) {
-        s.add('греч');
-        s.add('гречн');
-      }
-    }
-    return [...s];
+    return expandDislikeKeywords(keys);
   }
 
   private expandSingleLikeKeyword(key: string): string[] {
-    const k = String(key ?? '')
-      .trim()
-      .toLowerCase();
-    if (!k) return [];
-    const s = new Set<string>([k]);
-    if (ruHaystackMatchesKeyword(k, 'суп')) {
-      s.add('борщ');
-      s.add('уха');
-      s.add('солян');
-      s.add('похлеб');
-      s.add('рамен');
-      s.add('том ям');
-    }
-    return [...s];
+    return expandSingleLikeKeyword(key);
   }
 
   private expandLikeKeywords(keys: string[]): string[] {
-    const s = new Set<string>();
-    for (const key of keys) {
-      for (const x of this.expandSingleLikeKeyword(key)) {
-        s.add(x);
-      }
-    }
-    return [...s];
+    return expandLikeKeywords(keys);
   }
 
   private async preferenceContext(userId: string, user: User): Promise<PreferenceContext> {
@@ -251,194 +201,53 @@ export class MealPlanService {
       attributes: ['name'],
       limit: 200,
     });
-    const baseLikes = this.normalizeKeywordList(user.foodLikes);
+    const baseLikes = normalizeKeywordList(user.foodLikes);
     return {
       baseLikes,
-      likes: this.expandLikeKeywords(baseLikes),
-      dislikes: this.normalizeKeywordList(user.foodDislikes),
+      likes: expandLikeKeywords(baseLikes),
+      dislikes: normalizeKeywordList(user.foodDislikes),
       fridgeNames: fridge.map((r) => String(r.name).trim().toLowerCase()).filter(Boolean),
-      habits: this.parseFoodHabits(user.foodHabits),
+      habits: parseFoodHabits(user.foodHabits),
     };
   }
 
-  /**
-   * Снимок ограничений пользователя для сохранения в план.
-   *
-   * Нужен, чтобы отличить план, построенный с текущими аллергиями и диетой,
-   * от плана, созданного до их изменения. Без снимка пользователь мог
-   * сделать текущим старый план, в котором оставались блюда с рыбой,
-   * уже запрещённой по аллергии.
-   */
   private restrictionSnapshot(user: User & { allergens?: Array<Allergen | string> }): Record<string, unknown> {
-    const allergies = Array.isArray(user.allergens)
-      ? [...user.allergens]
-          .map((a) =>
-            (typeof a === 'object' && a !== null && 'name' in a
-              ? String((a as { name?: unknown }).name ?? '')
-              : String(a ?? '')
-            )
-              .trim()
-              .toLowerCase(),
-          )
-          .filter(Boolean)
-          .sort()
-      : [];
-    const restrictions = Array.isArray(user.dietaryRestrictions)
-      ? [...user.dietaryRestrictions]
-          .map((d) => String(d).trim().toLowerCase())
-          .filter(Boolean)
-          .sort()
-      : [];
-    const dislikes = this.normalizeKeywordList(user.foodDislikes).sort();
-
-    return {
-      allergens: allergies,
-      diet: restrictions,
-      dislikes,
-      goal: user.goal ?? null,
-      // Возраст важен для правила «не предлагать алкоголь до 18 лет».
-      age: this.ageFromBirthDate(user.birthDate),
-    };
+    return restrictionSnapshot(user);
   }
 
-  /** Возраст в полных годах или null, если дата не задана. */
   private ageFromBirthDate(raw: unknown): number | null {
-    if (!raw) return null;
-    const d = new Date(String(raw));
-    if (Number.isNaN(d.getTime())) return null;
-    const now = new Date();
-    let age = now.getFullYear() - d.getFullYear();
-    const m = now.getMonth() - d.getMonth();
-    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age -= 1;
-    return age >= 0 && age < 130 ? age : null;
+    return ageFromBirthDate(raw);
   }
 
-  /**
-   * Отличаются ли текущие ограничения пользователя от снимка в плане.
-   *
-   * Возвращает список различий для показа пользователю.
-   * Пустой массив — план соответствует текущим ограничениям.
-   */
   private restrictionDiff(
     user: User,
     snapshot: Record<string, unknown> | null,
   ): Array<{ field: string; label: string; before: string; after: string }> {
-    if (!snapshot) return [];
-
-    const current = this.restrictionSnapshot(user);
-    const diffs: Array<{ field: string; label: string; before: string; after: string }> = [];
-
-    const fmt = (v: unknown): string =>
-      Array.isArray(v) ? (v.length ? v.join(', ') : 'нет') : v == null ? 'не задано' : String(v);
-
-    const labels: Record<string, string> = {
-      allergens: 'Аллергии',
-      diet: 'Тип питания',
-      dislikes: 'Нежелательные продукты',
-      goal: 'Цель',
-    };
-
-    for (const key of ['allergens', 'diet', 'dislikes', 'goal'] as const) {
-      const a = fmt(snapshot[key]);
-      const b = fmt(current[key]);
-      if (a !== b) {
-        diffs.push({ field: key, label: labels[key], before: a, after: b });
-      }
-    }
-
-    // Возраст: если пользователь перешёл в 18 лет, алкоголь становится
-    // допустимым — это тоже изменение, но показываем только переход
-    // через границу, чтобы не сбрасывать план каждый год.
-    const ageBefore = Number(snapshot.age);
-    const ageNow = Number(current.age);
-    if (Number.isFinite(ageBefore) && Number.isFinite(ageNow)) {
-      const wasMinor = ageBefore < 18;
-      const isMinor = ageNow < 18;
-      if (wasMinor !== isMinor) {
-        diffs.push({
-          field: 'age',
-          label: 'Возраст',
-          before: wasMinor ? 'до 18' : '18 и старше',
-          after: isMinor ? 'до 18' : '18 и старше',
-        });
-      }
-    }
-
-    return diffs;
+    return restrictionDiff(user, snapshot);
   }
 
-  /**
-   * Разбирает `users.food_habits` в типизированную структуру с проверкой границ.
-   * Поле приходит из профиля как произвольный JSON, поэтому любые значения
-   * приводятся к разумным пределам.
-   */
   private parseFoodHabits(raw: unknown): PreferenceContext['habits'] {
-    const obj = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-
-    const teaRaw = Number(obj.teaCupsPerDay);
-    const teaCupsPerDay =
-      Number.isFinite(teaRaw) && teaRaw > 0 ? Math.min(MAX_TEA_CUPS, Math.floor(teaRaw)) : 0;
-
-    const mealsRaw = Number(obj.mealsPerDay);
-    const mealsPerDay =
-      Number.isFinite(mealsRaw) && mealsRaw >= 3 && mealsRaw <= 5 ? Math.floor(mealsRaw) : null;
-
-    const prefersHomeCooking = obj.prefersHomeCooking === true || obj.homeCooking === true;
-
-    return { teaCupsPerDay, mealsPerDay, prefersHomeCooking };
+    return parseFoodHabits(raw);
   }
 
   private dishHaystackForProduct(p: Product): string {
-    const chunks: string[] = [String(p.name ?? '').toLowerCase()];
-    const detailed = (p as Product & { ingredientsDetailed?: Array<{ name?: string }> }).ingredientsDetailed;
-    if (Array.isArray(detailed)) {
-      for (const row of detailed) chunks.push(String(row?.name ?? '').toLowerCase());
-    }
-    const ing = (p as Product & { ingredients?: Array<{ name?: string }> }).ingredients;
-    if (Array.isArray(ing)) {
-      for (const row of ing) chunks.push(String(row?.name ?? '').toLowerCase());
-    }
-    for (const { name } of inferIngredientsFromDishTitle(String(p.name ?? ''))) {
-      chunks.push(String(name ?? '').toLowerCase());
-    }
-    return chunks.filter(Boolean).join(' ');
+    return dishHaystackForProduct(p);
   }
 
   private productMatchesAnyLike(product: Product, likes: string[]): boolean {
-    if (!likes.length) return false;
-    const hay = this.dishHaystackForProduct(product);
-    return likes.some((k) => k && ruHaystackMatchesKeyword(hay, k));
+    return productMatchesAnyLike(product, likes);
   }
 
   private snapshotHaystackForPreferences(snapshot: MealSlotSnapshot): string {
-    const chunks = [
-      String(snapshot.name ?? '').toLowerCase(),
-      ...(snapshot.ingredientsDetailed ?? []).map((r) => String(r.name ?? '').toLowerCase()),
-      ...((snapshot.ingredients ?? []) as Array<{ name?: string }>).map((r) => String(r.name ?? '').toLowerCase()),
-    ];
-    const hasStructuredIngredients =
-      (snapshot.ingredientsDetailed?.length ?? 0) > 0 || (snapshot.ingredients?.length ?? 0) > 0;
-    if (!hasStructuredIngredients) {
-      for (const { name } of inferIngredientsFromDishTitle(String(snapshot.name ?? ''))) {
-        chunks.push(String(name ?? '').toLowerCase());
-      }
-    }
-    return chunks.filter(Boolean).join(' ');
+    return snapshotHaystackForPreferences(snapshot);
   }
 
   private snapshotMatchesAnyLike(snapshot: MealSlotSnapshot | null, likes: string[]): boolean {
-    if (!snapshot || !likes.length) return false;
-    const hay = this.snapshotHaystackForPreferences(snapshot);
-    return likes.some((k) => k && ruHaystackMatchesKeyword(hay, k));
+    return snapshotMatchesAnyLike(snapshot, likes);
   }
 
   private dayTouchesFoodLike(day: SaveMealPlanDayDto, pref: PreferenceContext): boolean {
-    if (!pref.baseLikes.length) return true;
-    const snaps = [day.breakfast, day.lunch, day.dinner, day.snack, ...(day.extraSnacks ?? [])];
-    return pref.baseLikes.every((base) => {
-      const keys = this.expandSingleLikeKeyword(base);
-      return snaps.some((snap) => snap && this.snapshotMatchesAnyLike(snap, keys));
-    });
+    return dayTouchesFoodLike(day, pref);
   }
 
   private ensureDayHasFoodLike(
@@ -738,77 +547,27 @@ export class MealPlanService {
     fallbackAny: Product[],
     seed: number,
   ): Product | null {
-    const own = pools[slot] ?? [];
-    const source = own.length > 0 ? own : fallbackAny;
-    if (source.length === 0) return null;
-    // Смещение по seed даёт разные блюда в разных днях,
-    // а не одно и то же во всех пустых слотах.
-    return source[seed % source.length] ?? source[0] ?? null;
+    return pickReusableDish(slot, pools, fallbackAny, seed);
   }
 
   private productPreferenceScore(product: Product, pref: PreferenceContext): number {
-    const n = normalizeRuFoodText(product.name);
-    const hay = this.dishHaystackForProduct(product);
-    let score = 0;
-    for (const k of pref.likes) {
-      if (k && (ruHaystackMatchesKeyword(hay, k) || ruHaystackMatchesKeyword(n, k))) score += 8;
-    }
-    for (const k of pref.fridgeNames) {
-      if (k && (ruHaystackMatchesKeyword(hay, k) || ruHaystackMatchesKeyword(n, k))) score += 1.2;
-    }
-    for (const k of pref.dislikes) {
-      if (k && (this.dislikeKeywordMatches(hay, k) || this.dislikeKeywordMatches(n, k))) score -= 12;
-    }
-    return score;
+    return productPreferenceScore(product, pref);
   }
 
   private productReason(product: Product, pref: PreferenceContext): string | undefined {
-    const hay = this.dishHaystackForProduct(product);
-    const n = normalizeRuFoodText(product.name);
-    const reasons: string[] = [];
-    if (pref.likes.some((k) => k && (ruHaystackMatchesKeyword(hay, k) || ruHaystackMatchesKeyword(n, k)))) {
-      reasons.push('совпадает с вашими вкусовыми предпочтениями');
-    }
-    if (pref.fridgeNames.some((k) => k && (ruHaystackMatchesKeyword(hay, k) || ruHaystackMatchesKeyword(n, k)))) {
-      reasons.push('учтены продукты из вашего холодильника');
-    }
-    return reasons.length ? reasons.join(', ') : undefined;
+    return productReason(product, pref);
   }
 
   private alternativesForPool(pool: Product[], excludeId: string | undefined, pref: PreferenceContext): string[] {
-    return pool
-      .filter((p) => p.id !== excludeId)
-      .sort((a, b) => this.productPreferenceScore(b, pref) - this.productPreferenceScore(a, pref))
-      .slice(0, 2)
-      .map((p) => p.name);
+    return alternativesForPool(pool, excludeId, pref);
   }
 
-
   private filterProductsByDislikes(products: Product[], dislikeKeywords: string[]): Product[] {
-    if (!dislikeKeywords.length) return products;
-    const kw = this.expandDislikeKeywords(dislikeKeywords);
-    return products.filter((p) => {
-      const hay = this.dishHaystackForProduct(p);
-      if (!hay.trim()) return true;
-      return !kw.some((w) => w && this.dislikeKeywordMatches(hay, w));
-    });
+    return filterProductsByDislikes(products, dislikeKeywords);
   }
 
   private dislikeKeywordMatches(haystack: string, keywordRaw: string): boolean {
-    const hay = normalizeRuFoodText(haystack);
-    const kw = String(keywordRaw ?? '').trim().toLowerCase().replace(/ё/g, 'е');
-    if (!kw) return false;
-    if (
-      ruHaystackMatchesKeyword(hay, `без ${kw}`) ||
-      /(?<![\p{L}\p{N}_])без(?![\p{L}\p{N}_])\s+сахар[\p{L}\p{N}_]*/iu.test(hay)
-    ) {
-      return false;
-    }
-    if (ruHaystackMatchesKeyword(hay, kw)) return true;
-    const kwRoots = collectIngredientMatchRoots([{ name: kw }], []).filter((r) => r.length >= 4);
-    if (kwRoots.length === 0) return false;
-    const hayRoots = new Set(collectIngredientMatchRoots([{ name: hay }], []));
-    return kwRoots.some((r) => hayRoots.has(r));
+    return dislikeKeywordMatches(haystack, keywordRaw);
   }
 
   private buildFilteredPools(
@@ -987,56 +746,7 @@ export class MealPlanService {
   }
 
   snapshotFromProduct(p: Product, category: MealSlotKey): MealSlotSnapshot {
-    const raw = (p as Product & { ingredients?: Array<{ name?: string; grams?: number }> }).ingredients;
-    const rawDetailed = (p as Product & {
-      ingredientsDetailed?: Array<{
-        id?: string;
-        name?: string;
-        amount?: number;
-        unit?: string;
-        grams?: number;
-        originalString?: string;
-        ingredientId?: string;
-      }>;
-    }).ingredientsDetailed;
-    let ingredients: Array<{ name: string; grams: number }>;
-    if (Array.isArray(raw) && raw.length > 0) {
-      ingredients = raw.map((row) => ({
-        name: String(row.name ?? ''),
-        grams: Number(row.grams) || 0,
-      }));
-    } else {
-      ingredients = inferIngredientsFromDishTitle(p.name);
-    }
-    const ingredientsDetailed = Array.isArray(rawDetailed)
-      ? rawDetailed
-          .map((row) => ({
-            id: String(row?.id ?? ''),
-            name: String(row?.name ?? ''),
-            amount: Number(row?.amount) || 0,
-            unit: String(row?.unit ?? ''),
-            grams: Number(row?.grams) || 0,
-            originalString: row?.originalString ? String(row.originalString) : undefined,
-            ingredientId: row?.ingredientId ? String(row.ingredientId) : undefined,
-          }))
-          .filter((row) => row.id && row.name)
-      : [];
-    const matchKeywords = collectIngredientMatchRoots(ingredients, p.matchKeywords ?? []);
-    return {
-      dishId: p.id,
-      name: p.name,
-      calories: p.calories,
-      protein: p.protein,
-      fat: p.fat,
-      carbs: p.carbs,
-      allergens: p.allergens ?? [],
-      dietaryTags: p.dietaryTags ?? [],
-      category,
-      ingredients,
-      ingredientsDetailed: ingredientsDetailed.length ? ingredientsDetailed : undefined,
-      matchKeywords,
-      imageUrl: p.imageUrl ?? undefined,
-    };
+    return snapshotFromProduct(p, category);
   }
 
   private snapshotToProductProbe(snapshot: MealSlotSnapshot): Product {
@@ -1228,25 +938,7 @@ export class MealPlanService {
   }
 
   private daySnapshotsTotal(day: SaveMealPlanDayDto) {
-    const list: MealSlotSnapshot[] = [];
-    for (const k of SLOT_ORDER) {
-      const s = day[k];
-      if (s && typeof s === 'object' && 'name' in s) list.push(s as MealSlotSnapshot);
-    }
-    for (const ex of day.extraSnacks ?? []) {
-      if (ex && typeof ex === 'object' && 'name' in ex) list.push(ex);
-    }
-    let calories = 0;
-    let protein = 0;
-    let fat = 0;
-    let carbs = 0;
-    for (const s of list) {
-      calories += Number(s.calories) || 0;
-      protein += Number(s.protein) || 0;
-      fat += Number(s.fat) || 0;
-      carbs += Number(s.carbs) || 0;
-    }
-    return { calories, protein, fat, carbs };
+    return daySnapshotsTotal(day);
   }
 
   private scaleDaySnapshotsToTarget(
@@ -1254,243 +946,26 @@ export class MealPlanService {
     target: number,
     tolerance = CALORIE_TARGET_TOLERANCE,
   ): SaveMealPlanDayDto {
-    const tot = this.daySnapshotsTotal(day);
-    if (tot.calories <= 0 || !Number.isFinite(target) || target <= 0) return day;
-    const low = target * (1 - Math.max(0, tolerance));
-    const high = target * (1 + Math.max(0, tolerance));
-    if (tot.calories >= low && tot.calories <= high) return day;
-    const factor = target / tot.calories;
-
-    /**
-     * Масштабирует снапшот под нужную калорийность.
-     *
-     * Раньше изменялись только КБЖУ, а граммовки ингредиентов оставались
-     * исходными: пользователь видел «Омлет 270 г» и «1100 ккал» одновременно,
-     * а при закупке по граммовкам получал вдвое меньше калорий, чем в плане.
-     * Теперь масса ингредиентов масштабируется тем же коэффициентом.
-     */
-    const scaleSnap = (s: MealSlotSnapshot | null): MealSlotSnapshot | null => {
-      if (!s || typeof s !== 'object' || !('calories' in s)) return s;
-      const snap = s as MealSlotSnapshot;
-      const c = Number(snap.calories) || 0;
-      if (c <= 0) return { ...snap, calories: 0 };
-
-      const round1 = (v: number) => Math.round(v * 10) / 10;
-      const scaleGrams = (v: unknown) => {
-        const g = Number(v) || 0;
-        return g > 0 ? round1(g * factor) : g;
-      };
-
-      const mapIngredient = <T extends { grams?: unknown; amount?: unknown }>(row: T): T => {
-        if (!row || typeof row !== 'object') return row;
-        const next: Record<string, unknown> = { ...row };
-        if (row.grams !== undefined && row.grams !== null) next.grams = scaleGrams(row.grams);
-        if (row.amount !== undefined && row.amount !== null) next.amount = scaleGrams(row.amount);
-        return next as T;
-      };
-
-      const snapshotWithIngredients = snap as MealSlotSnapshot & {
-        ingredients?: Array<{ grams?: unknown }>;
-        ingredientsDetailed?: Array<{ grams?: unknown; amount?: unknown }>;
-      };
-
-      return {
-        ...snap,
-        calories: Math.max(0, Math.round(c * factor)),
-        protein: round1((Number(snap.protein) || 0) * factor),
-        fat: round1((Number(snap.fat) || 0) * factor),
-        carbs: round1((Number(snap.carbs) || 0) * factor),
-        // Общая масса порции тоже меняется.
-        ...(Number((snap as { weight?: unknown }).weight) > 0
-          ? { weight: round1(Number((snap as { weight?: unknown }).weight) * factor) }
-          : {}),
-        ...(Array.isArray(snapshotWithIngredients.ingredients)
-          ? { ingredients: snapshotWithIngredients.ingredients.map(mapIngredient) }
-          : {}),
-        ...(Array.isArray(snapshotWithIngredients.ingredientsDetailed)
-          ? { ingredientsDetailed: snapshotWithIngredients.ingredientsDetailed.map(mapIngredient) }
-          : {}),
-      } as MealSlotSnapshot;
-    };
-    let next: SaveMealPlanDayDto = {
-      ...day,
-      breakfast: scaleSnap(day.breakfast),
-      lunch: scaleSnap(day.lunch),
-      dinner: scaleSnap(day.dinner),
-      snack: scaleSnap(day.snack),
-      extraSnacks: (day.extraSnacks ?? []).map(scaleSnap).filter(Boolean) as MealSlotSnapshot[],
-    };
-    const drift = Math.round(target - this.daySnapshotsTotal(next).calories);
-    if (drift === 0) return next;
-    const order: MealSlotKey[] = ['dinner', 'lunch', 'breakfast', 'snack'];
-    for (const k of order) {
-      const slot = next[k];
-      if (!slot || typeof slot !== 'object') continue;
-      const cal = Number((slot as MealSlotSnapshot).calories) || 0;
-      if (cal + drift < 1) continue;
-      next = {
-        ...next,
-        [k]: { ...(slot as MealSlotSnapshot), calories: cal + drift },
-      };
-      break;
-    }
-    return next;
+    return scaleDaySnapshotsToTarget(day, target, tolerance);
   }
 
-  /**
-   * Пересчитывает итоги плана по ФАКТИЧЕСКИМ дням из БД.
-   *
-   * Колонки `total_*` в `meal_plans` — денормализация: они записываются при
-   * сохранении и больше не обновляются. Если состав дней менялся (конструктор,
-   * повторное сохранение, миграции перекусов), значения расходились с суммой
-   * дней — вплоть до 5568 ккал. Из-за этого скачанный JSON был внутренне
-   * противоречив, а статистика показывала неверную калорийность плана.
-   *
-   * Читаем дни и считаем итоги заново — это единственный источник истины.
-   */
   private computeTotalsFromDbDays(
     days: Array<{ breakfast?: unknown; lunch?: unknown; dinner?: unknown; snacks?: unknown; extraSnacks?: unknown }>,
   ) {
-    let calories = 0;
-    let protein = 0;
-    let fat = 0;
-    let carbs = 0;
-
-    const addSnapshot = (raw: unknown) => {
-      if (!raw || typeof raw !== 'object' || !('calories' in (raw as object))) return;
-      const s = raw as MealSlotSnapshot;
-      calories += Number(s.calories) || 0;
-      protein += Number(s.protein) || 0;
-      fat += Number(s.fat) || 0;
-      carbs += Number(s.carbs) || 0;
-    };
-
-    for (const d of days ?? []) {
-      addSnapshot(d?.breakfast);
-      addSnapshot(d?.lunch);
-      addSnapshot(d?.dinner);
-      for (const snack of snacksFromDb(d?.snacks, d?.extraSnacks)) addSnapshot(snack);
-    }
-
-    return {
-      calories: Math.round(calories),
-      protein: Math.round(protein * 10) / 10,
-      fat: Math.round(fat * 10) / 10,
-      carbs: Math.round(carbs * 10) / 10,
-    };
+    return computeTotalsFromDbDays(days);
   }
 
   private computePlanTotals(days: SaveMealPlanDayDto[]) {
-    let calories = 0;
-    let protein = 0;
-    let fat = 0;
-    let carbs = 0;
-    for (const d of days) {
-      const t = this.daySnapshotsTotal(d);
-      calories += t.calories;
-      protein += t.protein;
-      fat += t.fat;
-      carbs += t.carbs;
-    }
-    return { calories, protein, fat, carbs };
+    return computePlanTotals(days);
   }
 
   private diversifyCatalogDays(
     days: SaveMealPlanDayDto[],
     pools: { breakfast: Product[]; lunch: Product[]; dinner: Product[]; snack: Product[] },
   ): SaveMealPlanDayDto[] {
-    const seenPerSlot = new Map<string, number>();
-    const out: SaveMealPlanDayDto[] = [];
-
-    // Разрешаем блюду встретиться не более одного раза за план.
-    //
-    // Раньше лимит был 2 повтора, а замена искала ПЕРВОЕ подходящее блюдо
-    // в пуле (`pool.find`) — всегда одно и то же. Из-за этого недельный план
-    // превращался в цикл из 3 дней: «Кошари» на обед повторялся 6 раз из 7.
-    // Замена теперь выбирается псевдослучайно по названию блюда, поэтому
-    // разные слоты получают разные альтернативы.
-    const MAX_REPEATS = 1;
-
-    /** Детерминированный хеш строки — стабильный выбор замены. */
-    const hashOf = (value: string): number => {
-      let h = 2166136261;
-      for (let i = 0; i < value.length; i++) {
-        h ^= value.charCodeAt(i);
-        h = Math.imul(h, 16777619);
-      }
-      return Math.abs(h);
-    };
-
-    const pickAlt = (
-      slot: MealSlotKey,
-      current: MealSlotSnapshot | null,
-      prevName?: string,
-      salt = 0,
-    ): MealSlotSnapshot | null => {
-      if (!current?.name) return current;
-
-      const key = `${slot}:${current.name.toLowerCase()}`;
-      const seen = seenPerSlot.get(key) ?? 0;
-      const repeatsPrev =
-        prevName != null && prevName.toLowerCase() === current.name.toLowerCase();
-
-      if (seen < MAX_REPEATS && !repeatsPrev) {
-        seenPerSlot.set(key, seen + 1);
-        return current;
-      }
-
-      const pool = pools[slot] ?? [];
-      const usable = pool.filter((p) => {
-        const name = String(p.name ?? '').toLowerCase();
-        if (!name || name === current.name.toLowerCase()) return false;
-        if (prevName && prevName.toLowerCase() === name) return false;
-        return (seenPerSlot.get(`${slot}:${name}`) ?? 0) < MAX_REPEATS + 1;
-      });
-
-      if (usable.length === 0) {
-        seenPerSlot.set(key, seen + 1);
-        return current;
-      }
-
-      // Выбор замены зависит от слота, названия и позиции — разные слоты
-      // получают разные блюда, а не одно и то же «первое из списка».
-      const alt = usable[hashOf(`${slot}:${current.name}:${salt}:${usable.length}`) % usable.length];
-      const snap = this.snapshotFromProduct(alt, slot);
-      const altKey = `${slot}:${String(alt.name).toLowerCase()}`;
-      seenPerSlot.set(altKey, (seenPerSlot.get(altKey) ?? 0) + 1);
-      return snap;
-    };
-
-    for (let i = 0; i < days.length; i++) {
-      const prev = out[i - 1];
-      const d = days[i];
-      const next: SaveMealPlanDayDto = {
-        ...d,
-        breakfast: pickAlt('breakfast', d.breakfast, prev?.breakfast?.name),
-        lunch: pickAlt('lunch', d.lunch, prev?.lunch?.name),
-        dinner: pickAlt('dinner', d.dinner, prev?.dinner?.name),
-        snack: pickAlt('snack', d.snack, prev?.snack?.name),
-        extraSnacks: (d.extraSnacks ?? []).map((s, exIdx) =>
-          pickAlt('snack', s, exIdx === 0 ? prev?.extraSnacks?.[0]?.name : undefined, exIdx + 1),
-        ) as MealSlotSnapshot[],
-      };
-      out.push(next);
-    }
-    return out;
+    return diversifyCatalogDays(days, pools);
   }
 
-  /**
-   * Выбирает блюдо из пула под бюджет слота.
-   *
-   * Раньше индекс вычислялся как `|(dayIndex*31 + slotSalt*17) % top.length|` —
-   * чистая функция без случайности. Из-за этого повторная генерация плана
-   * в тот же день возвращала ИДЕНТИЧНЫЙ результат: кнопка «Сгенерировать заново»
-   * ничего не меняла.
-   *
-   * Теперь в формулу входит `seed`. При обычной генерации он берётся от времени
-   * (каждый запрос даёт новый вариант), а при явной передаче — воспроизводим,
-   * что нужно для тестов.
-   */
   private pickFromPool(
     pool: Product[],
     budget: number,
@@ -1500,64 +975,19 @@ export class MealPlanService {
     pref: PreferenceContext,
     seed = 0,
   ): Product | null {
-    if (pool.length === 0) return null;
-    const available = pool.filter((p) => !usedIds.has(p.id));
-    const source = available.length ? available : pool;
-    const near = source
-      .map((p) => ({
-        p,
-        diff: Math.abs(Number(p.calories) - budget),
-        pref: this.productPreferenceScore(p, pref),
-      }))
-      .sort((a, b) => a.diff - b.diff || b.pref - a.pref);
-    const candidates = near.length ? near : source.map((p) => ({ p, diff: 0 }));
-    const top = candidates.slice(0, Math.min(48, candidates.length));
-
-    // Индекс выбирается хешированием, а не линейной формулой.
-    //
-    // Прежняя формула `(dayIndex * 31 + slotSalt * 17 + seed) % top.length`
-    // линейна по дню, поэтому при фиксированном размере топа давала
-    // короткий цикл: дни повторялись с периодом 48/НОД(31,48) = 48,
-    // а на практике — каждые 3 дня из-за пересортировки по калориям.
-    // Смешивание «прогоняет» индекс по всему диапазону без циклов.
-    const key = `${seed}:${dayIndex}:${slotSalt}:${top.length}`;
-    let h = 2166136261;
-    for (let i = 0; i < key.length; i++) {
-      h ^= key.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    const idx = Math.abs(h) % top.length;
-
-    const chosen = top[idx]?.p ?? pool[dayIndex % pool.length];
-    usedIds.add(chosen.id);
-    return chosen;
+    return pickFromPool(pool, budget, dayIndex, slotSalt, usedIds, pref, seed);
   }
 
-  /** Детерминированный хеш строки — для воспроизводимого seed. */
   private hashSeed(value: string): number {
-    let h = 2166136261;
-    for (let i = 0; i < value.length; i++) {
-      h ^= value.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    return Math.abs(h);
+    return hashSeed(value);
   }
 
   private sortPoolByCalories(pool: Product[]) {
-    return [...pool].sort(
-      (a, b) => Number(a.calories) - Number(b.calories) || String(a.id).localeCompare(String(b.id)),
-    );
+    return sortPoolByCalories(pool);
   }
 
   private stridedPoolSample(pool: Product[], maxItems: number): Product[] {
-    if (pool.length <= maxItems) return pool;
-    const out: Product[] = [];
-    const last = pool.length - 1;
-    const step = last / Math.max(1, maxItems - 1);
-    for (let k = 0; k < maxItems; k++) {
-      out.push(pool[Math.min(last, Math.round(k * step))]);
-    }
-    return out;
+    return stridedPoolSample(pool, maxItems);
   }
 
   private refineProductsToTarget(
@@ -1566,50 +996,7 @@ export class MealPlanService {
     target: number,
     tolerance: number,
   ): { products: Product[]; matched: boolean } {
-    const slotCats: Array<'breakfast' | 'lunch' | 'dinner' | 'snack'> = [
-      'breakfast',
-      'lunch',
-      'dinner',
-      'snack',
-      'snack',
-    ];
-    const current = [...slots];
-    const sumCal = (arr: Product[]) => arr.reduce((a, p) => a + Number(p.calories), 0);
-    const relErr = () => Math.abs(sumCal(current) - target) / Math.max(1, target);
-    if (relErr() <= tolerance) return { products: current, matched: true };
-    const maxCandPerSlot = 360;
-    for (let iter = 0; iter < 260; iter++) {
-      if (relErr() <= tolerance) return { products: current, matched: true };
-      let bestScore = Infinity;
-      let bestI = -1;
-      let bestP: Product | null = null;
-      for (let i = 0; i < 5; i++) {
-        const cat = slotCats[i];
-        const pool = pools[cat];
-        if (!pool.length) continue;
-        const sorted = this.sortPoolByCalories(pool);
-        const capped = this.stridedPoolSample(sorted, maxCandPerSlot);
-        for (const cand of capped) {
-          const next = [...current];
-          next[i] = cand;
-          const err = Math.abs(sumCal(next) - target);
-          if (err < bestScore) {
-            bestScore = err;
-            bestI = i;
-            bestP = cand;
-          }
-        }
-      }
-      if (bestI >= 0 && bestP) {
-        if (current[bestI] && current[bestI]!.id === bestP.id) {
-          break;
-        }
-        current[bestI] = bestP;
-      } else {
-        break;
-      }
-    }
-    return { products: current, matched: relErr() <= tolerance };
+    return refineProductsToTarget(slots, pools, target, tolerance);
   }
 
   private dishSearchSqlCondition(term: string) {
@@ -2545,13 +1932,11 @@ export class MealPlanService {
   }
 
   private isPlaceholderConstructorSnapshot(s: MealSlotSnapshot | null | undefined): boolean {
-    if (!s?.name) return true;
-    return /^блюдо\s*\(/i.test(String(s.name).trim());
+    return isPlaceholderConstructorSnapshot(s);
   }
 
   private getConstructorSlotSnapshot(day: SaveMealPlanDayDto, slot: ConstructorPlanSlot): MealSlotSnapshot | null {
-    if (slot === 'snack2') return day.extraSnacks?.[0] ?? null;
-    return day[slot] as MealSlotSnapshot | null;
+    return getConstructorSlotSnapshot(day, slot);
   }
 
   private setConstructorSlotSnapshot(
@@ -2559,19 +1944,11 @@ export class MealPlanService {
     slot: ConstructorPlanSlot,
     snap: MealSlotSnapshot | null,
   ): SaveMealPlanDayDto {
-    if (slot === 'snack2') {
-      return { ...day, extraSnacks: snap ? [snap] : [] };
-    }
-    return { ...day, [slot]: snap };
+    return setConstructorSlotSnapshot(day, slot, snap);
   }
 
   private formatConstructorPlanLine(day: SaveMealPlanDayDto): string {
-    const fmt = (slot: ConstructorPlanSlot): string => {
-      const s = this.getConstructorSlotSnapshot(day, slot);
-      if (!s?.name || this.isPlaceholderConstructorSnapshot(s)) return 'null';
-      return s.name;
-    };
-    return `день ${day.dayNumber}: breakfast=${fmt('breakfast')}; lunch=${fmt('lunch')}; dinner=${fmt('dinner')}; snack=${fmt('snack')}; snack2=${fmt('snack2')}`;
+    return formatConstructorPlanLine(day);
   }
 
   private mergeConstructorRefinementAi(
@@ -2579,42 +1956,7 @@ export class MealPlanService {
     aiChanges: ConstructorRefinementChange[],
     resolve: (rawName: string) => Product | null,
   ): SaveMealPlanDayDto[] {
-    const changeByKey = new Map<string, ConstructorRefinementChange>();
-    for (const c of aiChanges) {
-      changeByKey.set(`${c.day}-${c.slot}`, c);
-    }
-
-    return baseDays.map((day) => {
-      let next = { ...day };
-      for (const slot of CONSTRUCTOR_PLAN_SLOTS) {
-        const ch = changeByKey.get(`${day.dayNumber}-${slot}`);
-        if (!ch) continue;
-
-        if (ch.action === 'keep') {
-          continue;
-        }
-
-        const cat: MealSlotKey = slot === 'snack2' || slot === 'snack' ? 'snack' : slot;
-        const nm = (ch.dishName ?? '').trim();
-        const pr = nm ? resolve(nm) : null;
-
-        if (ch.action === 'replace') {
-          if (pr) {
-            const snap = this.snapshotFromProduct(pr, cat);
-            if (ch.reason) snap.note = ch.reason;
-            next = this.setConstructorSlotSnapshot(next, slot, snap);
-          }
-          continue;
-        }
-
-        if (ch.action === 'fill' && pr) {
-          const snap = this.snapshotFromProduct(pr, cat);
-          if (ch.reason) snap.note = ch.reason;
-          next = this.setConstructorSlotSnapshot(next, slot, snap);
-        }
-      }
-      return next;
-    });
+    return mergeConstructorRefinementAi(baseDays, aiChanges, resolve);
   }
 
   private fillEmptyConstructorSlots(
@@ -2624,71 +1966,14 @@ export class MealPlanService {
     pref: PreferenceContext,
     fallbackAnyPool: Product[],
   ): SaveMealPlanDayDto[] {
-    const dist = DEFAULT_DIST;
-    const snackShare1 = dist.snacks * 0.55;
-    const snackShare2 = dist.snacks * 0.45;
-    const tc = targetCalories;
-
-    return days.map((day, di) => {
-      let next = { ...day };
-      const used = new Set<string>();
-      for (const slot of CONSTRUCTOR_PLAN_SLOTS) {
-        const s = this.getConstructorSlotSnapshot(next, slot);
-        if (s?.dishId) used.add(String(s.dishId));
-      }
-
-      let salt = 0;
-      const tryFill = (slot: ConstructorPlanSlot, budget: number, poolCat: MealSlotKey) => {
-        const cur = this.getConstructorSlotSnapshot(next, slot);
-        if (cur != null && !this.isPlaceholderConstructorSnapshot(cur)) return;
-        const pool = pools[poolCat].length > 0 ? pools[poolCat] : fallbackAnyPool;
-        const picked = this.pickFromPool(pool, budget, di, salt++, used, pref);
-        if (!picked) return;
-        const snap = this.snapshotFromProduct(picked, poolCat);
-        next = this.setConstructorSlotSnapshot(next, slot, snap);
-      };
-
-      tryFill('breakfast', tc * dist.breakfast, 'breakfast');
-      tryFill('lunch', tc * dist.lunch, 'lunch');
-      tryFill('dinner', tc * dist.dinner, 'dinner');
-      tryFill('snack', tc * snackShare1, 'snack');
-      tryFill('snack2', tc * snackShare2, 'snack');
-
-      return next;
-    });
+    return fillEmptyConstructorSlots(days, targetCalories, pools, pref, fallbackAnyPool);
   }
 
   private buildConstructorFallbackChanges(
     beforeDays: SaveMealPlanDayDto[],
     afterDays: SaveMealPlanDayDto[],
   ): ConstructorRefinementChange[] {
-    const byDay = new Map(afterDays.map((d) => [d.dayNumber, d]));
-    const out: ConstructorRefinementChange[] = [];
-    for (const day of beforeDays) {
-      const next = byDay.get(day.dayNumber);
-      if (!next) continue;
-      for (const slot of CONSTRUCTOR_PLAN_SLOTS) {
-        const prevSnap = this.getConstructorSlotSnapshot(day, slot);
-        const nextSnap = this.getConstructorSlotSnapshot(next, slot);
-        const prevName = String(prevSnap?.name ?? '').trim();
-        const nextName = String(nextSnap?.name ?? '').trim();
-        if (prevName === nextName) continue;
-        const action: ConstructorRefinementChange['action'] = !prevName && nextName ? 'fill' : 'replace';
-        const reason =
-          action === 'fill'
-            ? 'Слот был пуст — заполнен автоматически из каталога.'
-            : 'Слот заменён автоматически с учётом ограничений и калорийности.';
-        out.push({
-          day: day.dayNumber,
-          slot: slot as ConstructorRefinementChange['slot'],
-          action,
-          dishName: nextName,
-          previousDishName: prevName,
-          reason,
-        });
-      }
-    }
-    return out;
+    return buildConstructorFallbackChanges(beforeDays, afterDays);
   }
 
   async refineConstructorPlanWithAi(

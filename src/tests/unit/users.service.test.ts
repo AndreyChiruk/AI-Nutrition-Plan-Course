@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { assert } from 'chai';
 import { describe, it } from 'mocha';
 import { UsersService } from '../../users/users.service';
+import { verifyPassword } from '../../common/password.util';
 
 const sha = (value: string) => {
   const { createHash } = require('crypto') as typeof import('crypto');
@@ -194,7 +195,6 @@ describe('UsersService unit', () => {
     const stored = String(savedHash ?? '');
     assert.match(stored, /^scrypt\$\d+\$\d+\$\d+\$[0-9a-f]+\$[0-9a-f]+$/);
     assert.notInclude(stored, 'new-password');
-    const { verifyPassword } = await import('../../common/password.util');
     assert.isTrue(await verifyPassword('new-password', stored));
   });
 });
