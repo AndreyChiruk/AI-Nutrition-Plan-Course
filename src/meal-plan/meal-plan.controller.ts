@@ -17,6 +17,7 @@ import { MealPlanService, SaveMealPlanDayDto } from './meal-plan.service';
 import { MealTrackSlot, MealTrackStatus } from '../models/MealPlanDay';
 import { FullUserGuard } from '../auth/full-user.guard';
 import { RequireSubscriptionGuard } from '../subscription/require-subscription.guard';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('meal-plan')
 @UseGuards(JwtAuthGuard, FullUserGuard)
@@ -233,6 +234,8 @@ export class MealPlanController {
   }
 
   @Post('generate-ai-catalog')
+  @UseGuards(RequireSubscriptionGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   generateAiCatalog(
     @Req() req: Request & { user?: { sub?: number; role?: string } },
     @Body() body: { userId: string; durationDays: number; targetCalories?: number },
@@ -244,6 +247,8 @@ export class MealPlanController {
   }
 
   @Post('refine-constructor-ai')
+  @UseGuards(RequireSubscriptionGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   refineConstructorAi(
     @Req() req: Request & { user?: { sub?: number; role?: string } },
     @Body()

@@ -25,6 +25,7 @@ export class BodyAnalysisController {
 
   @Post('forecast')
   @UseGuards(RequireSubscriptionGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 3 } })
   forecast(
     @Req() req: Request & { user?: { sub?: number; role?: string } },
     @Body() body: { userId: string; durationWeeks?: number },

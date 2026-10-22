@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RecommendationService } from './recommendation.service';
 import { FullUserGuard } from '../auth/full-user.guard';
 import { RequireSubscriptionGuard } from '../subscription/require-subscription.guard';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('recommendations')
 export class RecommendationController {
@@ -16,8 +17,8 @@ export class RecommendationController {
   }
 
   @Post('generate')
-  @UseGuards(RequireSubscriptionGuard)
-  @UseGuards(JwtAuthGuard, FullUserGuard)
+  @UseGuards(JwtAuthGuard, FullUserGuard, RequireSubscriptionGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   generate(
     @Req() req: Request & { user?: { sub?: number; role?: string } },
     @Body() body: { userId: string },

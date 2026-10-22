@@ -2,7 +2,7 @@
 
 Документация сгенерирована из исходного кода контроллеров командой `npm run docs:api`. При изменении маршрутов файл нужно перегенерировать — это исключает расхождения между кодом и описанием.
 
-Всего эндпоинтов: **107**, из них без авторизации: **7**.
+Всего эндпоинтов: **117**, из них без авторизации: **11**.
 
 Базовый префикс: `/api` (задаётся переменной `GLOBAL_API_PREFIX`).
 
@@ -34,12 +34,14 @@
 | body-analysis | 4 |
 | chat | 2 |
 | food-recognition | 2 |
-| health | 2 |
-| meal-plan | 16 |
+| health | 4 |
+| meal-plan | 17 |
 | notifications | 4 |
 | recommendation | 2 |
 | stats | 7 |
-| users | 16 |
+| stripe-webhook | 1 |
+| subscription | 4 |
+| users | 18 |
 | workout-plan | 12 |
 
 ### admin
@@ -98,7 +100,7 @@
 |---|---|---|---|
 | POST | `/body-analysis/analyze` | пользователь | _Ограничение: 5 запросов / 60 с_ |
 | GET | `/body-analysis/basic-recommendations/:userId` | пользователь | — |
-| POST | `/body-analysis/forecast` | пользователь | — |
+| POST | `/body-analysis/forecast` | пользователь | _Ограничение: 3 запросов / 60 с_ |
 | GET | `/body-analysis/page-state/:userId` | пользователь | — |
 
 ### chat
@@ -106,7 +108,7 @@
 | Метод | Путь | Доступ | Описание |
 |---|---|---|---|
 | GET | `/chat/history/:userId` | пользователь | — |
-| POST | `/chat/message` | пользователь | — |
+| POST | `/chat/message` | пользователь | Отправка сообщения ассистенту. _Ограничение: 15 запросов / 60 с_ |
 
 ### food-recognition
 
@@ -120,6 +122,8 @@
 | Метод | Путь | Доступ | Описание |
 |---|---|---|---|
 | GET | `/health` | публичный | Быстрая проверка: процесс жив и отвечает. |
+| GET | `/health/catalog-samples` | публичный | Несколько блюд каталога с фотографиями — для блока «Что в каталоге» на главной странице. |
+| GET | `/health/catalog-stats` | публичный | Публичные показатели каталога. |
 | GET | `/health/ready` | публичный | Полная проверка готовности: доступна ли база данных. |
 
 ### meal-plan
@@ -131,16 +135,17 @@
 | GET | `/meal-plan/dishes` | пользователь | — |
 | POST | `/meal-plan/duration` | пользователь | — |
 | POST | `/meal-plan/generate` | пользователь | — |
-| POST | `/meal-plan/generate-ai-catalog` | пользователь | — |
+| POST | `/meal-plan/generate-ai-catalog` | пользователь | _Ограничение: 5 запросов / 60 с_ |
 | POST | `/meal-plan/generate-auto` | пользователь | — |
 | GET | `/meal-plan/plans/:userId` | пользователь | — |
 | GET | `/meal-plan/plans/:userId/:planId` | пользователь | — |
 | DELETE | `/meal-plan/plans/:userId/:planId` | пользователь | — |
-| POST | `/meal-plan/plans/:userId/:planId/activate` | пользователь | — |
+| POST | `/meal-plan/plans/:userId/:planId/activate` | пользователь | Делает план текущим. |
 | POST | `/meal-plan/plans/:userId/:planId/clone` | пользователь | — |
 | GET | `/meal-plan/plans/:userId/:planId/download` | пользователь | — |
+| GET | `/meal-plan/plans/:userId/:planId/restrictions-diff` | пользователь | Отличаются ли ограничения плана от текущего профиля. |
 | POST | `/meal-plan/plans/:userId/days/:dayId/meals` | пользователь | — |
-| POST | `/meal-plan/refine-constructor-ai` | пользователь | — |
+| POST | `/meal-plan/refine-constructor-ai` | пользователь | _Ограничение: 5 запросов / 60 с_ |
 | POST | `/meal-plan/save` | пользователь | — |
 
 ### notifications
@@ -156,8 +161,8 @@
 
 | Метод | Путь | Доступ | Описание |
 |---|---|---|---|
-| GET | `/recommendations/base` | пользователь | — |
-| POST | `/recommendations/generate` | пользователь | — |
+| GET | `/recommendations/base` | публичный | — |
+| POST | `/recommendations/generate` | пользователь | _Ограничение: 10 запросов / 60 с_ |
 
 ### stats
 
@@ -170,6 +175,21 @@
 | GET | `/stats/plan-vs-fact/:userId` | пользователь | — |
 | GET | `/stats/progress/:userId` | пользователь | — |
 | GET | `/stats/summary/:userId` | пользователь | — |
+
+### stripe-webhook
+
+| Метод | Путь | Доступ | Описание |
+|---|---|---|---|
+| POST | `/stripe/webhook` | публичный | — |
+
+### subscription
+
+| Метод | Путь | Доступ | Описание |
+|---|---|---|---|
+| POST | `/subscription/checkout` | авторизация | Создаёт сессию оплаты и возвращает ссылку на Stripe Checkout. |
+| POST | `/subscription/portal` | авторизация | Ссылка на портал управления подпиской. |
+| GET | `/subscription/status` | авторизация | Текущее состояние подписки для интерфейса. |
+| POST | `/subscription/sync` | авторизация | Перепроверяет подписку напрямую в Stripe. |
 
 ### users
 
@@ -185,6 +205,8 @@
 | POST | `/users/:id/fridge` | пользователь | — |
 | PATCH | `/users/:id/fridge/:itemId` | пользователь | — |
 | DELETE | `/users/:id/fridge/:itemId` | пользователь | — |
+| POST | `/users/:id/fridge/:itemId/image` | пользователь | Загрузка фотографии продукта. |
+| DELETE | `/users/:id/fridge/:itemId/image` | пользователь | Удаление фотографии: возвращает заглушку по категории. |
 | POST | `/users/:id/fridge/missing` | пользователь | Каких продуктов из рецепта не хватает в холодильнике. |
 | PATCH | `/users/:id/profile` | пользователь | — |
 | POST | `/users/allergens` | пользователь | — |

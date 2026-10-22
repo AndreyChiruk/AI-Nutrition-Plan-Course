@@ -14,6 +14,7 @@ import { assertUserAccess } from '../auth/request-access.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChatService } from './chat.service';
 import { FullUserGuard } from '../auth/full-user.guard';
+import { Throttle } from '@nestjs/throttler';
 import {
   FREE_CHAT_MESSAGES_PER_DAY,
   SubscriptionService,
@@ -48,6 +49,7 @@ export class ChatController {
    * бесконечно.
    */
   @Post('message')
+  @Throttle({ default: { ttl: 60_000, limit: 15 } })
   async sendMessage(
     @Req() req: Request & { user?: { sub?: number; role?: string } },
     @Body() body: { userId: string; message: string },

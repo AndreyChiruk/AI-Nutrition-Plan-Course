@@ -32,7 +32,8 @@ import { AiChatUsage } from './models/AiChatUsage';
 import { Notification } from './models/Notification';
 import { Subscription } from './models/Subscription';
 import { AuthModule } from './auth/auth.module';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { BodyAnalysisModule } from './body-analysis/body-analysis.module';
 import { MealPlanModule } from './meal-plan/meal-plan.module';
 import { WorkoutPlanModule } from './workout-plan/workout-plan.module';
@@ -47,7 +48,12 @@ import { SubscriptionModule } from './subscription/subscription.module';
 
 @Module({
     controllers: [],
-    providers: [],
+    providers: [
+        {
+            provide: APP_GUARD,
+            useClass: ThrottlerGuard,
+        },
+    ],
     imports: [
     HealthModule,
     NotificationsModule,

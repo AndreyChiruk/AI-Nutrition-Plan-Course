@@ -80,9 +80,10 @@ function parseController(file: string): Route[] {
   const ctrlMatch = src.match(/@Controller\(([^)]*)\)/);
   const base = ctrlMatch ? ctrlMatch[1].replace(/['"`]/g, '').trim() : '';
 
-  // Guard-ы уровня контроллера
-  const ctrlGuards = [...src.matchAll(/@UseGuards\(([^)]*)\)/g)]
-    .slice(0, 1)
+  // Guard-ы уровня контроллера (до объявления класса)
+  const classIndex = src.search(/\bclass\s+\w+/);
+  const header = classIndex >= 0 ? src.slice(0, classIndex) : src;
+  const ctrlGuards = [...header.matchAll(/@UseGuards\(([^)]*)\)/g)]
     .flatMap((m) => m[1].split(',').map((g) => g.trim()))
     .filter(Boolean);
 
@@ -98,13 +99,13 @@ function parseController(file: string): Route[] {
     const normalized = (path.startsWith('/') ? path : `/${path}`).replace(/\/+/g, '/');
 
     // Ищем guard-ы/троттлинг до конца объявления метода
-    let guards = [...ctrlGuards];
+    const guards = [...ctrlGuards];
     let throttle: string | undefined;
     for (let j = i + 1; j < Math.min(i + 12, lines.length); j++) {
       const line = lines[j];
       if (/^\s*(async\s+)?[a-zA-Z_$][\w$]*\s*\(/.test(line)) break;
       const g = line.match(/@UseGuards\(([^)]*)\)/);
-      if (g) guards = g[1].split(',').map((x) => x.trim()).filter(Boolean);
+      if (g) guards.push(...g[1].split(',').map((x) => x.trim()).filter(Boolean));
       const t = line.match(/@Throttle\(\{\s*default:\s*\{\s*ttl:\s*([\d_]+),\s*limit:\s*(\d+)/);
       if (t) throttle = `${t[2]} запросов / ${Number(t[1].replace(/_/g, '')) / 1000} с`;
     }
