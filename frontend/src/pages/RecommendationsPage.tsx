@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Apple, Droplet, Loader2, Moon } from '../components/icons';
 import { Brain, ListChecks } from '../components/icons';
 import { recommendationApi, userApi } from '../api/services';
+import { formatApiError } from '../api/errors';
+import { SubscriptionGate } from '../components/SubscriptionGate';
 import { useAuth } from '../context/AuthContext';
 import { computeAgeFromBirthDate } from '../utils/age';
 
@@ -70,11 +72,16 @@ export const RecommendationsPage = () => {
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [baseRecommendations, setBaseRecommendations] = useState<Array<Record<string, unknown>>>([]);
   const [loadingAi, setLoadingAi] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const loadBase = async () => {
-      const data = await recommendationApi.getBase();
-      setBaseRecommendations(data as Array<Record<string, unknown>>);
+      try {
+        const data = await recommendationApi.getBase();
+        setBaseRecommendations(data as Array<Record<string, unknown>>);
+      } catch (err) {
+        setError(formatApiError(err, 'Не удалось получить рекомендации.'));
+      }
     };
     void loadBase();
   }, []);
@@ -83,6 +90,7 @@ export const RecommendationsPage = () => {
 
   const onGenerate = async () => {
     if (!user) return;
+    setError('');
     setLoadingAi(true);
     try {
       const profile = await userApi.getById(user.id);
@@ -105,6 +113,8 @@ export const RecommendationsPage = () => {
           data: enriched,
         }),
       );
+    } catch (err) {
+      setError(formatApiError(err, 'Не удалось получить рекомендации.'));
     } finally {
       setLoadingAi(false);
     }
@@ -118,6 +128,8 @@ export const RecommendationsPage = () => {
         <div className="section-head">
           <h3>Рекомендации</h3>
         </div>
+
+        {error ? <p className="error">{error}</p> : null}
 
         <div className="base-tips-row">
           {BASE_HEALTH_TIPS.map((t) => (
@@ -144,16 +156,21 @@ export const RecommendationsPage = () => {
 
         {mode === 'ai' ? (
           <div className="stack">
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={onGenerate}
-              disabled={loadingAi}
-              aria-busy={loadingAi}
+            <SubscriptionGate
+              title="AI-рекомендации по подписке"
+              description="Персональные рекомендации искусственного интеллекта доступны по подписке."
             >
-              {loadingAi ? <Loader2 size={16} className="btn-spinner" /> : null}
-              {loadingAi ? 'Генерация...' : 'Сгенерировать AI-рекомендации'}
-            </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={onGenerate}
+                disabled={loadingAi}
+                aria-busy={loadingAi}
+              >
+                {loadingAi ? <Loader2 size={16} className="btn-spinner" /> : null}
+                {loadingAi ? 'Генерация...' : 'Сгенерировать AI-рекомендации'}
+              </button>
+            </SubscriptionGate>
             {aiDisplay ? (
               <div className="ai-recommendation-block stack">
                 {aiDisplay.profileLine ? <p className="small muted ai-recommendation-profile">{aiDisplay.profileLine}</p> : null}

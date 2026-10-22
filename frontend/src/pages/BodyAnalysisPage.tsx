@@ -4,6 +4,7 @@ import { Camera, Loader2 } from '../components/icons';
 import { BodySilhouette } from '../components/BodySilhouette';
 import { bodyApi, recommendationApi, userApi } from '../api/services';
 import { formatApiError } from '../api/errors';
+import { SubscriptionGate } from '../components/SubscriptionGate';
 import { useAuth } from '../context/AuthContext';
 import { computeAgeFromBirthDate } from '../utils/age';
 import { prepareImage } from '../utils/prepare-image';
@@ -238,8 +239,12 @@ export const BodyAnalysisPage = () => {
 
   const loadDetailedRecommendation = async () => {
     if (!user) return;
-    const data = await recommendationApi.generate(user.id);
-    setDetailedRecommendation(data as Record<string, unknown>);
+    try {
+      const data = await recommendationApi.generate(user.id);
+      setDetailedRecommendation(data as Record<string, unknown>);
+    } catch (err) {
+      setMessage(formatApiError(err, 'Не удалось выполнить AI-запрос.'));
+    }
   };
 
   const loadForecast = async () => {
@@ -249,6 +254,8 @@ export const BodyAnalysisPage = () => {
       await bodyApi.forecast(user.id, forecastWeeks);
       const state = await bodyApi.pageState(user.id);
       applyPageState(state);
+    } catch (err) {
+      setMessage(formatApiError(err, 'Не удалось выполнить AI-запрос.'));
     } finally {
       setForecastLoading(false);
     }
@@ -322,25 +329,30 @@ export const BodyAnalysisPage = () => {
             <p className="muted small body-analysis-photo-hint">
               Лучше полный силуэт по рост: вертикальное фото, камера на уровне пояса, весь рост в кадре.
             </p>
-            <button
-              type="button"
-              onClick={() => void onPhotoButtonClick()}
-              disabled={busy}
-              aria-busy={busy}
+            <SubscriptionGate
+              title="Анализ фото по подписке"
+              description="Анализ фигуры по фото доступен по подписке."
             >
-              {busy ? (
-                <Loader2 size={16} className="btn-spinner" />
-              ) : (
-                <Camera size={16} />
-              )}{' '}
-              {busy
-                ? 'Загрузка…'
-                : dirty
-                  ? 'Сохранить фото'
-                  : photoUrl
-                    ? 'Заменить фото'
-                    : 'Загрузить фото'}
-            </button>
+              <button
+                type="button"
+                onClick={() => void onPhotoButtonClick()}
+                disabled={busy}
+                aria-busy={busy}
+              >
+                {busy ? (
+                  <Loader2 size={16} className="btn-spinner" />
+                ) : (
+                  <Camera size={16} />
+                )}{' '}
+                {busy
+                  ? 'Загрузка…'
+                  : dirty
+                    ? 'Сохранить фото'
+                    : photoUrl
+                      ? 'Заменить фото'
+                      : 'Загрузить фото'}
+              </button>
+            </SubscriptionGate>
             <p className="muted small">Последнее обновление: {savedAt || '—'}</p>
           </section>
 
@@ -444,9 +456,14 @@ export const BodyAnalysisPage = () => {
                   ))}
                 </select>
               </label>
-              <button type="button" className="btn-primary ripple" disabled={forecastLoading} onClick={loadForecast}>
-                {forecastLoading ? 'Считаем…' : 'Построить прогноз'}
-              </button>
+              <SubscriptionGate
+                title="Прогноз по подписке"
+                description="Визуальный прогноз фигуры доступен по подписке."
+              >
+                <button type="button" className="btn-primary ripple" disabled={forecastLoading} onClick={loadForecast}>
+                  {forecastLoading ? 'Считаем…' : 'Построить прогноз'}
+                </button>
+              </SubscriptionGate>
             </div>
             {forecast ? (
               <div className="forecast-block">
@@ -496,9 +513,14 @@ export const BodyAnalysisPage = () => {
                 <li key={item}>{item}</li>
               ))}
             </ul>
-            <button type="button" onClick={loadDetailedRecommendation}>
-              Получить подробную рекомендацию (ИИ)
-            </button>
+            <SubscriptionGate
+              title="AI-рекомендации по подписке"
+              description="Подробные рекомендации искусственного интеллекта доступны по подписке."
+            >
+              <button type="button" onClick={loadDetailedRecommendation}>
+                Получить подробную рекомендацию (ИИ)
+              </button>
+            </SubscriptionGate>
             {(() => {
               const d = suggestionContentToDisplay(detailedRecommendation);
               if (!d) return null;

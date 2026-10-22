@@ -23,6 +23,7 @@ import {
   type SavedMealPlan,
   userApi,
 } from '../api/services';
+import { SubscriptionGate } from '../components/SubscriptionGate';
 import { useAuth } from '../context/AuthContext';
 import {
   isIngredientMatch,
@@ -1703,9 +1704,14 @@ export const MealPlanPage = () => {
             </button>
           ) : null}
           {mode === 'ai' ? (
-            <button type="button" className="btn-primary" onClick={() => openGenerateModal('aiCat')} disabled={isLoadingAi}>
-              {isLoadingAi ? '…' : 'Сгенерировать AI по каталогу БД'}
-            </button>
+            <SubscriptionGate
+              title="AI-план по подписке"
+              description="Генерация рациона искусственным интеллектом доступна по подписке."
+            >
+              <button type="button" className="btn-primary" onClick={() => openGenerateModal('aiCat')} disabled={isLoadingAi}>
+                {isLoadingAi ? '…' : 'Сгенерировать AI по каталогу БД'}
+              </button>
+            </SubscriptionGate>
           ) : null}
           <button type="button" className="btn-secondary" onClick={saveToServer}>
             Сохранить план

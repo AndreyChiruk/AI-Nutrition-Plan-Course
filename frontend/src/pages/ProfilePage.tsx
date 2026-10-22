@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import type { FormEvent } from 'react';
 import { Camera, Dumbbell, LogOut, Save, Scale, TrendingDown } from '../components/icons';
 import { userApi } from '../api/services';
+import { formatApiError } from '../api/errors';
 import { useAuth } from '../context/AuthContext';
 import { computeAgeFromBirthDate } from '../utils/age';
 import { ALLERGEN_HINTS_RU, DIET_HINTS_RU } from '../constants/nutrition-hints';
@@ -230,29 +231,34 @@ export const ProfilePage = () => {
       }
     }
 
-    await userApi.updateProfile(user.id, {
-      // Имя отправляется на сервер. Раньше оно писалось только
-      // в localStorage, поэтому в БД не сохранялось вовсе.
-      name: name.trim(),
-      email,
-      height,
-      weight,
-      birthDate,
-      gender,
-      goal: safeGoal,
-      avatarUrl,
-      dietaryRestrictions:
-        dietaryRestriction && DIET_KEYS.has(dietaryRestriction) ? [dietaryRestriction] : [],
-      foodLikes: foodLikes.map((v) => v.name.trim()).filter(Boolean),
-      foodDislikes: foodDislikes.map((v) => v.name.trim()).filter(Boolean),
-    });
-    await userApi.setAllergies(user.id, selectedAllergyIds);
-    // Имя сохраняется на сервере вместе с остальным профилем,
-    // а не в localStorage браузера.
-    localStorage.removeItem(`profile:name:${user.id}`);
-    localStorage.removeItem('profile:name:temp');
-    const calories = await userApi.getCalories(user.id);
-    setMessage(`Сохранено. BMR: ${calories.bmr}, дневная норма: ${calories.dailyCalories} ккал`);
+    setValidationError('');
+    try {
+      await userApi.updateProfile(user.id, {
+        // Имя отправляется на сервер. Раньше оно писалось только
+        // в localStorage, поэтому в БД не сохранялось вовсе.
+        name: name.trim(),
+        email,
+        height,
+        weight,
+        birthDate,
+        gender,
+        goal: safeGoal,
+        avatarUrl,
+        dietaryRestrictions:
+          dietaryRestriction && DIET_KEYS.has(dietaryRestriction) ? [dietaryRestriction] : [],
+        foodLikes: foodLikes.map((v) => v.name.trim()).filter(Boolean),
+        foodDislikes: foodDislikes.map((v) => v.name.trim()).filter(Boolean),
+      });
+      await userApi.setAllergies(user.id, selectedAllergyIds);
+      // Имя сохраняется на сервере вместе с остальным профилем,
+      // а не в localStorage браузера.
+      localStorage.removeItem(`profile:name:${user.id}`);
+      localStorage.removeItem('profile:name:temp');
+      const calories = await userApi.getCalories(user.id);
+      setMessage(`Сохранено. BMR: ${calories.bmr}, дневная норма: ${calories.dailyCalories} ккал`);
+    } catch (err) {
+      setValidationError(formatApiError(err, 'Не удалось сохранить изменения.'));
+    }
   };
 
   const toggleAllergy = (id: string) => {
@@ -267,11 +273,16 @@ export const ProfilePage = () => {
 
   const changePassword = async () => {
     if (!user) return;
-    await userApi.changePassword(user.id, oldPassword, newPassword);
-    setShowPasswordModal(false);
-    setOldPassword('');
-    setNewPassword('');
-    setMessage('Пароль успешно изменен.');
+    setValidationError('');
+    try {
+      await userApi.changePassword(user.id, oldPassword, newPassword);
+      setShowPasswordModal(false);
+      setOldPassword('');
+      setNewPassword('');
+      setMessage('Пароль успешно изменен.');
+    } catch (err) {
+      setValidationError(formatApiError(err, 'Не удалось сменить пароль. Проверьте текущий пароль.'));
+    }
   };
 
 
@@ -568,6 +579,7 @@ export const ProfilePage = () => {
           <div className="modal-window">
             <h3>Смена пароля</h3>
             <div className="stack">
+              {validationError ? <p className="error">{validationError}</p> : null}
               <input
                 type="password"
                 placeholder="Текущий пароль"
