@@ -3,7 +3,6 @@ import { InjectModel } from '@nestjs/sequelize';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { RefDishModifier } from '../models/RefDishModifier';
-import { ensureProductsSchema } from './ensure-products-schema';
 
 @Injectable()
 export class CatalogBootstrapService {
@@ -14,7 +13,6 @@ export class CatalogBootstrapService {
   async ensureReferenceCatalog(): Promise<void> {
     try {
       await this.refModifierModel.sequelize?.authenticate();
-      await ensureProductsSchema(this.refModifierModel.sequelize);
       const hasData = (await this.refModifierModel.count()) > 0;
       if (hasData) {
         return;

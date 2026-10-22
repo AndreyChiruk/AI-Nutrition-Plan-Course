@@ -40,7 +40,7 @@ services:
       # Сгенерировать командой: openssl rand -hex 32
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET обязателен - добавьте его в .env (openssl rand -hex 32)}"
       CORS_ORIGINS: https://localhost,https://127.0.0.1,http://localhost,http://127.0.0.1:5173,http://localhost:5173
-      DB_AUTO_SYNC: '1'
+      DB_AUTO_SYNC: "${DB_AUTO_SYNC:-0}"
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}

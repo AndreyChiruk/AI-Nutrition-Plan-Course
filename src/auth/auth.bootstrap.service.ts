@@ -3,13 +3,6 @@ import { InjectConnection } from '@nestjs/sequelize';
 import { randomUUID } from 'crypto';
 import { QueryTypes, Sequelize } from 'sequelize';
 import { hashPassword } from '../common/password.util';
-import { ensureProductsSchema } from '../database/ensure-products-schema';
-import { ensureMealPlannerSchema } from '../database/ensure-meal-planner-schema';
-import { ensureUserDietarySchema } from '../database/ensure-user-dietary-schema';
-import { ensureUserLastActiveSchema } from '../database/ensure-user-last-active-schema';
-import { ensureBodyAnalysisWeightSchema } from '../database/ensure-body-analysis-weight-schema';
-import { ensurePhotoUrlTextSchema } from '../database/ensure-photo-url-text-schema';
-import { ensureBodyForecastSchema } from '../database/ensure-body-forecast-schema';
 import { runMigrations } from '../database/migration-runner';
 
 @Injectable()
@@ -41,14 +34,6 @@ export class AuthBootstrapService implements OnModuleInit {
         `Прогон миграций не удался: ${e instanceof Error ? e.message : String(e)}`,
       );
     }
-
-    await ensureProductsSchema(this.sequelize);
-    await ensureMealPlannerSchema(this.sequelize);
-    await ensureUserDietarySchema(this.sequelize);
-    await ensureUserLastActiveSchema(this.sequelize);
-    await ensureBodyAnalysisWeightSchema(this.sequelize);
-    await ensurePhotoUrlTextSchema(this.sequelize);
-    await ensureBodyForecastSchema(this.sequelize);
 
     const isProd = process.env.NODE_ENV === 'production';
     const adminEmail = (process.env.ADMIN_EMAIL ?? 'admin@example.com').trim().toLowerCase();
