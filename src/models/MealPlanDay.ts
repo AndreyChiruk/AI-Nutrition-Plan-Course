@@ -86,6 +86,6 @@ export class MealPlanDay extends Model<MealPlanDay> {
   @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {}, field: 'meal_statuses' })
   declare mealStatuses: Record<MealTrackSlot, MealTrackStatus> | Record<string, MealTrackStatus>;
 
-  @BelongsTo(() => MealPlan)
+  @BelongsTo(() => MealPlan, { onDelete: 'CASCADE' })
   declare mealPlan: MealPlan;
 }

@@ -94,6 +94,6 @@ export class Notification extends Model<Notification> {
   })
   declare readAt: Date | null;
 
-  @BelongsTo(() => User, 'userId')
+  @BelongsTo(() => User, { foreignKey: 'userId', onDelete: 'CASCADE' })
   declare user?: User;
 }

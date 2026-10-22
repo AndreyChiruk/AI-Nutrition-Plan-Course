@@ -50,7 +50,7 @@ export class WorkoutPlan extends Model<WorkoutPlan> {
   })
   declare status: WorkoutPlanStatus;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 
   @HasMany(() => WorkoutPlanDay)

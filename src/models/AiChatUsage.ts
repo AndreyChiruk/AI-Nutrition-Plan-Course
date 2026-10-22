@@ -21,6 +21,13 @@ import { User } from './User';
 @Table({
   tableName: 'ai_chat_usage',
   timestamps: false,
+  indexes: [
+    {
+      name: 'ai_chat_usage_user_date_key',
+      unique: true,
+      fields: ['user_id', 'date'],
+    },
+  ],
 })
 export class AiChatUsage extends Model<AiChatUsage> {
   @Column({
@@ -53,6 +60,6 @@ export class AiChatUsage extends Model<AiChatUsage> {
   })
   declare messagesCount: number;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 }

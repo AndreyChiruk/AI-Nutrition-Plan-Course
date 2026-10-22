@@ -28,6 +28,9 @@ import { RefDinnerName } from './models/RefDinnerName';
 import { RefSnack } from './models/RefSnack';
 import { FridgeItem } from './models/FridgeItem';
 import { Ingredient } from './models/Ingredient';
+import { AiChatUsage } from './models/AiChatUsage';
+import { Notification } from './models/Notification';
+import { Subscription } from './models/Subscription';
 import { AuthModule } from './auth/auth.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { BodyAnalysisModule } from './body-analysis/body-analysis.module';
@@ -89,6 +92,9 @@ import { SubscriptionModule } from './subscription/subscription.module';
                 RefSnack,
                 FridgeItem,
                 Ingredient,
+                AiChatUsage,
+                Notification,
+                Subscription,
             ],
             autoLoadModels: true,
         }),

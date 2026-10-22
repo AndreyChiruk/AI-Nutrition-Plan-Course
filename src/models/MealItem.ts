@@ -83,6 +83,6 @@ export class MealItem extends Model<MealItem> {
   })
   declare dietaryTags: string[];
 
-  @BelongsTo(() => Meal)
+  @BelongsTo(() => Meal, { onDelete: 'CASCADE' })
   declare meal: Meal;
 }

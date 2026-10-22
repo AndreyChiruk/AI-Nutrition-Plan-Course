@@ -1,11 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { randomUUID } from 'crypto';
 import { hashPassword } from '../common/password.util';
 import { normalizeEmailForStorage } from '../common/sanitize';
 import { invalidateUserBlockCache } from '../auth/jwt-auth.guard';
 import { computeDishNutrition } from './nutrition-facts.util';
-import { Op } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 import { Meal } from '../models/Meal';
 import { MealItem } from '../models/MealItem';
 import { PlatformStats } from '../models/PlatformStats';
@@ -29,9 +29,13 @@ import {
 } from './recipe-import.util';
 import { inferMealSlotFromDishName } from '../meal-plan/dish-category-infer.util';
 import { MealPlan } from '../models/MealPlan';
+import { FridgeItem } from '../models/FridgeItem';
+import { FridgeImageStorage } from '../fridge/fridge-image.storage';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     @InjectModel(User) private readonly userModel: typeof User,
     @InjectModel(Meal) private readonly mealModel: typeof Meal,
@@ -49,6 +53,11 @@ export class AdminService {
     @InjectModel(MealPlan)
     private readonly mealPlanModel: typeof MealPlan,
     private readonly openAiService: OpenAiService,
+    @Optional()
+    @InjectModel(FridgeItem)
+    private readonly fridgeItemModel?: typeof FridgeItem,
+    @Optional()
+    private readonly fridgeImageStorage?: FridgeImageStorage,
   ) {}
 
   /**
@@ -145,7 +154,103 @@ export class AdminService {
   async deleteUser(id: string) {
     const user = await this.userModel.findByPk(id);
     if (!user) throw new NotFoundException('User not found');
-    await user.destroy();
+
+    const uid = Number(id);
+
+    // Удаляем связанные фотографии продуктов пользователя из холодильника
+    if (this.fridgeItemModel && this.fridgeImageStorage) {
+      try {
+        const fridgeItems = await this.fridgeItemModel.findAll({
+          where: { userId: uid },
+          attributes: ['imageUrl', 'imageSource'],
+        });
+        for (const item of fridgeItems) {
+          if (item.imageSource === 'user' && item.imageUrl) {
+            await this.fridgeImageStorage.removeByUrl(item.imageUrl);
+          }
+        }
+      } catch (e) {
+        this.logger.warn(`Ошибка при очистке фотографий холодильника пользователя ${uid}: ${String(e)}`);
+      }
+    }
+
+    const runDelete = async (transaction?: Transaction) => {
+      const tOpt = transaction ? { transaction } : {};
+      const sequelize = this.userModel.sequelize;
+      if (sequelize) {
+        // Удаляем или очищаем связанные записи для совместимости с базами без ON DELETE CASCADE
+        await sequelize.query(
+          'DELETE FROM meal_items WHERE "mealId" IN (SELECT id FROM meals WHERE "userId" = :uid)',
+          { replacements: { uid }, ...tOpt },
+        );
+        await sequelize.query('DELETE FROM meals WHERE "userId" = :uid', {
+          replacements: { uid },
+          ...tOpt,
+        });
+        await sequelize.query(
+          'UPDATE meals SET "correctedByAdminId" = NULL WHERE "correctedByAdminId" = :uid',
+          { replacements: { uid }, ...tOpt },
+        );
+        await sequelize.query(
+          'DELETE FROM meal_plan_days WHERE "mealPlanId" IN (SELECT id FROM meal_plans WHERE "userId" = :uid)',
+          { replacements: { uid }, ...tOpt },
+        );
+        await sequelize.query('DELETE FROM meal_plans WHERE "userId" = :uid', {
+          replacements: { uid },
+          ...tOpt,
+        });
+        await sequelize.query(
+          'DELETE FROM workout_plan_days WHERE "workoutPlanId" IN (SELECT id FROM workout_plans WHERE "userId" = :uid)',
+          { replacements: { uid }, ...tOpt },
+        );
+        await sequelize.query('DELETE FROM workout_plans WHERE "userId" = :uid', {
+          replacements: { uid },
+          ...tOpt,
+        });
+        await sequelize.query('DELETE FROM user_allergies WHERE "userId" = :uid', {
+          replacements: { uid },
+          ...tOpt,
+        });
+        await sequelize.query('DELETE FROM fridge_items WHERE "userId" = :uid', {
+          replacements: { uid },
+          ...tOpt,
+        });
+        await sequelize.query('DELETE FROM body_analyses WHERE "userId" = :uid', {
+          replacements: { uid },
+          ...tOpt,
+        });
+        await sequelize.query('DELETE FROM chat_messages WHERE "userId" = :uid', {
+          replacements: { uid },
+          ...tOpt,
+        });
+        await sequelize.query('DELETE FROM suggestions WHERE "userId" = :uid', {
+          replacements: { uid },
+          ...tOpt,
+        });
+        await sequelize.query('DELETE FROM notifications WHERE "userId" = :uid', {
+          replacements: { uid },
+          ...tOpt,
+        });
+        await sequelize.query('DELETE FROM subscriptions WHERE user_id = :uid', {
+          replacements: { uid },
+          ...tOpt,
+        });
+        await sequelize.query('DELETE FROM ai_chat_usage WHERE user_id = :uid', {
+          replacements: { uid },
+          ...tOpt,
+        });
+      }
+      await user.destroy(tOpt);
+    };
+
+    if (this.userModel.sequelize) {
+      await this.userModel.sequelize.transaction(async (t) => {
+        await runDelete(t);
+      });
+    } else {
+      await runDelete();
+    }
+
     return { ok: true };
   }
 

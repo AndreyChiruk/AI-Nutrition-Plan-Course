@@ -503,6 +503,9 @@ export class UsersService {
       where: { id: itemId, userId: Number(userId) },
     });
     if (!row) throw new NotFoundException('Fridge item not found');
+    if (row.imageSource === 'user' && row.imageUrl) {
+      await this.fridgeImageStorage.removeByUrl(row.imageUrl);
+    }
     await row.destroy();
     return { ok: true };
   }

@@ -117,7 +117,7 @@ export class Subscription extends Model<Subscription> {
   })
   declare cancelAtPeriodEnd: boolean;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 
   /**

@@ -59,6 +59,6 @@ export class BodyAnalysis extends Model<BodyAnalysis> {
   @Column({ type: DataType.TEXT, allowNull: true })
   declare aiNotes?: string;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 }

@@ -42,6 +42,6 @@ export class ChatMessage extends Model<ChatMessage> {
   })
   declare content: string;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 }

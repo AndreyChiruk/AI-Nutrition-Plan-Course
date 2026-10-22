@@ -49,6 +49,6 @@ export class Suggestion extends Model<Suggestion> {
   })
   declare isRead: boolean;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 }

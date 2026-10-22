@@ -45,6 +45,6 @@ export class WorkoutPlanDay extends Model<WorkoutPlanDay> {
   @Column({ type: DataType.JSONB, allowNull: false, defaultValue: {}, field: 'session_statuses' })
   declare sessionStatuses: Record<string, 'done' | 'skipped'>;
 
-  @BelongsTo(() => WorkoutPlan)
+  @BelongsTo(() => WorkoutPlan, { onDelete: 'CASCADE' })
   declare workoutPlan: WorkoutPlan;
 }

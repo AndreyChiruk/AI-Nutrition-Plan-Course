@@ -81,7 +81,7 @@ export class FridgeItem extends Model<FridgeItem> {
   })
   declare imageSource: 'user' | 'catalog' | 'placeholder';
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 
   @BelongsTo(() => Ingredient)

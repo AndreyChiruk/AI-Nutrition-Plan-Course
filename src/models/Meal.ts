@@ -71,10 +71,10 @@ export class Meal extends Model<Meal> {
   })
   declare adminNote?: string;
 
-  @BelongsTo(() => User, 'userId')
+  @BelongsTo(() => User, { foreignKey: 'userId', onDelete: 'CASCADE' })
   declare user: User;
 
-  @BelongsTo(() => User, 'correctedByAdminId')
+  @BelongsTo(() => User, { foreignKey: 'correctedByAdminId', onDelete: 'SET NULL' })
   declare correctedByAdmin?: User;
 
   @HasMany(() => MealItem)

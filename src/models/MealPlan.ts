@@ -87,7 +87,7 @@ export class MealPlan extends Model<MealPlan> {
   })
   declare status: MealPlanStatus;
 
-  @BelongsTo(() => User)
+  @BelongsTo(() => User, { onDelete: 'CASCADE' })
   declare user: User;
 
   @HasMany(() => MealPlanDay)

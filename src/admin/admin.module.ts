@@ -17,14 +17,27 @@ import { AdminService } from './admin.service';
 import { OpenAiBillingService } from './openai-billing.service';
 import { resolveJwtSecret } from '../common/jwt.config';
 import { MealPlan } from '../models/MealPlan';
+import { FridgeItem } from '../models/FridgeItem';
+import { FridgeImageStorage } from '../fridge/fridge-image.storage';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([User, Meal, MealItem, PlatformStats, BaseRecommendation, Product, MealPlanDay, Ingredient, MealPlan]),
+    SequelizeModule.forFeature([
+      User,
+      Meal,
+      MealItem,
+      PlatformStats,
+      BaseRecommendation,
+      Product,
+      MealPlanDay,
+      Ingredient,
+      MealPlan,
+      FridgeItem,
+    ]),
     JwtModule.register({ secret: resolveJwtSecret() }),
     OpenAiModule,
   ],
   controllers: [AdminController],
-  providers: [AdminService, OpenAiBillingService, JwtAuthGuard, AdminGuard],
+  providers: [AdminService, OpenAiBillingService, JwtAuthGuard, AdminGuard, FridgeImageStorage],
 })
 export class AdminModule {}
