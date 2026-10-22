@@ -138,8 +138,11 @@ export const parseFoodImageRecognitionResponse = (text: string): { confidence: n
   const parsed = parseJsonRecord(text);
   const confidence = Math.min(1, Math.max(0, Number(parsed.confidence ?? 0.6)));
   const raw = parsed.items;
-  if (!Array.isArray(raw) || raw.length === 0) {
-    throw new Error('Food recognition: items[] missing or empty');
+  if (!Array.isArray(raw)) {
+    throw new Error('Food recognition: items[] missing');
+  }
+  if (raw.length === 0) {
+    return { confidence: 0, items: [] };
   }
   const slugBase = (name: string, idx: number) =>
     String(name)

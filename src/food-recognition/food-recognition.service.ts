@@ -309,10 +309,14 @@ export class FoodRecognitionService {
           : [],
       }));
     } catch (e) {
-      if (e instanceof ServiceUnavailableException) throw e;
+      if (e instanceof ServiceUnavailableException || e instanceof BadRequestException) throw e;
       throw new ServiceUnavailableException(
         'Не удалось распознать блюдо по фото. Проверьте ключ OpenAI и повторите попытку.',
       );
+    }
+
+    if (detectedItems.length === 0) {
+      throw new BadRequestException('На фотографии не удалось распознать блюда. Попробуйте другой снимок.');
     }
 
     // Сопоставляем распознанные ингредиенты со справочником.
@@ -320,17 +324,6 @@ export class FoodRecognitionService {
 
     const { allergenWarnings, hasAllergenMatchInProfile, hasDetectedAllergensInDish } =
       await this.buildAllergenWarnings(uid, detectedItems);
-
-    // Сохраняем предупреждения об аллергенах.
-    //
-    // Раньше они существовали только в ответе HTTP: пользователь закрывал
-    // страницу — и предупреждение исчезало навсегда, хотя риск остаётся.
-    // Теперь каждое блюдо с совпадением оставляет запись в `/notifications`.
-    for (const item of detectedItems) {
-      const warningsForItem = allergenWarnings.filter((w) => w.includes(item.foodName));
-      if (warningsForItem.length === 0) continue;
-      await this.notifications.saveAllergenWarnings(uid, warningsForItem, item.foodName);
-    }
 
     const model = this.openAiService.getModelLabel();
 
@@ -435,7 +428,7 @@ export class FoodRecognitionService {
       // пользователь НЕ получал предупреждения — ложная безопасность.
       const compositionAllergens = this.detectAllergensFromIngredients(item);
       for (const allergen of compositionAllergens) {
-        if (allergySet.size > 0 && !allergySet.has(allergen)) continue;
+        if (!allergySet.has(allergen)) continue;
         const human = ALLERGEN_LABELS_RU[allergen] ?? allergen;
         allergenWarnings.push(
           `В составе «${item.foodName}» обнаружен аллерген «${human}» — совпадение с вашим профилем.`,
