@@ -956,8 +956,15 @@ export class MealPlanService {
     pref: PreferenceContext,
     mainPools?: { breakfast: Product[]; lunch: Product[]; dinner: Product[]; snack: Product[] },
   ): Promise<SaveMealPlanDayDto[]> {
+    if (mainPools) {
+      return this.applyWeeklySnackAlcoholBudget(days, mainPools.snack, pref, {
+        breakfast: mainPools.breakfast,
+        lunch: mainPools.lunch,
+        dinner: mainPools.dinner,
+      });
+    }
     const sRaw = await this.productModel.findAll({
-      where: { category: 'snack' },
+      where: { category: 'snack', isPublished: { [Op.ne]: false } },
       order: [
         ['calories', 'ASC'],
         ['id', 'ASC'],
@@ -966,14 +973,12 @@ export class MealPlanService {
     const pools = this.buildFilteredPools(
       { breakfast: [], lunch: [], dinner: [], snack: sRaw },
       user,
+      pref,
     );
-    const snackPool = pools.snack.length > 0 ? pools.snack : (sRaw as Product[]);
-    // Основные пулы: переданные вызывающим кодом, иначе — из свежезагруженного каталога.
-    const effectiveMain = mainPools ?? pools;
-    return this.applyWeeklySnackAlcoholBudget(days, snackPool, pref, {
-      breakfast: effectiveMain.breakfast,
-      lunch: effectiveMain.lunch,
-      dinner: effectiveMain.dinner,
+    return this.applyWeeklySnackAlcoholBudget(days, pools.snack, pref, {
+      breakfast: pools.breakfast,
+      lunch: pools.lunch,
+      dinner: pools.dinner,
     });
   }
 
@@ -1838,10 +1843,10 @@ export class MealPlanService {
       ['id', 'ASC'],
     ];
     const [bRaw, lRaw, dRaw, sRaw] = await Promise.all([
-      this.productModel.findAll({ where: { category: 'breakfast' }, order: orderByCal }),
-      this.productModel.findAll({ where: { category: 'lunch' }, order: orderByCal }),
-      this.productModel.findAll({ where: { category: 'dinner' }, order: orderByCal }),
-      this.productModel.findAll({ where: { category: 'snack' }, order: orderByCal }),
+      this.productModel.findAll({ where: { category: 'breakfast', isPublished: { [Op.ne]: false } }, order: orderByCal }),
+      this.productModel.findAll({ where: { category: 'lunch', isPublished: { [Op.ne]: false } }, order: orderByCal }),
+      this.productModel.findAll({ where: { category: 'dinner', isPublished: { [Op.ne]: false } }, order: orderByCal }),
+      this.productModel.findAll({ where: { category: 'snack', isPublished: { [Op.ne]: false } }, order: orderByCal }),
     ]);
     const pools = this.buildFilteredPools(
       { breakfast: bRaw, lunch: lRaw, dinner: dRaw, snack: sRaw },
