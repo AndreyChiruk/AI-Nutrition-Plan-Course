@@ -24,6 +24,8 @@ export class HealthController {
     return { status: 'ok', uptimeSec: Math.round(process.uptime()) };
   }
 
+  private statsCache: { data: { dishes: number; categories: number; withAlcohol: number }; expiresAt: number } | null = null;
+
   /**
    * Публичные показатели каталога.
    *
@@ -37,6 +39,10 @@ export class HealthController {
   @Get('catalog-stats')
   @HttpCode(HttpStatus.OK)
   async catalogStats() {
+    const now = Date.now();
+    if (this.statsCache && this.statsCache.expiresAt > now) {
+      return this.statsCache.data;
+    }
     const [rows] = await this.sequelize.query(
       `SELECT
          count(*) FILTER (WHERE is_published) AS dishes,
@@ -46,11 +52,13 @@ export class HealthController {
     );
     const row = (rows as Array<Record<string, unknown>>)[0] ?? {};
 
-    return {
+    const data = {
       dishes: Number(row.dishes ?? 0),
       categories: Number(row.categories ?? 0),
       withAlcohol: Number(row.with_alcohol ?? 0),
     };
+    this.statsCache = { data, expiresAt: now + 5 * 60_000 };
+    return data;
   }
 
   /**

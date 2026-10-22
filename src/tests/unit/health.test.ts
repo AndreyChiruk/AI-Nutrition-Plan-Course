@@ -1,5 +1,6 @@
 import { assert } from 'chai';
 import { describe, it } from 'mocha';
+import { HealthController } from '../../health/health.controller';
 
 /**
  * Тесты проверки работоспособности.
@@ -92,5 +93,23 @@ describe('health-check', () => {
     // docker-compose: web.depends_on.api.condition = service_healthy
     const compose = { web: { dependsOn: { api: 'service_healthy' } } };
     assert.strictEqual(compose.web.dependsOn.api, 'service_healthy');
+  });
+
+  it('catalogStats кэширует результат на 5 минут и не делает повторный SQL-запрос', async () => {
+    let queryCount = 0;
+    const mockSequelize = {
+      query: async () => {
+        queryCount++;
+        return [[{ dishes: '100', categories: '15', with_alcohol: '2' }]];
+      },
+    };
+    const ctrl = new HealthController(mockSequelize as never);
+    const first = await ctrl.catalogStats();
+    assert.deepEqual(first, { dishes: 100, categories: 15, withAlcohol: 2 });
+    assert.strictEqual(queryCount, 1);
+
+    const second = await ctrl.catalogStats();
+    assert.deepEqual(second, { dishes: 100, categories: 15, withAlcohol: 2 });
+    assert.strictEqual(queryCount, 1, 'второй вызов должен возвращать результат из кэша');
   });
 });
