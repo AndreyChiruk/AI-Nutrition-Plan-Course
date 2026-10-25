@@ -147,7 +147,7 @@ export class AuthBootstrapService implements OnModuleInit {
     for (const rec of baseRecommendations) {
       await this.sequelize.query(
         `INSERT INTO base_recommendations (id, title, description, category, audience, "createdAt", "updatedAt")
-         SELECT :id, :title, :description, :category, 'all', NOW(), NOW()
+         SELECT :id, :title, :description, :category, 'adult', NOW(), NOW()
          WHERE NOT EXISTS (SELECT 1 FROM base_recommendations WHERE title = :title)`,
         { replacements: { ...rec, id: randomUUID() } },
       );

@@ -73,7 +73,45 @@ type ProductRow = {
   ingredientsDetailed?: Array<{ name?: string; grams?: number }>;
 };
 
+/*
+ * Категории базовых рекомендаций.
+ *
+ * Значения (value) остаются английскими: в базе это PostgreSQL-ENUM
+ * `enum_base_recommendations_category` с четырьмя значениями, и смена
+ * их потребовала бы миграции. Переводим только то, что видит человек.
+ */
 const BASE_CATEGORIES = ['nutrition', 'activity', 'habits', 'sleep'] as const;
+
+const BASE_CATEGORY_LABELS: Record<(typeof BASE_CATEGORIES)[number], string> = {
+  nutrition: 'Питание',
+  activity: 'Активность',
+  habits: 'Привычки',
+  sleep: 'Сон',
+};
+
+/**
+ * Аудитория рекомендации.
+ *
+ * Раньше это было поле свободного ввода со значением `all` по умолчанию.
+ * Теперь выбор из двух вариантов: рекомендация либо для взрослых,
+ * либо для тех, кому меньше 18. Значения короткие и латинские —
+ * они хранятся в базе, а на экране показывается русская подпись.
+ */
+const BASE_AUDIENCES = ['adult', 'minor'] as const;
+
+const BASE_AUDIENCE_LABELS: Record<(typeof BASE_AUDIENCES)[number], string> = {
+  adult: 'Старше 18',
+  minor: 'Младше 18',
+};
+
+/** Превращает сохранённое значение в подпись; неизвестное показывает как есть. */
+function categoryLabel(value: string): string {
+  return BASE_CATEGORY_LABELS[value as (typeof BASE_CATEGORIES)[number]] ?? value;
+}
+
+function audienceLabel(value: string): string {
+  return BASE_AUDIENCE_LABELS[value as (typeof BASE_AUDIENCES)[number]] ?? value;
+}
 
 type BillingCostsState = {
   fetchedAt?: string;
@@ -292,7 +330,7 @@ export const AdminPage = () => {
     'Поддерживайте питьевой режим 30 мл воды на 1 кг массы тела.',
   );
   const [newBaseCategory, setNewBaseCategory] = useState<(typeof BASE_CATEGORIES)[number]>('nutrition');
-  const [newBaseAudience, setNewBaseAudience] = useState('all');
+  const [newBaseAudience, setNewBaseAudience] = useState<(typeof BASE_AUDIENCES)[number]>('adult');
   const [newProduct, setNewProduct] = useState(createEmptyNewProduct);
   const [addDishModalOpen, setAddDishModalOpen] = useState(false);
   const [userEditing, setUserEditing] = useState<AdminUserRow | null>(null);
@@ -889,16 +927,21 @@ export const AdminPage = () => {
                   >
                     {BASE_CATEGORIES.map((c) => (
                       <option key={c} value={c}>
-                        {c}
+                        {categoryLabel(c)}
                       </option>
                     ))}
                   </select>
-                  <input
+                  <select
                     aria-label="Аудитория"
-                    placeholder="audience, напр. all"
                     value={newBaseAudience}
-                    onChange={(e) => setNewBaseAudience(e.target.value)}
-                  />
+                    onChange={(e) => setNewBaseAudience(e.target.value as (typeof BASE_AUDIENCES)[number])}
+                  >
+                    {BASE_AUDIENCES.map((a) => (
+                      <option key={a} value={a}>
+                        {audienceLabel(a)}
+                      </option>
+                    ))}
+                  </select>
                   <button type="button" onClick={createBaseRecommendation}>
                     Добавить
                   </button>
@@ -938,15 +981,21 @@ export const AdminPage = () => {
                                   >
                                     {BASE_CATEGORIES.map((c) => (
                                       <option key={c} value={c}>
-                                        {c}
+                                        {categoryLabel(c)}
                                       </option>
                                     ))}
                                   </select>
-                                  <input
-                                    placeholder="audience"
-                                    value={baseDraft.audience ?? ''}
+                                  <select
+                                    aria-label="Аудитория"
+                                    value={(baseDraft.audience as string) ?? 'adult'}
                                     onChange={(e) => setBaseDraft((d) => ({ ...d, audience: e.target.value }))}
-                                  />
+                                  >
+                                    {BASE_AUDIENCES.map((a) => (
+                                      <option key={a} value={a}>
+                                        {audienceLabel(a)}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </div>
                               </div>
                             </td>
@@ -963,7 +1012,14 @@ export const AdminPage = () => {
                                   setBaseDraft({});
                                 }}
                               >
-                                <X size={16} />
+                                {/*
+                                  * Раньше здесь была иконка <X />, но при
+                                  * PLAIN_ICONS = true она рендерится пустой
+                                  * заглушкой — получался белый квадрат без
+                                  * смысла. Заменили на текстовую подпись,
+                                  * как в остальных кнопках админки.
+                                  */}
+                                Отмена
                               </button>
                             </td>
                           </>
@@ -975,8 +1031,8 @@ export const AdminPage = () => {
                                 {r.description}
                               </p>
                             </td>
-                            <td>{r.category}</td>
-                            <td>{r.audience}</td>
+                            <td>{categoryLabel(r.category)}</td>
+                            <td>{audienceLabel(r.audience)}</td>
                             <td className="muted small">{r.updatedAt ? new Date(r.updatedAt).toLocaleString() : '—'}</td>
                             <td className="table-actions">
                               <button type="button" className="btn-secondary" onClick={() => startEditBase(r)} title="Редактировать">
