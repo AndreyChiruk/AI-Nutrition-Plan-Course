@@ -33,11 +33,9 @@ describe('документация API', () => {
       'auth',
       'users',
       'meal-plan',
-      'workout-plan',
       'stats',
       'food-recognition',
       'admin',
-      'notifications',
       'health',
     ]) {
       assert.include(doc, `### ${section}`, `раздел «${section}» отсутствует`);

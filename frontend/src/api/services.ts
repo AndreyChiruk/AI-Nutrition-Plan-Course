@@ -276,7 +276,6 @@ export const statsApi = {
   summary: async (userId: string | number) => {
     const { data } = await api.get<{
       mealPlansCount: number;
-      workoutPlansCount: number;
       foodRecognitionCount: number;
     }>(`/stats/summary/${userId}`);
     return data;
@@ -450,24 +449,6 @@ export const mealPlanApi = {
     const { data } = await api.post<SavedMealPlan>('/meal-plan/save', { userId, ...payload });
     return data;
   },
-  generate: async (
-    userId: string | number,
-    durationDays: number,
-    opts?: {
-      targetCalories?: number;
-      calorieMode?: 'precise' | 'approximate';
-      calorieBand?: 'low' | 'medium' | 'high' | 'sport';
-    },
-  ) => {
-    const { data } = await api.post<SavedMealPlan & { warnings?: string[] }>('/meal-plan/generate', {
-      userId,
-      durationDays,
-      targetCalories: opts?.targetCalories,
-      calorieMode: opts?.calorieMode,
-      calorieBand: opts?.calorieBand,
-    });
-    return data;
-  },
   generateAuto: async (
     userId: string | number,
     durationDays: number,
@@ -497,29 +478,6 @@ export const mealPlanApi = {
       durationDays,
       targetCalories,
     });
-    return data;
-  },
-  refineConstructorAi: async (
-    userId: string | number,
-    payload: {
-      targetCalories: number;
-      days: MealPlanDayPayload[];
-      auditHint?: string;
-    },
-  ) => {
-    const { data } = await api.post<{
-      days: MealPlanDayPayload[];
-      overview: string;
-      changes: Array<{
-        day: number;
-        slot: string;
-        action: string;
-        dishName?: string;
-        previousDishName?: string;
-        reason: string;
-      }>;
-      warnings: string[];
-    }>('/meal-plan/refine-constructor-ai', { userId, ...payload });
     return data;
   },
   /**
@@ -597,56 +555,6 @@ export const mealPlanApi = {
   },
 };
 
-export type WorkoutSessionSnapshot = {
-  blockId?: string;
-  title: string;
-  description: string;
-  durationMin: number;
-  exercises: string[];
-  slot: 'session1' | 'session2' | 'session3' | 'session4';
-};
-
-export type WorkoutDayPayload = {
-  dayNumber: number;
-  session1: WorkoutSessionSnapshot | null;
-  session2: WorkoutSessionSnapshot | null;
-  session3: WorkoutSessionSnapshot | null;
-  session4: WorkoutSessionSnapshot | null;
-};
-
-export type WorkoutSessionTrack = 'done' | 'skipped';
-
-export type SavedWorkoutPlan = {
-  id: string;
-  name?: string | null;
-  durationDays: number;
-  startDate: string;
-  endDate: string;
-  status: string;
-  trackingStartedAt?: string | null;
-  days: Array<{
-    id: string;
-    dayNumber: number;
-    date: string;
-    session1: WorkoutSessionSnapshot | null;
-    session2: WorkoutSessionSnapshot | null;
-    session3: WorkoutSessionSnapshot | null;
-    session4: WorkoutSessionSnapshot | null;
-    sessionStatuses?: Partial<Record<'session1' | 'session2' | 'session3' | 'session4', WorkoutSessionTrack>>;
-  }>;
-};
-
-export type WorkoutPlanListItem = {
-  id: string;
-  name: string | null;
-  startDate: string;
-  endDate: string;
-  durationDays: number;
-  status: string;
-  trackingStartedAt: string | null;
-  createdAt?: string;
-};
-
 /**
  * Подписка на ИИ-функции.
  *
@@ -679,82 +587,6 @@ export const subscriptionApi = {
   /** Ссылка на портал управления подпиской. */
   portal: async () => {
     const { data } = await api.post<{ url: string }>('/subscription/portal');
-    return data;
-  },
-};
-
-export const workoutPlanApi = {
-  blocks: async (slot?: string) => {
-    const { data } = await api.get<
-      Array<{
-        id: string;
-        slot: string;
-        title: string;
-        description: string;
-        durationMin: number;
-        exercises: string[];
-      }>
-    >('/workout-plan/blocks', { params: slot ? { slot } : {} });
-    return data;
-  },
-  getActive: async (userId: string | number) => {
-    const { data } = await api.get<SavedWorkoutPlan | null>(`/workout-plan/active/${userId}`);
-    return data;
-  },
-  getPlan: async (userId: string | number, planId: string) => {
-    const { data } = await api.get<SavedWorkoutPlan>(`/workout-plan/plans/${userId}/${planId}`);
-    return data;
-  },
-  listPlans: async (userId: string | number) => {
-    const { data } = await api.get<WorkoutPlanListItem[]>(`/workout-plan/plans/${userId}`);
-    return data;
-  },
-  deletePlan: async (userId: string | number, planId: string) => {
-    const { data } = await api.delete<{ ok: boolean }>(`/workout-plan/plans/${userId}/${planId}`);
-    return data;
-  },
-  clonePlan: async (userId: string | number, planId: string, startDate?: string) => {
-    const { data } = await api.post<SavedWorkoutPlan>(`/workout-plan/plans/${userId}/${planId}/clone`, {
-      startDate,
-    });
-    return data;
-  },
-  activatePlan: async (userId: string | number, planId: string) => {
-    const { data } = await api.post<SavedWorkoutPlan>('/workout-plan/plans/activate', { userId, planId });
-    return data;
-  },
-  startTracking: async (userId: string | number, planId: string) => {
-    const { data } = await api.post<SavedWorkoutPlan>('/workout-plan/plans/tracking-start', { userId, planId });
-    return data;
-  },
-  completeTracking: async (userId: string | number, planId: string, early: boolean) => {
-    const { data } = await api.post<SavedWorkoutPlan>('/workout-plan/plans/tracking-complete', {
-      userId,
-      planId,
-      early,
-    });
-    return data;
-  },
-  patchDaySessions: async (
-    userId: string | number,
-    dayId: string,
-    body: Partial<Record<'session1' | 'session2' | 'session3' | 'session4', WorkoutSessionTrack | null>>,
-  ) => {
-    const { data } = await api.patch<{ id: string; sessionStatuses: Record<string, 'done' | 'skipped'> }>(
-      `/workout-plan/plans/${userId}/days/${dayId}/sessions`,
-      body,
-    );
-    return data;
-  },
-  save: async (
-    userId: string | number,
-    payload: { durationDays: number; days: WorkoutDayPayload[]; name?: string },
-  ) => {
-    const { data } = await api.post<SavedWorkoutPlan>('/workout-plan/save', { userId, ...payload });
-    return data;
-  },
-  generate: async (userId: string | number, durationDays: number) => {
-    const { data } = await api.post<SavedWorkoutPlan>('/workout-plan/generate', { userId, durationDays });
     return data;
   },
 };
@@ -815,16 +647,6 @@ export const adminApi = {
     const { data } = await api.get<{ rows: unknown[]; count: number }>('/admin/products', { params });
     return data;
   },
-  productsCount: async () => {
-    const { data } = await api.get<{ count: number }>('/admin/products/count');
-    return data.count;
-  },
-  getIngredients: async (params?: { category?: string; search?: string; limit?: number; offset?: number }) => {
-    const { data } = await api.get<
-      Array<{ id: string; name: string; category: string; defaultUnit: string; caloriesPerUnit: number | null }>
-    >('/admin/ingredients', { params });
-    return data;
-  },
   createProduct: async (payload: Record<string, unknown>) => {
     const { data } = await api.post('/admin/products', payload);
     return data;
@@ -835,89 +657,6 @@ export const adminApi = {
   },
   deleteProduct: async (id: string) => {
     const { data } = await api.delete(`/admin/products/${id}`);
-    return data;
-  },
-  importPublicProducts: async (limit?: number) => {
-    const { data } = await api.post<{ imported: number; skipped: number }>(
-      '/admin/products/import-public',
-      {},
-      { params: limit != null ? { limit } : {} },
-    );
-    return data;
-  },
-  backfillProductIngredients: async () => {
-    const { data } = await api.post<{ updated: number; total: number }>('/admin/products/backfill-ingredients');
-    return data;
-  },
-  replaceCatalogTheMealDb: async (opts?: {
-    perCategory?: number;
-    delayMs?: number;
-    ingredientDetails?: boolean;
-  }) => {
-    const { data } = await api.post<{
-      removed: number;
-      imported: number;
-      skippedDuplicates: number;
-      recipesGoalReached: boolean;
-      uniqueRecipesSeen: number;
-      ingredientRows: number;
-      categoriesProcessed: number;
-      errors: string[];
-      mealPlanDaysScanned: number;
-      mealPlanDaysUpdated: number;
-      mealPlanSnapshotCellsUpdated: number;
-    }>('/admin/products/replace-catalog-themealdb', undefined, {
-      params: {
-        perCategory: opts?.perCategory,
-        delayMs: opts?.delayMs,
-        ingredientDetails: opts?.ingredientDetails ? '1' : undefined,
-      },
-    });
-    return data;
-  },
-  aiLocalizeCatalogBatch: async (opts?: { limit?: number; offset?: number; onlyMissingDetailed?: boolean }) => {
-    const { data } = await api.post<{
-      model: string;
-      limit: number;
-      offset: number;
-      processed: number;
-      updated: number;
-      failed: number;
-      mealPlanDaysScanned: number;
-      mealPlanDaysUpdated: number;
-      mealPlanSnapshotCellsUpdated: number;
-      errors: string[];
-      processedItems: Array<{ id: string; nameBefore: string; updated: boolean }>;
-    }>('/admin/products/ai-localize-batch', undefined, {
-      params: {
-        limit: opts?.limit,
-        offset: opts?.offset,
-        onlyMissingDetailed: opts?.onlyMissingDetailed ? '1' : undefined,
-      },
-    });
-    return data;
-  },
-  aiLocalizeCatalogAll: async (opts?: { batchSize?: number; onlyMissingDetailed?: boolean }) => {
-    const { data } = await api.post<{
-      model: string;
-      batchSize: number;
-      onlyMissingDetailed: boolean;
-      totalCandidates: number;
-      batches: number;
-      processed: number;
-      updated: number;
-      failed: number;
-      mealPlanDaysScanned: number;
-      mealPlanDaysUpdated: number;
-      mealPlanSnapshotCellsUpdated: number;
-      errors: string[];
-      processedItems: Array<{ id: string; nameBefore: string; updated: boolean }>;
-    }>('/admin/products/ai-localize-all', undefined, {
-      params: {
-        batchSize: opts?.batchSize,
-        onlyMissingDetailed: opts?.onlyMissingDetailed ? '1' : undefined,
-      },
-    });
     return data;
   },
   aiLocalizeProductById: async (id: string) => {

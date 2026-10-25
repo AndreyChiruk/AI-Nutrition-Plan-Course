@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Activity, Apple, BarChart3, Dumbbell, Home, LayoutList, Leaf, Menu, MessageCircle, Refrigerator, Shield, Sparkles, User, UtensilsCrossed, X } from '../components/icons';
+import { Activity, Apple, Home, LayoutList, Leaf, Menu, MessageCircle, Refrigerator, Shield, Sparkles, User, UtensilsCrossed, X } from '../components/icons';
 import type { LucideIcon } from '../components/icons';
 import { useAuth } from '../context/AuthContext';
 import { Logo } from '../components/Logo';
@@ -18,8 +18,6 @@ const navItems: Array<{
   { to: '/fridge', label: 'Холодильник', icon: Refrigerator },
   { to: '/meal-plan', label: 'План питания', icon: UtensilsCrossed },
   { to: '/meal-plans', label: 'Мои планы', icon: LayoutList },
-  { to: '/workout-plan', label: 'План тренировок', icon: Dumbbell },
-  { to: '/workout-plans', label: 'Тренировки', icon: BarChart3 },
   { to: '/food', label: 'Еда', icon: Apple },
   { to: '/stats', label: 'Статистика', icon: Leaf },
   { to: '/recommendations', label: 'Рекомендации ИИ', icon: Sparkles },
@@ -30,8 +28,6 @@ const navItems: Array<{
 export const AppLayout = () => {
   const { user, logout } = useAuth();
   const [navOpen, setNavOpen] = useState(false);
-  /* Переключатель темы убран: тёмная тема больше не нужна,
-     тема зафиксирована в светлой в main.tsx. */
   return (
     <div className={`app-shell${navOpen ? ' app-shell--nav-open' : ''}`}>
       {navOpen ? (

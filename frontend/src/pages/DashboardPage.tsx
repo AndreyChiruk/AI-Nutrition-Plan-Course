@@ -1,13 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  /* Иконки карточек «Быстрый доступ»: версии Tile* рисуют SVG
-     даже при PLAIN_ICONS = true — в макете иконки есть именно здесь.
-     Имена обычных (Activity, Apple и т.д.) остаются заглушками,
-     поэтому боковое меню не изменится. */
   TileActivity as Activity,
   TileApple as Apple,
-  TileDumbbell as Dumbbell,
   TileLineChart as LineChart,
   TileRefrigerator as Refrigerator,
   TileUtensilsCrossed as UtensilsCrossed,
@@ -16,19 +11,6 @@ import {
   Wheat,
 } from '../components/icons';
 import { publicApi } from '../api/services';
-
-/**
- * Главная страница.
- *
- * Прежний вариант начинался с декоративной иллюстрации салата
- * (`FreshHeroIllustration`) и SVG-акцентов с градиентами. Эти элементы
- * не несли информации: занимали половину экрана и создавали ощущение
- * сгенерированного интерфейса.
- *
- * Теперь вместо иллюстрации — сетка разделов: пользователь сразу видит,
- * куда можно перейти и что даёт каждый раздел. Оформление строится
- * на типографике и сетке, без декоративных картинок.
- */
 
 /** Одно блюдо витрины, приходит из /health/catalog-samples. */
 type CatalogSample = { id: string; name: string; slot: string; kcal: number; imageUrl: string };
@@ -44,7 +26,7 @@ const SECTIONS = [
     to: '/meal-plan',
     Icon: UtensilsCrossed,
     title: 'План питания',
-    text: 'Сборка рациона на 7–30 дней с расчётом КБЖУ по составу блюд.',
+    text: 'Сборка рациона на 1–30 дней с расчётом КБЖУ по составу блюд.',
   },
   {
     to: '/fridge',
@@ -65,24 +47,13 @@ const SECTIONS = [
     text: 'Фото блюда — состав, калории и предупреждения об аллергенах.',
   },
   {
-    to: '/workout-plan',
-    Icon: Dumbbell,
-    title: 'План тренировок',
-    text: 'Нагрузка согласована с целью по весу и с питанием.',
-  },
-  {
     to: '/stats',
     Icon: LineChart,
     title: 'Статистика',
-    text: 'Динамика веса, калорий и тренировок по дням.',
+    text: 'Динамика веса, ИМТ и калорийности питания по дням.',
   },
 ] as const;
 
-/**
- * Шаги работы с приложением.
- * Короткие и в порядке реального использования — чтобы новый
- * пользователь понял последовательность, а не изучал все разделы.
- */
 const STEPS = [
   {
     n: '01',
@@ -97,16 +68,15 @@ const STEPS = [
   {
     n: '03',
     title: 'Получите план',
-    text: 'Рацион на 7–30 дней: калорийность считается по составу каждого блюда.',
+    text: 'Рацион на 1–30 дней: калорийность считается по составу каждого блюда.',
   },
   {
     n: '04',
     title: 'Ведите прогресс',
-    text: 'Отмечайте приёмы пищи, следите за динамикой веса и тренировками.',
+    text: 'Отмечайте приёмы пищи и следите за динамикой веса и ИМТ.',
   },
 ] as const;
 
-/** Примеры блюд для главной: показывают, что внутри каталога. */
 const SAMPLE_DISHES = [
   { name: 'Борщ украинский', slot: 'Обед', kcal: 393, Icon: Soup },
   { name: 'Сырники со сметаной', slot: 'Завтрак', kcal: 511, Icon: Salad },
@@ -115,12 +85,7 @@ const SAMPLE_DISHES = [
 ] as const;
 
 export const DashboardPage = () => {
-  /* useAuth здесь больше не нужен: заголовок hero теперь фиксированный
-     («Твой персональный план питания» по макету), а не приветствие
-     по имени пользователя. */
-  /** Показатели каталога — публичный эндпоинт, работает без входа. */
   const [stats, setStats] = useState<{ dishes: number; categories: number } | null>(null);
-  /** Блюда для витрины: берём из базы с фотографиями (см. catalog-samples). */
   const [samples, setSamples] = useState<CatalogSample[] | null>(null);
 
   useEffect(() => {
@@ -130,20 +95,14 @@ export const DashboardPage = () => {
       .then((data) => {
         if (alive) setStats(data);
       })
-      .catch(() => {
-        // Показатели не критичны: без них страница остаётся рабочей.
-      });
+      .catch(() => {});
 
-    /* Блюда витрины грузим отдельным запросом: он медленнее из-за
-       random(), и его падение не должно ломать всю главную. */
     void publicApi
       .catalogSamples()
       .then((data) => {
         if (alive) setSamples(data);
       })
-      .catch(() => {
-        // Витрина не критична: останутся карточки без фото.
-      });
+      .catch(() => {});
     return () => {
       alive = false;
     };
@@ -151,9 +110,6 @@ export const DashboardPage = () => {
 
   return (
     <div className="dashboard">
-      {/* Hero по макету: слева заголовок, подзаголовок и КНОПКА
-          «Создать план питания» (ведёт в тот же раздел, что и карточка
-          «План питания» в быстром доступе); справа — фото блюда. */}
       <header className="dashboard-hero">
         <div className="dashboard-hero-text">
           <p className="eyebrow">Главная</p>
@@ -184,7 +140,6 @@ export const DashboardPage = () => {
         ))}
       </section>
 
-      {/* Как это работает: последовательность действий. */}
       <section className="dashboard-block" aria-label="Как это работает">
         <h2 className="dashboard-block-title">Как это работает</h2>
         <ol className="steps-grid">
@@ -198,10 +153,6 @@ export const DashboardPage = () => {
         </ol>
       </section>
 
-      {/* Блюда берём из базы (с фото), а не из захардкоженного списка:
-          у трёх из четырёх прежних блюд фотографий в products нет,
-          поэтому на витрине были пустые заглушки. Если запрос не
-          прошёл — показываем прежний список с иконками. */}
       <section className="dashboard-block" aria-label="Что в каталоге">
         <h2 className="dashboard-block-title">Что в каталоге</h2>
         <div className="dish-sample-grid">
@@ -236,7 +187,6 @@ export const DashboardPage = () => {
         </p>
       </section>
 
-      {/* Показатели каталога. */}
       {stats ? (
         <section className="dashboard-block" aria-label="Показатели">
           <div className="dashboard-metrics">

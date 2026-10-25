@@ -31,13 +31,11 @@ function canActivate(user?: { role?: string }): boolean {
 /** Контроллеры, закрытые для гостя (кроме распознавания еды). */
 const RESTRICTED = [
   'meal-plan',
-  'workout-plan',
   'stats',
   'users',
   'chat',
   'recommendations',
   'body-analysis',
-  'notifications',
 ];
 
 describe('роль «guest»: ограничение доступа', () => {
@@ -81,6 +79,6 @@ describe('роль «guest»: ограничение доступа', () => {
   it('все основные разделы закрыты (регресс: guard не применялся)', () => {
     // Раньше FullUserGuard существовал, но не был подключён ни к одному
     // контроллеру — то есть ограничение не работало вовсе.
-    assert.isAtLeast(RESTRICTED.length, 8, 'должны быть закрыты все основные разделы');
+    assert.isAtLeast(RESTRICTED.length, 6, 'должны быть закрыты все основные разделы');
   });
 });

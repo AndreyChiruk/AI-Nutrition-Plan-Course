@@ -175,17 +175,4 @@ describe('API smoke / интеграционные тесты', function () {
     );
     await request(httpServer).get(api('/admin/users')).set('Authorization', `Bearer ${token}`).expect(403);
   });
-
-  it('12 GET /workout-plan/blocks с JWT — 200', async function () {
-    if (skipSuite) this.skip();
-    const token = jwtService.sign(
-      { sub: Number(integrationUserId), role: 'user', email: integrationEmail },
-      { expiresIn: '15m' },
-    );
-    const res = await request(httpServer)
-      .get(api('/workout-plan/blocks'))
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
-    assert.isArray(res.body);
-  });
 });

@@ -525,7 +525,10 @@ export class OpenAiService {
 
   async generateChatReply(input: ChatReplyInput) {
     if (!this.client) {
-      return 'Ключ API не настроен. Кратко: придерживайтесь режима питания, отслеживайте калории и учитывайте аллергии.';
+      throw new ServiceUnavailableException({
+        error: 'ai_not_configured',
+        message: 'Ключ API ИИ не настроен на сервере.',
+      });
     }
 
     const prompt = buildChatPrompt(input);
@@ -556,16 +559,16 @@ export class OpenAiService {
       if (text) return text;
     } catch (error) {
       this.logger.error(`Chat fallback failed: ${describeAiError(error)}`);
-      // Ошибку пробрасываем наверх: вызывающий код вернёт пользователю
-      // понятный ответ со статусом 502, а не текст-заглушку, по которому
-      // невозможно понять, что именно сломалось.
       throw new ServiceUnavailableException({
         error: 'ai_unavailable',
         message: 'AI временно недоступен. Попробуйте позже.',
         details: aiErrorCode(error),
       });
     }
-    return 'Не удалось получить ответ AI. Попробуйте переформулировать вопрос или повторите позже.';
+    throw new ServiceUnavailableException({
+      error: 'ai_empty_response',
+      message: 'Не удалось получить ответ AI. Попробуйте переформулировать вопрос или повторите позже.',
+    });
   }
 
   async generateBodyForecast(input: BodyForecastInput) {

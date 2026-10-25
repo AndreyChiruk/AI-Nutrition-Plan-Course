@@ -8,14 +8,12 @@ import { FoodRecognitionPage } from './pages/FoodRecognitionPage';
 import { FridgePage } from './pages/FridgePage';
 import { LoginPage } from './pages/LoginPage';
 import { MyMealPlansPage } from './pages/MyMealPlansPage';
-import { MyWorkoutPlansPage } from './pages/MyWorkoutPlansPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { RecommendationsPage } from './pages/RecommendationsPage';
 
 const MealPlanPage = lazy(() => import('./pages/MealPlanPage').then((m) => ({ default: m.MealPlanPage })));
 const AdminPage = lazy(() => import('./pages/AdminPage').then((m) => ({ default: m.AdminPage })));
 const StatsPage = lazy(() => import('./pages/StatsPage').then((m) => ({ default: m.StatsPage })));
-const WorkoutPlanPage = lazy(() => import('./pages/WorkoutPlanPage').then((m) => ({ default: m.WorkoutPlanPage })));
 const BodyAnalysisPage = lazy(() => import('./pages/BodyAnalysisPage').then((m) => ({ default: m.BodyAnalysisPage })));
 
 const ProtectedRoutes = () => {
@@ -32,8 +30,6 @@ const ProtectedRoutes = () => {
           <Route path="/body-analysis" element={<BodyAnalysisPage />} />
           <Route path="/meal-plan" element={<MealPlanPage />} />
           <Route path="/meal-plans" element={<MyMealPlansPage />} />
-          <Route path="/workout-plan" element={<WorkoutPlanPage />} />
-          <Route path="/workout-plans" element={<MyWorkoutPlansPage />} />
           <Route path="/food" element={<FoodRecognitionPage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/recommendations" element={<RecommendationsPage />} />

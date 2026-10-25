@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import type { FoodPreviewResponse } from '../types';
 import { CalorieValue, MacroRow } from '../components/MacroRow';
 import { SubscriptionGate } from '../components/SubscriptionGate';
+import { prepareImage } from '../utils/prepare-image';
 
 export const FoodRecognitionPage = () => {
   const { user } = useAuth();
@@ -19,13 +20,15 @@ export const FoodRecognitionPage = () => {
   const [savedInfo, setSavedInfo] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  const onFile = (file: File | undefined) => {
+  const onFile = async (file: File | undefined) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') setPhotoUrl(reader.result);
-    };
-    reader.readAsDataURL(file);
+    setError('');
+    try {
+      const dataUrl = await prepareImage(file);
+      setPhotoUrl(dataUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось обработать изображение.');
+    }
   };
 
   const analyze = async () => {
@@ -42,9 +45,6 @@ export const FoodRecognitionPage = () => {
     try {
       const data = await foodRecognitionApi.analyze(user.id, photoUrl);
       setResult(data);
-      // Предупреждения об аллергенах показываются отдельным баннером ниже,
-      // поэтому в toast их не дублируем — иначе один и тот же текст
-      // выводился дважды подряд.
       setToast('Распознавание выполнено. При необходимости сохраните запись для модерации.');
     } catch (err) {
       const msg = axios.isAxiosError(err)
@@ -99,7 +99,7 @@ export const FoodRecognitionPage = () => {
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
-            onFile(e.dataTransfer.files?.[0]);
+            void onFile(e.dataTransfer.files?.[0]);
           }}
         >
           Перетащите фото или нажмите для выбора
@@ -110,7 +110,7 @@ export const FoodRecognitionPage = () => {
           accept="image/*"
           className="hidden-file-input"
           aria-label="Фото блюда"
-          onChange={(e) => onFile(e.target.files?.[0])}
+          onChange={(e) => void onFile(e.target.files?.[0])}
         />
         <div className="food-recognition-preview-col">
           {photoUrl ? <img src={photoUrl} alt="Блюдо" className="food-recognition-preview" /> : null}

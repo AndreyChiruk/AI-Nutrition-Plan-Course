@@ -14,32 +14,19 @@ import { Suggestion } from './models/Suggestion';
 import { PlatformStats } from './models/PlatformStats';
 import { BaseRecommendation } from './models/BaseRecommendation';
 import { Product } from './models/Product';
-import { TrainingBlock } from './models/TrainingBlock';
-import { WorkoutPlan } from './models/WorkoutPlan';
-import { WorkoutPlanDay } from './models/WorkoutPlanDay';
 import { ChatMessage } from './models/ChatMessage';
 import { EmailVerificationCode } from './models/EmailVerificationCode';
-import { RefDishModifier } from './models/RefDishModifier';
-import { RefBreakfastName } from './models/RefBreakfastName';
-import { RefLunchPair } from './models/RefLunchPair';
-import { RefLunchProtein } from './models/RefLunchProtein';
-import { RefGrainGarnish } from './models/RefGrainGarnish';
-import { RefDinnerName } from './models/RefDinnerName';
-import { RefSnack } from './models/RefSnack';
 import { FridgeItem } from './models/FridgeItem';
 import { Ingredient } from './models/Ingredient';
 import { AiChatUsage } from './models/AiChatUsage';
-import { Notification } from './models/Notification';
 import { Subscription } from './models/Subscription';
 import { AuthModule } from './auth/auth.module';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { BodyAnalysisModule } from './body-analysis/body-analysis.module';
 import { MealPlanModule } from './meal-plan/meal-plan.module';
-import { WorkoutPlanModule } from './workout-plan/workout-plan.module';
 import { FoodRecognitionModule } from './food-recognition/food-recognition.module';
 import { HealthModule } from './health/health.module';
-import { NotificationsModule } from './notifications/notifications.module';
 import { RecommendationModule } from './recommendation/recommendation.module';
 import { AdminModule } from './admin/admin.module';
 import { StatsModule } from './stats/stats.module';
@@ -55,8 +42,7 @@ import { SubscriptionModule } from './subscription/subscription.module';
         },
     ],
     imports: [
-    HealthModule,
-    NotificationsModule,
+        HealthModule,
         ThrottlerModule.forRoot([
             {
                 ttl: 60_000,
@@ -84,22 +70,11 @@ import { SubscriptionModule } from './subscription/subscription.module';
                 PlatformStats,
                 BaseRecommendation,
                 Product,
-                TrainingBlock,
-                WorkoutPlan,
-                WorkoutPlanDay,
                 ChatMessage,
                 EmailVerificationCode,
-                RefDishModifier,
-                RefBreakfastName,
-                RefLunchPair,
-                RefLunchProtein,
-                RefGrainGarnish,
-                RefDinnerName,
-                RefSnack,
                 FridgeItem,
                 Ingredient,
                 AiChatUsage,
-                Notification,
                 Subscription,
             ],
             autoLoadModels: true,
@@ -109,7 +84,6 @@ import { SubscriptionModule } from './subscription/subscription.module';
         UsersModule,
         BodyAnalysisModule,
         MealPlanModule,
-        WorkoutPlanModule,
         FoodRecognitionModule,
         RecommendationModule,
         ChatModule,

@@ -6,14 +6,12 @@ import { Meal } from '../models/Meal';
 import { MealItem } from '../models/MealItem';
 import { MealPlan } from '../models/MealPlan';
 import { User } from '../models/User';
-import { WorkoutPlan } from '../models/WorkoutPlan';
 
 @Injectable()
 export class StatsService {
   constructor(
     @InjectModel(Meal) private readonly mealModel: typeof Meal,
     @InjectModel(MealPlan) private readonly mealPlanModel: typeof MealPlan,
-    @InjectModel(WorkoutPlan) private readonly workoutPlanModel: typeof WorkoutPlan,
     @InjectModel(BodyAnalysis) private readonly bodyAnalysisModel: typeof BodyAnalysis,
     @InjectModel(User) private readonly userModel: typeof User,
   ) {}
@@ -29,12 +27,11 @@ export class StatsService {
 
   async userStatsSummary(userId: string) {
     const uid = this.uid(userId);
-    const [mealPlansCount, workoutPlansCount, foodRecognitionCount] = await Promise.all([
+    const [mealPlansCount, foodRecognitionCount] = await Promise.all([
       this.mealPlanModel.count({ where: { userId: uid } }),
-      this.workoutPlanModel.count({ where: { userId: uid } }),
       this.mealModel.count({ where: { userId: uid } }),
     ]);
-    return { mealPlansCount, workoutPlansCount, foodRecognitionCount };
+    return { mealPlansCount, foodRecognitionCount };
   }
 
   async bodyMetricsTimeline(userId: string) {

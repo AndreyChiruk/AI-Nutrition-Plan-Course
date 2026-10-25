@@ -47,30 +47,6 @@ export class MealPlanController {
     return this.mealPlanService.listDishes({ category, search, excludeAllergens, userId });
   }
 
-  @Post('generate')
-  @UseGuards(RequireSubscriptionGuard)
-  generate(
-    @Req() req: Request & { user?: { sub?: number; role?: string } },
-    @Body()
-    body: {
-      userId: string;
-      durationDays: number;
-      targetCalories?: number;
-      calorieMode?: 'precise' | 'approximate';
-      calorieBand?: 'low' | 'medium' | 'high' | 'sport';
-      /** Зерно выбора блюд: позволяет получить другой вариант плана. */
-      seed?: number;
-    },
-  ) {
-    assertUserAccess(req.user, body.userId);
-    return this.mealPlanService.generatePlan(body.userId, body.durationDays, {
-      targetCalories: body.targetCalories,
-      calorieMode: body.calorieMode,
-      calorieBand: body.calorieBand,
-      seed: body.seed,
-    });
-  }
-
   @Post('generate-auto')
   @UseGuards(RequireSubscriptionGuard)
   generateAuto(
@@ -225,6 +201,7 @@ export class MealPlanController {
   }
 
   @Post('duration')
+  @UseGuards(RequireSubscriptionGuard)
   changeDuration(
     @Req() req: Request & { user?: { sub?: number; role?: string } },
     @Body() body: { userId: string; durationDays: number },

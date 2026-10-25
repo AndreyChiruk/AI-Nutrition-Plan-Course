@@ -7,7 +7,6 @@ import { Meal } from '../models/Meal';
 import { MealItem } from '../models/MealItem';
 import { MealPlan } from '../models/MealPlan';
 import { User } from '../models/User';
-import { WorkoutPlan } from '../models/WorkoutPlan';
 import { StatsController } from './stats.controller';
 import { StatsService } from './stats.service';
 import { resolveJwtSecret } from '../common/jwt.config';
@@ -15,7 +14,7 @@ import { FullUserGuard } from '../auth/full-user.guard';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([Meal, MealItem, MealPlan, WorkoutPlan, BodyAnalysis, User]),
+    SequelizeModule.forFeature([Meal, MealItem, MealPlan, BodyAnalysis, User]),
     JwtModule.register({ secret: resolveJwtSecret() }),
   ],
   controllers: [StatsController],

@@ -5,7 +5,6 @@ import { StatsService } from '../../stats/stats.service';
 describe('StatsService unit', () => {
   it('userStatsSummary возвращает счётчики из моделей', async () => {
     const mealPlanModel = { count: async ({ where }: { where: { userId: number } }) => (where.userId === 7 ? 2 : 0) };
-    const workoutPlanModel = { count: async ({ where }: { where: { userId: number } }) => (where.userId === 7 ? 1 : 0) };
     const mealModel = { count: async ({ where }: { where: { userId: number } }) => (where.userId === 7 ? 5 : 0) };
     const bodyAnalysisModel = {};
     const userModel = {};
@@ -13,7 +12,6 @@ describe('StatsService unit', () => {
     const service = new StatsService(
       mealModel as never,
       mealPlanModel as never,
-      workoutPlanModel as never,
       bodyAnalysisModel as never,
       userModel as never,
     );
@@ -22,7 +20,6 @@ describe('StatsService unit', () => {
 
     assert.deepEqual(result, {
       mealPlansCount: 2,
-      workoutPlansCount: 1,
       foodRecognitionCount: 5,
     });
   });
@@ -54,7 +51,6 @@ describe('StatsService unit', () => {
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
     );
 
     const rows = await service.userProgress('1');
@@ -81,7 +77,6 @@ describe('StatsService unit', () => {
 
     const service = new StatsService(
       mealModel as never,
-      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -119,7 +114,6 @@ describe('StatsService unit', () => {
     const service = new StatsService(
       mealModel as never,
       mealPlanModel as never,
-      {} as never,
       {} as never,
       {} as never,
     );
@@ -162,7 +156,6 @@ describe('StatsService unit', () => {
     const service = new StatsService(
       mealModel as never,
       planModel as never,
-      {} as never,
       bodyModel as never,
       {} as never,
     );
@@ -178,7 +171,6 @@ describe('StatsService unit', () => {
     // Раньше возвращалась ссылка на https://cdn.example.com/reports/... (404).
     const counter = { count: async () => 3 };
     const service = new StatsService(
-      counter as never,
       counter as never,
       counter as never,
       counter as never,

@@ -96,8 +96,6 @@ export class AdminController {
     @Body()
     body: { items: Array<Record<string, unknown>>; adminNote?: string },
   ) {
-    // Автор правки берётся из JWT, а не из тела запроса: иначе админ мог
-    // записать правку от имени другого администратора.
     const dto = validate<{ items?: Array<Record<string, unknown>>; adminNote?: string }>(body, {
       items: { type: 'array', default: [] },
       adminNote: { type: 'string', maxLength: 2000 },
@@ -182,27 +180,6 @@ export class AdminController {
     });
   }
 
-  /** Общее число продуктов — для постраничной навигации. */
-  @Get('products/count')
-  async productsCount() {
-    return { count: await this.adminService.countProducts() };
-  }
-
-  @Get('ingredients')
-  getIngredients(
-    @Query('category') category?: string,
-    @Query('search') search?: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-  ) {
-    return this.adminService.listIngredients({
-      category,
-      search,
-      limit: Number(limit ?? 100),
-      offset: Number(offset ?? 0),
-    });
-  }
-
   @Post('products')
   createProduct(@Body() body: Record<string, unknown>) {
     return this.adminService.createProduct(body as never);
@@ -216,60 +193,6 @@ export class AdminController {
   @Delete('products/:id')
   deleteProduct(@Param('id') id: string) {
     return this.adminService.deleteProduct(id);
-  }
-
-  @Post('products/import-public')
-  importPublicProducts(@Query('limit') limit?: string) {
-    return this.adminService.importPublicProducts(Number(limit ?? 24));
-  }
-
-  @Post('products/backfill-ingredients')
-  backfillIngredients() {
-    return this.adminService.backfillProductIngredients();
-  }
-
-  @Post('products/replace-catalog-themealdb')
-  replaceCatalogTheMealDb(
-    @Query('perCategory') perCategory?: string,
-    @Query('delayMs') delayMs?: string,
-    @Query('ingredientDetails') ingredientDetails?: string,
-  ) {
-    return this.adminService.replaceCatalogFromTheMealDb({
-      perCategory: Number(perCategory ?? 200),
-      delayMs: Number(delayMs ?? 120),
-      withIngredientDetails: ingredientDetails === '1' || ingredientDetails === 'true',
-    });
-  }
-
-  @Post('products/localize-catalog-ru')
-  localizeCatalogRu() {
-    return this.adminService.localizeCatalogToRussian();
-  }
-
-  @Post('products/ai-localize-batch')
-  aiLocalizeBatch(
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-    @Query('onlyMissingDetailed') onlyMissingDetailed?: string,
-  ) {
-    return this.adminService.aiLocalizeCatalogBatch({
-      limit: Number(limit ?? 10),
-      offset: Number(offset ?? 0),
-      onlyMissingDetailed: onlyMissingDetailed === '1' || onlyMissingDetailed === 'true',
-    });
-  }
-
-  @Post('products/ai-localize-all')
-  aiLocalizeAll(
-    @Query('batchSize') batchSize?: string,
-    @Query('delayMs') delayMs?: string,
-    @Query('onlyMissingDetailed') onlyMissingDetailed?: string,
-  ) {
-    return this.adminService.aiLocalizeCatalogAll({
-      batchSize: Number(batchSize ?? 10),
-      delayMs: Number(delayMs ?? 300),
-      onlyMissingDetailed: onlyMissingDetailed === '1' || onlyMissingDetailed === 'true',
-    });
   }
 
   @Post('products/:id/ai-localize')

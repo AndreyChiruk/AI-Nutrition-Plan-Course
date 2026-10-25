@@ -520,12 +520,12 @@ export class MealPlanService {
   ): Promise<SaveMealPlanDayDto[]> {
     const pref = await this.preferenceContext(userId, user);
     const [bRaw, lRaw, dRaw, sRaw] = await Promise.all([
-      this.productModel.findAll({ where: { category: 'breakfast', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'lunch', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'dinner', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'snack', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'breakfast', isPublished: { [Op.ne]: false }, isFromApi: true }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'lunch', isPublished: { [Op.ne]: false }, isFromApi: true }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'dinner', isPublished: { [Op.ne]: false }, isFromApi: true }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'snack', isPublished: { [Op.ne]: false }, isFromApi: true }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
     ]);
-    const pools = this.buildFilteredPools({ breakfast: bRaw, lunch: lRaw, dinner: dRaw, snack: sRaw }, user);
+    const pools = this.buildFilteredPools({ breakfast: bRaw, lunch: lRaw, dinner: dRaw, snack: sRaw }, user, pref);
     return this.finalizeGeneratedPlanDays(days, user, pref, pools);
   }
 
@@ -605,15 +605,9 @@ export class MealPlanService {
       // сортировку внутри top-48 (вес +1.2) и на текстовую сноску, то есть
       // состав плана от содержимого холодильника практически не зависел.
       // Используем их как префильтр, если набирается достаточно блюд.
-      const fridgeNames = pref?.fridgeNames ?? [];
-      if (fridgeNames.length === 0) return legal;
-
-      const fromFridge = legal.filter((p) => {
-        const hay = this.dishHaystackForProduct(p);
-        return fridgeNames.some((k) => k && ruHaystackMatchesKeyword(hay, k));
-      });
-      // Если таких блюд достаточно для выбора — ограничиваем пул ими.
-      return fromFridge.length >= 8 ? fromFridge : legal;
+      // Продукты из холодильника получают приоритет (+1.2 балла) в productPreferenceScore,
+      // без жёсткого обрезания пула каталога до 8 блюд.
+      return legal;
     };
     /**
      * Убирает алкоголь из пула слота.
@@ -830,10 +824,10 @@ export class MealPlanService {
       return { days: await this.finalizeGeneratedPlanDaysLoadingPools(days, userId, user), warnings: [] };
     }
     const [bRaw, lRaw, dRaw, sRaw] = await Promise.all([
-      this.productModel.findAll({ where: { category: 'breakfast', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'lunch', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'dinner', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'snack', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'breakfast', isPublished: { [Op.ne]: false }, isFromApi: true }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'lunch', isPublished: { [Op.ne]: false }, isFromApi: true }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'dinner', isPublished: { [Op.ne]: false }, isFromApi: true }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'snack', isPublished: { [Op.ne]: false }, isFromApi: true }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
     ]);
     const pools = this.buildFilteredPools(
       { breakfast: bRaw, lunch: lRaw, dinner: dRaw, snack: sRaw },
@@ -843,7 +837,18 @@ export class MealPlanService {
     const allRaw = [...bRaw, ...lRaw, ...dRaw, ...sRaw];
     const allSafe = this.filterProductsByUserAllergens(allRaw, user);
     const allDiet = filterProductsByDietary(allSafe, restrictions);
-    const fallbackAny = this.filterProductsByDislikes(allDiet, dislikeKeywords);
+    const fallbackAny = this.filterProductsByDislikes(allDiet, dislikeKeywords).filter(
+      (p) => p.containsAlcohol !== true && !productLooksLikeAlcoholicSnack(p),
+    );
+    const fallbackSlot = (cat: MealSlotKey, targetCalories: number): MealSlotSnapshot => ({
+      name: `Блюдо (${cat})`,
+      calories: targetCalories > 0 ? targetCalories : 300,
+      protein: 20,
+      fat: 10,
+      carbs: 30,
+      allergens: [],
+      category: cat,
+    });
     const warnings: string[] = [];
     let replacedCount = 0;
     let unresolvedCount = 0;
@@ -862,7 +867,7 @@ export class MealPlanService {
         const replacement = this.pickClosestByCalories(source, target, pref);
         if (!replacement) {
           unresolvedCount += 1;
-          return snap;
+          return fallbackSlot(slot, target);
         }
         replacedCount += 1;
         if (violatesAllergy) allergyReplaced += 1;
@@ -1715,6 +1720,9 @@ export class MealPlanService {
     await this.assertNoAlcoholicSnapshotsIfMinor(user, days);
 
     const start = startDateIso ? new Date(startDateIso) : new Date();
+    if (Number.isNaN(start.getTime())) {
+      throw new BadRequestException('Некорректная дата начала плана');
+    }
     const name = this.clonePlanDisplayName(src.name, start);
     const endDate = new Date(start);
     endDate.setDate(endDate.getDate() + src.durationDays - 1);
@@ -2091,12 +2099,12 @@ export class MealPlanService {
     let merged = this.mergeConstructorRefinementAi(normalized, ai.changes, resolve);
 
     const [bRaw, lRaw, dRaw, sRaw] = await Promise.all([
-      this.productModel.findAll({ where: { category: 'breakfast', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'lunch', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'dinner', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
-      this.productModel.findAll({ where: { category: 'snack', isPublished: { [Op.ne]: false } }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'breakfast', isPublished: { [Op.ne]: false }, isFromApi: true }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'lunch', isPublished: { [Op.ne]: false }, isFromApi: true }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'dinner', isPublished: { [Op.ne]: false }, isFromApi: true }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
+      this.productModel.findAll({ where: { category: 'snack', isPublished: { [Op.ne]: false }, isFromApi: true }, order: [['calories', 'ASC'], ['id', 'ASC']] }),
     ]);
-    const pools = this.buildFilteredPools({ breakfast: bRaw, lunch: lRaw, dinner: dRaw, snack: sRaw }, user);
+    const pools = this.buildFilteredPools({ breakfast: bRaw, lunch: lRaw, dinner: dRaw, snack: sRaw }, user, pref);
     const fallbackAnyPool = Array.from(
       new Map(
         [...pools.breakfast, ...pools.lunch, ...pools.dinner, ...pools.snack].map((p) => [String(p.id), p]),

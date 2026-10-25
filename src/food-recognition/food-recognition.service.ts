@@ -8,7 +8,6 @@ import { MealItem } from '../models/MealItem';
 import type { ProductIngredient, ProductIngredientDetailed } from '../models/Product';
 import { Product } from '../models/Product';
 import { Ingredient } from '../models/Ingredient';
-import { NotificationsService } from '../notifications/notifications.service';
 import { User } from '../models/User';
 import { OpenAiService } from '../openai/openai.service';
 import { containsDietKey, productHasUserAllergen } from '../meal-plan/dietary-rules';
@@ -51,7 +50,6 @@ export class FoodRecognitionService {
     @InjectModel(User) private readonly userModel: typeof User,
     @InjectModel(Product) private readonly productModel: typeof Product,
     @InjectModel(Ingredient) private readonly ingredientModel: typeof Ingredient,
-    private readonly notifications: NotificationsService,
     private readonly openAiService: OpenAiService,
   ) {}
   private sanitizeSubmitRow(item: FoodRecognitionItemDto, rowIdx: number) {
@@ -396,14 +394,6 @@ export class FoodRecognitionService {
 
       return created;
     });
-
-    // Сохраняем предупреждения об аллергенах, привязав их к записи приёма пищи.
-    const { allergenWarnings } = await this.buildAllergenWarnings(uid, sanitized);
-    for (const item of sanitized) {
-      const forItem = allergenWarnings.filter((w) => w.includes(item.foodName));
-      if (forItem.length === 0) continue;
-      await this.notifications.saveAllergenWarnings(uid, forItem, item.foodName, meal.id);
-    }
 
     return {
       mealId: meal.id,

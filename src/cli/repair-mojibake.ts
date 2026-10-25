@@ -67,13 +67,6 @@ const TARGETS: RepairTarget[] = [
       ],
     },
   },
-  { label: 'training_blocks.title', table: 'training_blocks', column: 'title', pk: 'id' },
-  {
-    label: 'training_blocks.description',
-    table: 'training_blocks',
-    column: 'description',
-    pk: 'id',
-  },
   {
     label: 'base_recommendations.title',
     table: 'base_recommendations',
@@ -105,24 +98,17 @@ const TARGETS: RepairTarget[] = [
   { label: 'body_analyses.aiNotes', table: 'body_analyses', column: 'aiNotes', pk: 'id' },
   { label: 'meals.adminNote', table: 'meals', column: 'adminNote', pk: 'id' },
   { label: 'meal_plans.name', table: 'meal_plans', column: 'name', pk: 'id' },
-  { label: 'workout_plans.name', table: 'workout_plans', column: 'name', pk: 'id' },
   { label: 'suggestions.content', table: 'suggestions', column: 'content', pk: 'id', json: true },
   { label: 'chat_messages.content', table: 'chat_messages', column: 'content', pk: 'id' },
   { label: 'allergens.icon', table: 'allergens', column: 'icon', pk: 'id' },
   { label: 'ingredients.category', table: 'ingredients', column: 'category', pk: 'id' },
-  { label: 'training_blocks.exercises', table: 'training_blocks', column: 'exercises', pk: 'id', array: true },
-  { label: 'workout_plan_days.session1', table: 'workout_plan_days', column: 'session1', pk: 'id', json: true },
   // session2–session4 раньше отсутствовали в списке: снапшоты второй
   // тренировки дня оставались с битой кодировкой (140 записей).
-  { label: 'workout_plan_days.session2', table: 'workout_plan_days', column: 'session2', pk: 'id', json: true },
-  { label: 'workout_plan_days.session3', table: 'workout_plan_days', column: 'session3', pk: 'id', json: true },
-  { label: 'workout_plan_days.session4', table: 'workout_plan_days', column: 'session4', pk: 'id', json: true },
   // Прогнозы тела и заметки анализа: пользователь видит их как текст.
   { label: 'body_analyses.aiNotes', table: 'body_analyses', column: 'aiNotes', pk: 'id' },
   // Прогноз тела хранится у пользователя (в body_analyses такой колонки нет).
   { label: 'users.bodyForecastPayload', table: 'users', column: 'bodyForecastPayload', pk: 'id', json: true },
   { label: 'users.bodyForecastIllustrationUrl', table: 'users', column: 'bodyForecastIllustrationUrl', pk: 'id' },
-  { label: 'workout_plans.name', table: 'workout_plans', column: 'name', pk: 'id' },
   {
     label: 'meal_plan_days.breakfast',
     table: 'meal_plan_days',

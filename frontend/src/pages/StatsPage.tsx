@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Activity, Apple, Dumbbell, Target, Utensils } from '../components/icons';
+import { Activity, Apple, Target, Utensils } from '../components/icons';
 import {
   CartesianGrid,
   Legend,
@@ -30,7 +30,6 @@ export const StatsPage = () => {
   } | null>(null);
   const [summary, setSummary] = useState<{
     mealPlansCount: number;
-    workoutPlansCount: number;
     foodRecognitionCount: number;
   } | null>(null);
   const [bodySeries, setBodySeries] = useState<
@@ -47,18 +46,27 @@ export const StatsPage = () => {
   );
 
   useEffect(() => {
+    let cancelled = false;
     const load = async () => {
       if (!user) return;
-      const [pf, sum, body] = await Promise.all([
-        statsApi.planVsFact(user.id),
-        statsApi.summary(user.id),
-        statsApi.bodyMetrics(user.id),
-      ]);
-      setPlanFact(pf);
-      setSummary(sum);
-      setBodySeries(Array.isArray(body) ? body : []);
+      try {
+        const [pf, sum, body] = await Promise.all([
+          statsApi.planVsFact(user.id),
+          statsApi.summary(user.id),
+          statsApi.bodyMetrics(user.id),
+        ]);
+        if (cancelled) return;
+        setPlanFact(pf);
+        setSummary(sum);
+        setBodySeries(Array.isArray(body) ? body : []);
+      } catch {
+        // Ошибки загрузки игнорируем, оставляя пустое состояние
+      }
     };
     void load();
+    return () => {
+      cancelled = true;
+    };
   }, [user, pathname]);
 
   return (
@@ -85,9 +93,9 @@ export const StatsPage = () => {
             <strong>{summary?.mealPlansCount ?? 0}</strong>
           </div>
           <div className="card stat-mini">
-            <Dumbbell size={18} />
-            <span>Планов тренировок</span>
-            <strong>{summary?.workoutPlansCount ?? 0}</strong>
+            <Activity size={18} />
+            <span>Дней с записями</span>
+            <strong>{planFact?.daysWithMealsLogged ?? 0}</strong>
           </div>
           <div className="card stat-mini">
             <Apple size={18} />
