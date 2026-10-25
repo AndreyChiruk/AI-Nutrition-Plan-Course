@@ -41,6 +41,10 @@ services:
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET обязателен - добавьте его в .env (openssl rand -hex 32)}"
       CORS_ORIGINS: https://localhost,https://127.0.0.1,http://localhost,http://127.0.0.1:5173,http://localhost:5173
       DB_AUTO_SYNC: "${DB_AUTO_SYNC:-0}"
+      # Разрешить домены туннеля (*.trycloudflare.com) в CORS.
+      # Нужно только для внешнего тестирования: включить через .env —
+      # CORS_ALLOW_TUNNEL=1. По умолчанию выключено.
+      CORS_ALLOW_TUNNEL: "${CORS_ALLOW_TUNNEL:-0}"
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
@@ -82,6 +86,10 @@ services:
     ports:
       - '80:80'
       - '443:443'
+      # Порт только для туннеля. Публикуется ИСКЛЮЧИТЕЛЬНО на loopback:
+      # наружу его выставляет cloudflared, а не Docker, поэтому прямой
+      # доступ из локальной сети остаётся закрытым.
+      - '127.0.0.1:8080:8080'
     volumes:
       - ./docker/nginx/certs:/etc/nginx/certs:ro
       # Тот же том, что у api: Nginx отдаёт загруженные фото напрямую,

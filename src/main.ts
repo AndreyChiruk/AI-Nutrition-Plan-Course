@@ -7,12 +7,24 @@ import { LoggerService } from './logger/logger.service';
 
 dotenv.config();
 
-function corsOrigins(): string[] {
+// Express принимает и строки, и регулярные выражения — поэтому тип объединённый.
+function corsOrigins(): Array<string | RegExp> {
     const raw = process.env.CORS_ORIGINS?.trim();
-    if (raw) {
-        return raw.split(',').map((o) => o.trim()).filter(Boolean);
+    const list: Array<string | RegExp> = raw
+        ? raw.split(',').map((o) => o.trim()).filter(Boolean)
+        : ['http://localhost:5173', 'https://localhost', 'http://localhost'];
+
+    // Туннель для внешнего тестирования отдаёт приложение по случайному
+    // адресу (*.trycloudflare.com), который заранее неизвестен.
+    // Фронтенд обращается к API по относительному пути `/api`, поэтому
+    // с точки зрения браузера это same-origin и CORS не задействуется.
+    // Но явно разрешаем туннельные домены — на случай абсолютных запросов
+    // и чтобы правки не сломались при смене схемы адресов.
+    if (process.env.CORS_ALLOW_TUNNEL === '1') {
+        list.push(/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/);
     }
-    return ['http://localhost:5173', 'https://localhost', 'http://localhost'];
+
+    return list;
 }
 
 async function start() {
