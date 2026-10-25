@@ -26,7 +26,10 @@ export class MailService {
   async sendVerificationCode(to: string, code: string, subject: string) {
     if (!this.transporter) {
       throw new ServiceUnavailableException(
-        'Почта не настроена: укажите SMTP_HOST, SMTP_USER, SMTP_PASS в .env (и при необходимости SMTP_PORT, SMTP_FROM). Код не был отправлен.',
+        // Текст для пользователя, а не для разработчика:
+        // раньше здесь перечислялись переменные .env, что ничего
+        // не говорит человеку на экране регистрации.
+        'Не удалось отправить код на почту. Попробуйте ещё раз через минуту или войдите по паролю.',
       );
     }
 
@@ -45,8 +48,10 @@ export class MailService {
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       this.logger.error(`Ошибка SMTP при отправке на ${to}: ${reason}`);
+      // Наружу — понятное сообщение. Причина сбоя уже записана
+      // в лог строкой выше и видна администратору.
       throw new ServiceUnavailableException(
-        'Не удалось отправить письмо. Проверьте SMTP, пароль приложения (Gmail) и блокировки провайдера.',
+        'Не удалось отправить код на почту. Проверьте адрес и попробуйте ещё раз через минуту.',
       );
     }
   }

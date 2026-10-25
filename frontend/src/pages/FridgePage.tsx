@@ -59,7 +59,19 @@ const COUNTABLE_UNITS: FridgeUnit[] = ['шт'];
  * сначала «напитки», чтобы «молочный коктейль» не считался едой.
  */
 const LIQUID_CATEGORY_RE = /напит|жидкост|вода|сок|молок|кефир|бульон|соус|масло/i;
-const LIQUID_NAME_RE = /молок|молочн|кефир|ряженк|сок|вода|чай|кофе|компот|бульон|напит|сироп|уксус|вино|пиво|сливк|йогурт/i;
+/*
+ * Напитки и жидкие продукты.
+ *
+ * Список пришлось расширить: раньше в нём не было «кваса», «морса»,
+ * «лимонада» и подобных — они не распознавались как жидкости,
+ * и в форме предлагались только граммы. Пользователь вводил объём,
+ * а получал бессмысленное «2 г кваса».
+ *
+ * Порядок важен: «квашен» (капуста) проверяем раньше «квас»,
+ * иначе твёрдый продукт получит миллилитры.
+ */
+const LIQUID_NAME_RE =
+  /квашен|молок|молочн|кефир|ряженк|сок|вода|воды|чай|кофе|компот|бульон|напит|сироп|уксус|вино|пиво|сливк|йогурт|квас|морс|лимонад|смузи|кисель|какао|минерал|тоник|энергетик|кола|фанта|спрайт|нектар/i;
 /**
  * Считают ли продукт штуками.
  *
@@ -88,6 +100,9 @@ function isCountableProduct(name: string, category?: string | null): boolean {
  */
 function unitsForFridge(name: string, category?: string | null): FridgeUnit[] {
   const hay = `${category ?? ''} ${name}`.toLowerCase();
+  // «Квашеная капуста» и «квашеные огурцы» — твёрдые продукты: проверяем
+  // их раньше жидкостей, иначе корень «квас» ошибочно даёт миллилитры.
+  if (/квашен/.test(hay)) return SOLID_UNITS;
   if (LIQUID_CATEGORY_RE.test(category ?? '') || LIQUID_NAME_RE.test(hay)) return LIQUID_UNITS;
   if (isCountableProduct(name, category)) return COUNTABLE_UNITS;
   return SOLID_UNITS;
@@ -109,6 +124,26 @@ const CATEGORY_ORDER = [
   'Напитки',
   'Прочее',
 ];
+
+/*
+ * Границы для поля «Срок годности».
+ *
+ * Раньше атрибутов min/max не было вообще, и можно было сохранить
+ * продукт с датой в будущем на десятилетия вперёд — он никогда
+ * не выглядел просроченным. Сервер такие даты тоже не проверял.
+ *
+ * Формат YYYY-MM-DD — тот, что требует input[type=date].
+ */
+function isoDate(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+const TODAY_ISO = isoDate(new Date());
+const MAX_EXPIRY_ISO = (() => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() + 10);
+  return isoDate(d);
+})();
 
 /** Сколько дней осталось до конца срока годности (null — срока нет). */
 function daysLeft(iso?: string | null): number | null {
@@ -451,6 +486,8 @@ export function FridgePage() {
           <input
             type="date"
             value={draftExpiry}
+            min={TODAY_ISO}
+            max={MAX_EXPIRY_ISO}
             onChange={(e) => setDraftExpiry(e.target.value)}
             aria-label="Срок годности"
             title="Срок годности (необязательно)"

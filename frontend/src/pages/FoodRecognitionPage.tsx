@@ -26,10 +26,28 @@ export const FoodRecognitionPage = () => {
     try {
       const dataUrl = await prepareImage(file);
       setPhotoUrl(dataUrl);
+      /*
+       * Смена фото обесценивает прошлый результат распознавания.
+       *
+       * Раньше результат оставался, а `saveForModeration` брал текущий
+       * `photoUrl`: пользователь мог отправить фото еды на анализ, заменить
+       * его на другое — и на модерацию уходило описание от первого фото
+       * вместе со вторым снимком.
+       */
+      setResult(null);
+      setSubmitted(false);
+      setSavedInfo('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось обработать изображение.');
     }
   };
+  /**
+   * Фото, для которого получен текущий результат.
+   *
+   * Нужно, чтобы отличить актуальный результат от устаревшего: если
+   * пользователь сменил снимок после анализа, сохранять его нельзя.
+   */
+  const [analyzedPhotoUrl, setAnalyzedPhotoUrl] = useState('');
 
   const analyze = async () => {
     if (!user) return;
@@ -37,14 +55,21 @@ export const FoodRecognitionPage = () => {
       setError('Загрузите фото блюда.');
       return;
     }
+    /*
+     * Запоминаем снимок, на который ушёл запрос. Если за время ответа
+     * пользователь выберет другое фото — результат не применяем:
+     * он описывает уже не то изображение.
+     */
+    const requestedPhoto = photoUrl;
     setLoading(true);
     setError('');
     setResult(null);
     setSavedInfo('');
     setSubmitted(false);
     try {
-      const data = await foodRecognitionApi.analyze(user.id, photoUrl);
+      const data = await foodRecognitionApi.analyze(user.id, requestedPhoto);
       setResult(data);
+      setAnalyzedPhotoUrl(requestedPhoto);
       setToast('Распознавание выполнено. При необходимости сохраните запись для модерации.');
     } catch (err) {
       const msg = axios.isAxiosError(err)
@@ -58,6 +83,12 @@ export const FoodRecognitionPage = () => {
 
   const saveForModeration = async () => {
     if (!user || !result || !photoUrl) return;
+    // Результат относится к другому снимку — сохранять его нельзя.
+    if (analyzedPhotoUrl && analyzedPhotoUrl !== photoUrl) {
+      setError('Фото изменилось после распознавания. Запустите анализ заново.');
+      setResult(null);
+      return;
+    }
     setSaving(true);
     setError('');
     setSavedInfo('');

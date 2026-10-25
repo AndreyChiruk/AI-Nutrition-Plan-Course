@@ -10,7 +10,15 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { AlertTriangle, Brain, ChefHat, ClipboardList, Lock, ShoppingBasket } from '../components/icons';
+import {
+  AlertTriangle,
+  Brain,
+  ChefHat,
+  ClipboardList,
+  Loader2,
+  Lock,
+  ShoppingBasket,
+} from '../components/icons';
 import { isAxiosError } from 'axios';
 import {
   mealPlanApi,
@@ -691,6 +699,8 @@ export const MealPlanPage = () => {
   const [duration, setDuration] = useState<number>(14);
   const [isLoadingAi, setIsLoadingAi] = useState(false);
   const [isLoadingPlan, setIsLoadingPlan] = useState(false);
+  /** Идёт генерация плана — блокирует кнопки и показывает спиннер. */
+  const [isGenerating, setIsGenerating] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
   const [aiError, setAiError] = useState('');
   const [selectedMeal, setSelectedMeal] = useState<MealItem | null>(null);
@@ -934,6 +944,15 @@ export const MealPlanPage = () => {
 
   const runGenerate = async (kind: 'auto' | 'aiCat') => {
     if (!user) return;
+    /*
+     * Единый флаг генерации на обе ветки (auto и aiCat).
+     *
+     * Раньше isLoadingAi выставлялся только внутри AI-ветки, а кнопка
+     * «Запустить» не имела ни disabled, ни индикатора: пользователь нажимал
+     * и не понимал, идёт работа или ничего не произошло (генерация может
+     * занимать десятки секунд).
+     */
+    setIsGenerating(true);
     setSaveMsg('');
     setAiError('');
     const tc = targetInput;
@@ -980,6 +999,7 @@ export const MealPlanPage = () => {
         setSaveMsg(info.hint ? `${info.message} ${info.hint}` : info.message);
       }
     } finally {
+      setIsGenerating(false);
       setIsLoadingAi(false);
       setShowTargetModal(false);
       setPendingGenerate(null);
@@ -1709,7 +1729,13 @@ export const MealPlanPage = () => {
               description="Генерация рациона искусственным интеллектом доступна по подписке."
             >
               <button type="button" className="btn-primary" onClick={() => openGenerateModal('aiCat')} disabled={isLoadingAi}>
-                {isLoadingAi ? '…' : 'Сгенерировать AI по каталогу БД'}
+                {isLoadingAi ? (
+                  <>
+                    <Loader2 size={16} className="btn-spinner" /> Генерирую…
+                  </>
+                ) : (
+                  'Сгенерировать AI по каталогу БД'
+                )}
               </button>
             </SubscriptionGate>
           ) : null}
@@ -1778,10 +1804,23 @@ export const MealPlanPage = () => {
                   type="button"
                   className="btn-primary"
                   onClick={() => pendingGenerate && void runGenerate(pendingGenerate)}
+                  disabled={isGenerating}
+                  aria-busy={isGenerating}
                 >
-                  Запустить
+                  {isGenerating ? (
+                    <>
+                      <Loader2 size={16} className="btn-spinner" /> Генерирую…
+                    </>
+                  ) : (
+                    'Запустить'
+                  )}
                 </button>
-                <button type="button" className="btn-secondary" onClick={() => setShowTargetModal(false)}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={isGenerating}
+                  onClick={() => setShowTargetModal(false)}
+                >
                   Отмена
                 </button>
               </div>

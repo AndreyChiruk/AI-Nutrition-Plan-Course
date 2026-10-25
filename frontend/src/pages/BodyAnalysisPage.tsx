@@ -253,7 +253,19 @@ export const BodyAnalysisPage = () => {
     try {
       await bodyApi.forecast(user.id, forecastWeeks);
       const state = await bodyApi.pageState(user.id);
-      applyPageState(state);
+      /*
+       * Обновляем ТОЛЬКО поля прогноза, а не всё состояние страницы.
+       *
+       * Раньше здесь вызывался applyPageState(state), который при
+       * отсутствии сохранённого анализа обнуляет photoUrl — загруженное
+       * пользователем фото пропадало сразу после нажатия «Построить
+       * прогноз». Прогноз и превью фото — независимые вещи.
+       */
+      setForecast(state.savedForecast);
+      if (state.savedForecastWeeks != null) setForecastWeeks(state.savedForecastWeeks);
+      setForecastAtLabel(
+        state.forecastUpdatedAt ? new Date(state.forecastUpdatedAt).toLocaleString('ru-RU') : '',
+      );
     } catch (err) {
       setMessage(formatApiError(err, 'Не удалось выполнить AI-запрос.'));
     } finally {
@@ -347,7 +359,7 @@ export const BodyAnalysisPage = () => {
                 {busy
                   ? 'Загрузка…'
                   : dirty
-                    ? 'Сохранить фото'
+                    ? 'Сохранить и проанализировать'
                     : photoUrl
                       ? 'Заменить фото'
                       : 'Загрузить фото'}

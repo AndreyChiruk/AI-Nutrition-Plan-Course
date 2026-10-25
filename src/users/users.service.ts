@@ -539,10 +539,10 @@ export class UsersService {
     return this.fridgeItemModel.create({
       userId: Number(userId),
       name: payload.name.trim(),
-      quantity: payload.quantity && payload.quantity > 0 ? payload.quantity : 100,
+      quantity: this.validateFridgeQuantity(payload.quantity),
       unit,
       ingredientId: ingredient?.id ?? null,
-      expiresAt: payload.expiresAt ? new Date(payload.expiresAt) : null,
+      expiresAt: this.validateFridgeExpiry(payload.expiresAt),
     } as never);
   }
 
@@ -566,10 +566,12 @@ export class UsersService {
       const ingredient = await this.findIngredientByName(payload.name);
       patch.ingredientId = ingredient?.id ?? null;
     }
-    if (payload.quantity !== undefined) patch.quantity = payload.quantity > 0 ? payload.quantity : 100;
+    if (payload.quantity !== undefined) {
+      patch.quantity = this.validateFridgeQuantity(payload.quantity);
+    }
     if (payload.unit !== undefined) patch.unit = this.normalizeMassUnit(payload.unit);
     if (payload.expiresAt !== undefined) {
-      patch.expiresAt = payload.expiresAt ? new Date(payload.expiresAt) : null;
+      patch.expiresAt = this.validateFridgeExpiry(payload.expiresAt);
     }
     await row.update(patch as never);
     return row;
@@ -597,6 +599,66 @@ export class UsersService {
       .trim()
       .toLowerCase();
     return MASS_UNIT_MAP[key] ?? 'г';
+  }
+
+  /**
+   * Проверяет количество продукта и возвращает его в виде числа.
+   *
+   * Раньше здесь была только проверка `> 0`, и всё неподходящее молча
+   * заменялось на 100 г. Из-за этого проходили бессмысленные значения
+   * вроде 0.0001 г, а при вводе нуля или минуса пользователь не понимал,
+   * почему в списке оказалось «100 г» вместо его числа.
+   *
+   * Верхняя граница — защита от опечаток: 50000 г (50 кг) продукта
+   * в холодильнике — это явная ошибка ввода.
+   */
+  private validateFridgeQuantity(raw: unknown): number {
+    if (raw === undefined || raw === null || raw === '') {
+      return 100;
+    }
+    const value = typeof raw === 'number' ? raw : Number(String(raw).replace(',', '.'));
+    if (!Number.isFinite(value)) {
+      throw new BadRequestException('Количество должно быть числом');
+    }
+    if (value <= 0) {
+      throw new BadRequestException('Количество должно быть больше нуля');
+    }
+    if (value < 0.1) {
+      throw new BadRequestException('Количество слишком мало: минимум 0.1');
+    }
+    if (value > 50000) {
+      throw new BadRequestException('Количество слишком велико: максимум 50000');
+    }
+    return value;
+  }
+
+  /**
+   * Проверяет срок годности продукта.
+   *
+   * Дата в будущем не имеет смысла для срока годности — товар ещё
+   * не произведён. Без этой проверки в холодильник попадали «продукты
+   * из будущего», которые никогда не выглядели просроченными.
+   * Максимум — 10 лет вперёд: защита от опечатки в годе.
+   */
+  private validateFridgeExpiry(raw: unknown): Date | null {
+    if (raw === undefined || raw === null || raw === '') {
+      return null;
+    }
+    const date = new Date(String(raw));
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException('Некорректная дата срока годности');
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (date.getTime() < today.getTime()) {
+      throw new BadRequestException('Срок годности не может быть в прошлом');
+    }
+    const maxDate = new Date(today);
+    maxDate.setFullYear(maxDate.getFullYear() + 10);
+    if (date.getTime() > maxDate.getTime()) {
+      throw new BadRequestException('Срок годности указан слишком далеко в будущем');
+    }
+    return date;
   }
 
   private normalizeIngredientName(name: string): string {
