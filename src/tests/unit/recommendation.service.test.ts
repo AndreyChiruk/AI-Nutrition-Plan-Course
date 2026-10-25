@@ -3,26 +3,84 @@ import { describe, it } from 'mocha';
 import { RecommendationService } from '../../recommendation/recommendation.service';
 
 describe('RecommendationService unit', () => {
-  it('getBaseRecommendations делегирует findAll в модель', async () => {
-    const rows = [{ id: '1', title: 'Пейте воду' }];
+  it('getBaseRecommendations фильтрует по аудитории взрослого', async () => {
+    const rows = [{ id: '1', title: 'Пейте воду', audience: 'adult' }];
+    let seenWhere: Record<string, unknown> | undefined;
     const baseRecommendationModel = {
-      findAll: async (opts: { order: unknown }) => {
+      findAll: async (opts: { where: Record<string, unknown>; order: unknown }) => {
+        seenWhere = opts.where;
         assert.deepEqual(opts.order, [['createdAt', 'DESC']]);
         return rows;
       },
     };
+    // Взрослый пользователь: 1990 год рождения.
+    const userModel = {
+      findByPk: async () => ({ id: '1', birthDate: new Date('1990-01-01') }),
+    };
     const service = new RecommendationService(
       {} as never,
-      {} as never,
+      userModel as never,
       {} as never,
       baseRecommendationModel as never,
       {} as never,
       {} as never,
     );
 
-    const result = await service.getBaseRecommendations();
+    const result = await service.getBaseRecommendations('1');
 
+    assert.deepEqual(seenWhere, { audience: 'adult' });
     assert.deepEqual(result, rows);
+  });
+
+  it('getBaseRecommendations отдаёт minor для несовершеннолетнего', async () => {
+    let seenWhere: Record<string, unknown> | undefined;
+    const baseRecommendationModel = {
+      findAll: async (opts: { where: Record<string, unknown> }) => {
+        seenWhere = opts.where;
+        return [];
+      },
+    };
+    // Ребёнок: дата рождения — 5 лет назад.
+    const fiveYearsAgo = new Date();
+    fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+    const userModel = {
+      findByPk: async () => ({ id: '2', birthDate: fiveYearsAgo }),
+    };
+    const service = new RecommendationService(
+      {} as never,
+      userModel as never,
+      {} as never,
+      baseRecommendationModel as never,
+      {} as never,
+      {} as never,
+    );
+
+    await service.getBaseRecommendations('2');
+
+    assert.deepEqual(seenWhere, { audience: 'minor' });
+  });
+
+  it('getBaseRecommendations считает взрослым, если дата рождения не задана', async () => {
+    let seenWhere: Record<string, unknown> | undefined;
+    const baseRecommendationModel = {
+      findAll: async (opts: { where: Record<string, unknown> }) => {
+        seenWhere = opts.where;
+        return [];
+      },
+    };
+    const userModel = { findByPk: async () => ({ id: '3', birthDate: null }) };
+    const service = new RecommendationService(
+      {} as never,
+      userModel as never,
+      {} as never,
+      baseRecommendationModel as never,
+      {} as never,
+      {} as never,
+    );
+
+    await service.getBaseRecommendations('3');
+
+    assert.deepEqual(seenWhere, { audience: 'adult' });
   });
 
   it('generate создаёт suggestion с ответом ИИ', async () => {

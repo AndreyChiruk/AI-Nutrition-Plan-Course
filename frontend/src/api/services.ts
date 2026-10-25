@@ -311,8 +311,9 @@ export const foodRecognitionApi = {
 };
 
 export const recommendationApi = {
-  getBase: async () => {
-    const { data } = await api.get('/recommendations/base');
+  /** Базовые рекомендации с учётом возраста: фильтрует сервер. */
+  getBase: async (userId: string | number) => {
+    const { data } = await api.get(`/recommendations/base/${userId}`);
     return data;
   },
   generate: async (userId: string | number) => {

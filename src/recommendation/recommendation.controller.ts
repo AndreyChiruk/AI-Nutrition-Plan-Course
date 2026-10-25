@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { assertUserAccess } from '../auth/request-access.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -11,9 +11,23 @@ import { Throttle } from '@nestjs/throttler';
 export class RecommendationController {
   constructor(private readonly recommendationService: RecommendationService) {}
 
-  @Get('base')
-  getBaseRecommendations() {
-    return this.recommendationService.getBaseRecommendations();
+  /*
+   * Базовые рекомендации для конкретного пользователя.
+   *
+   * Раньше маршрут был публичным и без параметров: отдавал все записи,
+   * а поле audience ни на что не влияло. Теперь по userId вычисляется
+   * возраст и возвращаются только подходящие рекомендации.
+   *
+   * Доступ проверяется через assertUserAccess — чужой userId вернёт 403.
+   */
+  @Get('base/:userId')
+  @UseGuards(JwtAuthGuard, FullUserGuard)
+  getBaseRecommendations(
+    @Req() req: Request & { user?: { sub?: number; role?: string } },
+    @Param('userId') userId: string,
+  ) {
+    assertUserAccess(req.user, userId);
+    return this.recommendationService.getBaseRecommendations(userId);
   }
 
   @Post('generate')

@@ -73,10 +73,13 @@ describe('API smoke / интеграционные тесты', function () {
     }
   });
 
-  it('01 GET /recommendations/base — публичный маршрут, 200', async function () {
+  it('01 GET /recommendations/base/:userId — без токена отвечает 401', async function () {
     if (skipSuite) this.skip();
-    const res = await request(httpServer).get(api('/recommendations/base')).expect(200);
-    assert.isArray(res.body);
+    /*
+     * Маршрут перестал быть публичным: рекомендации фильтруются
+     * по возрасту, поэтому нужен userId и проверка владельца.
+     */
+    await request(httpServer).get(api('/recommendations/base/1')).expect(401);
   });
 
   it('02 GET /users/:id без Authorization — 401', async function () {

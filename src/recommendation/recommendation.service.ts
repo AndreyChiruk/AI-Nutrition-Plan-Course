@@ -8,6 +8,7 @@ import { Suggestion } from '../models/Suggestion';
 import { User } from '../models/User';
 import { OpenAiService } from '../openai/openai.service';
 import { normalizeGoalByWeight } from '../common/weight-goal.util';
+import { computeFullYearsFromBirthDate } from '../common/age.util';
 import { UsersService } from '../users/users.service';
 
 const DIET_KEY_LABEL_RU: Record<string, string> = {
@@ -37,8 +38,31 @@ export class RecommendationService {
     private readonly openAiService: OpenAiService,
   ) {}
 
-  getBaseRecommendations() {
-    return this.baseRecommendationModel.findAll({ order: [['createdAt', 'DESC']] });
+  /**
+   * Базовые рекомендации с учётом возраста пользователя.
+   *
+   * Аудитория (`adult` / `minor`) раньше была просто подписью в админке
+   * и ни на что не влияла: эндпоинт отдавал все записи подряд. Теперь
+   * рекомендации для несовершеннолетних не показываются взрослым,
+   * и наоборот.
+   *
+   * Возраст берётся из birthDate. Если дата не заполнена — считаем
+   * пользователя взрослым: это безопасный вариант по умолчанию,
+   * а незаполненная дата — частый случай.
+   */
+  async getBaseRecommendations(userId?: string) {
+    let audience: 'adult' | 'minor' = 'adult';
+
+    if (userId) {
+      const user = await this.userModel.findByPk(userId, { attributes: ['id', 'birthDate'] });
+      const age = computeFullYearsFromBirthDate(user?.birthDate ?? null);
+      if (age !== null && age < 18) audience = 'minor';
+    }
+
+    return this.baseRecommendationModel.findAll({
+      where: { audience },
+      order: [['createdAt', 'DESC']],
+    });
   }
 
   async generate(userId: string) {

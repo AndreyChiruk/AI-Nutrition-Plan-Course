@@ -75,16 +75,22 @@ export const RecommendationsPage = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    /*
+     * Рекомендации зависят от возраста, поэтому без пользователя
+     * запрашивать их нечего: раньше маршрут был публичным и отдавал
+     * все записи независимо от аудитории.
+     */
+    if (!user?.id) return;
     const loadBase = async () => {
       try {
-        const data = await recommendationApi.getBase();
+        const data = await recommendationApi.getBase(user.id);
         setBaseRecommendations(data as Array<Record<string, unknown>>);
       } catch (err) {
         setError(formatApiError(err, 'Не удалось получить рекомендации.'));
       }
     };
     void loadBase();
-  }, []);
+  }, [user?.id]);
 
   const cacheKey = useMemo(() => `ai-recommendation:${user?.id ?? 'anon'}`, [user?.id]);
 
